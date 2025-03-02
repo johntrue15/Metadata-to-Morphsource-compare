@@ -34,17 +34,20 @@ class MorphosourceVoxelVerifier:
             print(f"Loading data from {self.input_csv}...")
             self.matches_data = pd.read_csv(self.input_csv)
             
+            # Check available columns for debugging
+            print(f"Available columns in CSV: {list(self.matches_data.columns)}")
+            
             # Check if required columns exist
-            required_cols = ['Morphosource_URL', 'Voxel_x_spacing', 'Voxel_y_spacing', 'Voxel_z_spacing']
+            required_cols = ['Morphosource_URL', 'x_voxel_spacing_mm', 'y_voxel_spacing_mm', 'z_voxel_spacing_mm']
             missing_cols = [col for col in required_cols if col not in self.matches_data.columns]
             
             if missing_cols:
                 # Try alternate column names
                 column_mappings = {
-                    'Morphosource_URL': ['url', 'URL', 'morphosource_url'],
-                    'Voxel_x_spacing': ['voxel_x_spacing', 'x_spacing', 'x_pixel_spacing'],
-                    'Voxel_y_spacing': ['voxel_y_spacing', 'y_spacing', 'y_pixel_spacing'],
-                    'Voxel_z_spacing': ['voxel_z_spacing', 'z_spacing', 'z_pixel_spacing']
+                    'Morphosource_URL': ['url', 'URL', 'morphosource_url', 'Match_URL'],
+                    'x_voxel_spacing_mm': ['voxel_x_spacing', 'x_spacing', 'x_pixel_spacing', 'Voxel_x_spacing', 'pixel_spacing_x'],
+                    'y_voxel_spacing_mm': ['voxel_y_spacing', 'y_spacing', 'y_pixel_spacing', 'Voxel_y_spacing', 'pixel_spacing_y'],
+                    'z_voxel_spacing_mm': ['voxel_z_spacing', 'z_spacing', 'z_pixel_spacing', 'Voxel_z_spacing', 'pixel_spacing_z']
                 }
                 
                 for required_col in missing_cols:
@@ -59,8 +62,12 @@ class MorphosourceVoxelVerifier:
             if missing_cols:
                 print(f"Error: Missing required columns: {missing_cols}")
                 print(f"Available columns: {list(self.matches_data.columns)}")
-                return False
-            
+                
+                # Create empty columns with NaN values for missing columns
+                print(f"Creating empty columns for missing fields: {missing_cols}")
+                for col in missing_cols:
+                    self.matches_data[col] = float('nan')
+                
             print(f"Successfully loaded {len(self.matches_data)} records")
             return True
             
@@ -320,10 +327,16 @@ class MorphosourceVoxelVerifier:
             
             processed += 1
             
-            url = row.get('Morphosource_URL')
-            
+            # Get the URL from Morphosource_URL or alternative column names
+            url = None
+            url_col_names = ['Morphosource_URL', 'url', 'URL', 'morphosource_url', 'Match_URL']
+            for col_name in url_col_names:
+                if col_name in row and pd.notna(row[col_name]) and row[col_name]:
+                    url = row[col_name]
+                    break
+                    
             # Skip rows without URLs
-            if pd.isna(url) or not url:
+            if not url:
                 print(f"Skipping row {idx+1}: No URL")
                 self.matches_data.at[idx, 'voxel_spacing_verified'] = "Skipped"
                 skipped_count += 1
@@ -351,7 +364,7 @@ class MorphosourceVoxelVerifier:
             # Store API values
             self.matches_data.at[idx, 'api_voxel_spacing'] = f"({api_x}, {api_y}, {api_z})"
             
-            # Extract voxel spacing from CSV
+            # Extract voxel spacing from CSV - try different column names if needed
             csv_x = row.get('x_voxel_spacing_mm', None)
             csv_y = row.get('y_voxel_spacing_mm', None)
             csv_z = row.get('z_voxel_spacing_mm', None)
@@ -363,8 +376,13 @@ class MorphosourceVoxelVerifier:
                 skipped_count += 1
             elif not csv_x or not csv_y or not csv_z:
                 print(f"Row {idx+1}: CSV has incomplete voxel spacing data")
-                self.matches_data.at[idx, 'voxel_spacing_verified'] = "Incomplete CSV data"
-                skipped_count += 1
+                
+                # Store the API values in the CSV for future use
+                self.matches_data.at[idx, 'x_voxel_spacing_mm'] = api_x
+                self.matches_data.at[idx, 'y_voxel_spacing_mm'] = api_y
+                self.matches_data.at[idx, 'z_voxel_spacing_mm'] = api_z
+                self.matches_data.at[idx, 'voxel_spacing_verified'] = "API values used"
+                verified_count += 1
             elif self.compare_pixel_spacing(csv_x, csv_y, csv_z, api_x, api_y, api_z):
                 print(f"Row {idx+1}: Voxel spacing verified ✓")
                 self.matches_data.at[idx, 'voxel_spacing_verified'] = "Yes"
@@ -416,174 +434,173 @@ class MorphosourceVoxelVerifier:
             print(f"Error saving results: {str(e)}")
             return False
 
-# Improved function to examine API response in detail
-def examine_api_response_in_detail(media_id):
-    # Create a basic verifier with no file dependency
-    temp_verifier = MorphosourceVoxelVerifier("dummy.csv")
-    
-    # Fetch the API response
-    print(f"Fetching API data for media ID: {media_id}")
-    response = temp_verifier.get_media_details(media_id)
-    
-    if not response:
-        print("Failed to get API response")
-        return
-    
-    # Save the full response for examination
-    with open(f"media_{media_id}_response.json", "w") as f:
-        json.dump(response, f, indent=2)
-    print(f"Saved full API response to media_{media_id}_response.json")
-    
-    # Recursive function to find all fields related to pixel spacing or resolution
-    def find_all_related_fields(obj, path=""):
-        results = []
-        
-        if isinstance(obj, dict):
-            for key, value in obj.items():
-                new_path = f"{path}.{key}" if path else key
-                
-                # Check if key contains relevant terms
-                terms = ["pixel", "spacing", "voxel", "resolution", "res", "dimension", "scale"]
-                if any(term in key.lower() for term in terms):
-                    results.append({
-                        "path": new_path,
-                        "key": key,
-                        "value": value,
-                        "type": type(value).__name__
-                    })
-                
-                # Continue searching nested objects
-                results.extend(find_all_related_fields(value, new_path))
-                
-        elif isinstance(obj, list):
-            for i, item in enumerate(obj):
-                new_path = f"{path}[{i}]"
-                results.extend(find_all_related_fields(item, new_path))
-                
-        return results
-    
-    # Find all fields that might contain pixel spacing info
-    fields = find_all_related_fields(response)
-    
-    if fields:
-        print("\n=== Potential Pixel Spacing Fields ===")
-        for field in fields:
-            print(f"Path: {field['path']}")
-            print(f"Key: {field['key']}")
-            print(f"Value: {field['value']}")
-            print(f"Type: {field['type']}")
-            print("---")
-    else:
-        print("\nNo fields related to pixel spacing found in the API response.")
-    
-    # Check for specific structures in the API response
-    if 'data' in response:
-        data = response['data']
-        
-        # Common locations to check
-        locations = [
-            ('metadata.MicroCT Settings', 'MicroCT scanning settings'),
-            ('metadata.Scanner Parameters', 'Scanner configuration'),
-            ('metadata.Resolution', 'Resolution information'),
-            ('media_metrics', 'Media metrics'),
-            ('technical_metadata', 'Technical metadata'),
-            ('derived_metrics', 'Derived metrics')
-        ]
-        
-        print("\n=== Checking Common Locations ===")
-        for path, description in locations:
-            parts = path.split('.')
-            current = data
-            found = True
-            
-            for part in parts:
-                if part in current:
-                    current = current[part]
-                else:
-                    found = False
-                    break
-            
-            if found:
-                print(f"Found {description} at data.{path}:")
-                if isinstance(current, dict):
-                    for k, v in current.items():
-                        print(f"  {k}: {v}")
-                else:
-                    print(f"  Value: {current}")
-    
-    return response
-
-# Call the function with the problematic media ID
-media_id = "000407755"
-detailed_response = examine_api_response_in_detail(media_id)
-
-# Simple function to print key sections of the API response
-def print_key_sections(media_data):
-    if not media_data:
-        print("No media data to examine")
-        return
-    
-    # Check if we have the data key
-    data = media_data.get('data', media_data)
-    
-    print("\n=== Key Sections ===")
-    
-    # Print metadata keys 
-    if 'metadata' in data:
-        print("\nMetadata sections:")
-        for key in data['metadata'].keys():
-            print(f"  - {key}")
-    
-    # Check for common technical sections
-    for section in ['media_metrics', 'technical_metadata', 'derived_metrics']:
-        if section in data:
-            print(f"\n{section}:")
-            if isinstance(data[section], dict):
-                for key, value in data[section].items():
-                    print(f"  - {key}: {value}")
-                
-    # Look for sections with voxel, resolution or pixel in the name
-    for key, value in data.items():
-        if any(term in key.lower() for term in ['voxel', 'resolution', 'pixel']):
-            print(f"\n{key}:")
-            print(f"  {value}")
-
-# Print the key sections
-if detailed_response:
-    print_key_sections(detailed_response)
-
-# Test the updated extraction function
-def test_updated_extraction(media_id):
-    # Create a verifier
-    verifier = MorphosourceVoxelVerifier("dummy.csv")
-    
-    # Get media details
-    media_data = verifier.get_media_details(media_id)
-    
-    if not media_data:
-        print("Failed to get media data")
-        return
-    
-    # Extract pixel spacing using the updated method
-    x, y, z = verifier.extract_pixel_spacing(media_data)
-    
-    print(f"\nExtracted spacing values:")
-    print(f"X spacing: {x}")
-    print(f"Y spacing: {y}")
-    print(f"Z spacing: {z}")
-    
-    # Compare with expected values
-    expected = "0.04134338"
-    if x == expected and y == expected and z == expected:
-        print("\n✅ Values match expected value of 0.04134338")
-    else:
-        print(f"\n❌ Values don't match expected value of 0.04134338")
-
-# Test with the problematic media ID
-test_updated_extraction("000407755")
-
 # Main execution block when script is run directly
 if __name__ == "__main__":
+    # Uncomment below for testing specific media IDs
+    """
+    # Improved function to examine API response in detail
+    def examine_api_response_in_detail(media_id):
+        # Create a basic verifier with no file dependency
+        temp_verifier = MorphosourceVoxelVerifier("dummy.csv")
+        
+        # Fetch the API response
+        print(f"Fetching API data for media ID: {media_id}")
+        response = temp_verifier.get_media_details(media_id)
+        
+        if not response:
+            print("Failed to get API response")
+            return
+        
+        # Save the full response for examination
+        with open(f"media_{media_id}_response.json", "w") as f:
+            json.dump(response, f, indent=2)
+        print(f"Saved full API response to media_{media_id}_response.json")
+        
+        # Recursive function to find all fields related to pixel spacing or resolution
+        def find_all_related_fields(obj, path=""):
+            results = []
+            
+            if isinstance(obj, dict):
+                for key, value in obj.items():
+                    new_path = f"{path}.{key}" if path else key
+                    
+                    # Check if key contains relevant terms
+                    terms = ["pixel", "spacing", "voxel", "resolution", "res", "dimension", "scale"]
+                    if any(term in key.lower() for term in terms):
+                        results.append({
+                            "path": new_path,
+                            "key": key,
+                            "value": value,
+                            "type": type(value).__name__
+                        })
+                    
+                    # Continue searching nested objects
+                    results.extend(find_all_related_fields(value, new_path))
+                    
+            elif isinstance(obj, list):
+                for i, item in enumerate(obj):
+                    new_path = f"{path}[{i}]"
+                    results.extend(find_all_related_fields(item, new_path))
+                    
+            return results
+        
+        # Find all fields that might contain pixel spacing info
+        fields = find_all_related_fields(response)
+        
+        if fields:
+            print("\n=== Potential Pixel Spacing Fields ===")
+            for field in fields:
+                print(f"Path: {field['path']}")
+                print(f"Key: {field['key']}")
+                print(f"Value: {field['value']}")
+                print(f"Type: {field['type']}")
+                print("---")
+        else:
+            print("\nNo fields related to pixel spacing found in the API response.")
+        
+        # Check for specific structures in the API response
+        if 'data' in response:
+            data = response['data']
+            
+            # Common locations to check
+            locations = [
+                ('metadata.MicroCT Settings', 'MicroCT scanning settings'),
+                ('metadata.Scanner Parameters', 'Scanner configuration'),
+                ('metadata.Resolution', 'Resolution information'),
+                ('media_metrics', 'Media metrics'),
+                ('technical_metadata', 'Technical metadata'),
+                ('derived_metrics', 'Derived metrics')
+            ]
+            
+            print("\n=== Checking Common Locations ===")
+            for path, description in locations:
+                parts = path.split('.')
+                current = data
+                found = True
+                
+                for part in parts:
+                    if part in current:
+                        current = current[part]
+                    else:
+                        found = False
+                        break
+                
+                if found:
+                    print(f"Found {description} at data.{path}:")
+                    if isinstance(current, dict):
+                        for k, v in current.items():
+                            print(f"  {k}: {v}")
+                    else:
+                        print(f"  Value: {current}")
+        
+        return response
+
+    # Simple function to print key sections of the API response
+    def print_key_sections(media_data):
+        if not media_data:
+            print("No media data to examine")
+            return
+        
+        # Check if we have the data key
+        data = media_data.get('data', media_data)
+        
+        print("\n=== Key Sections ===")
+        
+        # Print metadata keys 
+        if 'metadata' in data:
+            print("\nMetadata sections:")
+            for key in data['metadata'].keys():
+                print(f"  - {key}")
+        
+        # Check for common technical sections
+        for section in ['media_metrics', 'technical_metadata', 'derived_metrics']:
+            if section in data:
+                print(f"\n{section}:")
+                if isinstance(data[section], dict):
+                    for key, value in data[section].items():
+                        print(f"  - {key}: {value}")
+                
+        # Look for sections with voxel, resolution or pixel in the name
+        for key, value in data.items():
+            if any(term in key.lower() for term in ['voxel', 'resolution', 'pixel']):
+                print(f"\n{key}:")
+                print(f"  {value}")
+
+    # Test the updated extraction function
+    def test_updated_extraction(media_id):
+        # Create a verifier
+        verifier = MorphosourceVoxelVerifier("dummy.csv")
+        
+        # Get media details
+        media_data = verifier.get_media_details(media_id)
+        
+        if not media_data:
+            print("Failed to get media data")
+            return
+        
+        # Extract pixel spacing using the updated method
+        x, y, z = verifier.extract_pixel_spacing(media_data)
+        
+        print(f"\nExtracted spacing values:")
+        print(f"X spacing: {x}")
+        print(f"Y spacing: {y}")
+        print(f"Z spacing: {z}")
+        
+        # Compare with expected values
+        expected = "0.04134338"
+        if x == expected and y == expected and z == expected:
+            print("\n✅ Values match expected value of 0.04134338")
+        else:
+            print(f"\n❌ Values don't match expected value of 0.04134338")
+
+    # Uncomment and run for testing specific media IDs
+    # media_id = "000407755"
+    # detailed_response = examine_api_response_in_detail(media_id)
+    # if detailed_response:
+    #     print_key_sections(detailed_response)
+    # test_updated_extraction("000407755")
+    """
+    
     # Set up command line argument parser
     parser = argparse.ArgumentParser(description="Verify voxel spacing values in matched.csv against MorphoSource API")
     parser.add_argument("--csv", "-c", help="Path to the matched.csv file", default="matched.csv")

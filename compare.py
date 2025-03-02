@@ -15,7 +15,8 @@ import os
 try:
     import fuzzywuzzy
 except ImportError:
-    !pip install pandas numpy fuzzywuzzy python-Levenshtein matplotlib seaborn ipywidgets
+    import subprocess
+    subprocess.check_call(["pip", "install", "pandas", "numpy", "fuzzywuzzy", "python-Levenshtein", "matplotlib", "seaborn", "ipywidgets"])
 
 # Define the MorphosourceMatcher class
 class MorphosourceMatcher:
