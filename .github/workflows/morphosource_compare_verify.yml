@@ -33,7 +33,7 @@ jobs:
         run: |
           echo "Running comparison with ${{ github.event.inputs.csv_filename }}"
           python compare.py << EOF
-          data/morphosource_data_complete_compare.json
+          data/json/morphosource_data_complete_compare.json
           data/csv/${{ github.event.inputs.csv_filename }}
           data/output/matched.csv
           n
