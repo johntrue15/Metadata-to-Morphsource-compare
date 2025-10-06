@@ -1,4 +1,4 @@
-name: Morphosource Data Comparison and Verification
+name: Parse MorphoSource Data
 
 on:
   workflow_dispatch:
