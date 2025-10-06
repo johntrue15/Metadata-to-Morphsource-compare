@@ -13,9 +13,16 @@ Ask natural language questions like:
 
 The AI assistant uses ChatGPT to understand your query and automatically searches the MorphoSource database to provide relevant results.
 
-### Setting Up the AI Assistant
+### Setting Up the AI Assistant (For Repository Owner)
 
-1. Visit the [GitHub Pages site](https://johntrue15.github.io/Metadata-to-Morphsource-compare/)
+To enable GitHub Pages for this repository:
+1. Go to repository **Settings** → **Pages**
+2. Under **Source**, select **GitHub Actions**
+3. The site will be automatically deployed at: https://johntrue15.github.io/Metadata-to-Morphsource-compare/
+
+### Using the AI Assistant
+
+1. Visit the GitHub Pages site
 2. Enter your OpenAI API key when prompted (get one at [https://platform.openai.com/api-keys](https://platform.openai.com/api-keys))
 3. Your API key is stored only in your browser - it's never sent to any server except OpenAI
 4. Start asking questions about MorphoSource specimens!
