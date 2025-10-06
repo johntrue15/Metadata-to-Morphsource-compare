@@ -1,0 +1,262 @@
+name: Query Processor
+
+on:
+  workflow_dispatch:
+    inputs:
+      query:
+        description: 'Query text to process'
+        required: true
+        type: string
+  repository_dispatch:
+    types: [query_request]
+
+jobs:
+  morphosource-api:
+    name: MorphoSource API Query
+    runs-on: ubuntu-latest
+    outputs:
+      results: ${{ steps.search.outputs.results }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+      
+      - name: Extract query
+        id: get-query
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "query=${{ inputs.query }}" >> $GITHUB_OUTPUT
+          else
+            echo "query=${{ github.event.client_payload.query }}" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Search MorphoSource
+        id: search
+        env:
+          MORPHOSOURCE_API_KEY: ${{ secrets.MORPHOSOURCE_API_KEY }}
+        run: |
+          python - <<'EOF'
+          import os
+          import json
+          import requests
+          import sys
+
+          query = "${{ steps.get-query.outputs.query }}"
+          api_key = os.environ.get('MORPHOSOURCE_API_KEY', '')
+          
+          print(f"Searching MorphoSource for: {query}")
+          
+          # MorphoSource API configuration
+          MORPHOSOURCE_API_BASE = "https://www.morphosource.org/api"
+          
+          headers = {}
+          if api_key:
+              headers['Authorization'] = f'Bearer {api_key}'
+          
+          try:
+              # Search specimens
+              search_url = f"{MORPHOSOURCE_API_BASE}/specimens"
+              params = {'q': query, 'per_page': 10}
+              
+              response = requests.get(search_url, params=params, headers=headers, timeout=30)
+              
+              if response.status_code == 200:
+                  data = response.json()
+                  print(f"✓ Found results from specimens endpoint")
+                  print(json.dumps(data, indent=2))
+                  
+                  # Save to output
+                  with open('morphosource_results.json', 'w') as f:
+                      json.dump(data, f, indent=2)
+                  
+                  # Set output (truncated for GitHub Actions)
+                  results_summary = {
+                      "status": "success",
+                      "count": len(data.get('specimens', [])),
+                      "query": query
+                  }
+                  with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                      f.write(f"results={json.dumps(results_summary)}\n")
+              else:
+                  print(f"⚠ API returned status {response.status_code}")
+                  print(f"Response: {response.text[:500]}")
+                  
+                  error_data = {
+                      "status": "error",
+                      "code": response.status_code,
+                      "message": response.text[:200]
+                  }
+                  with open('morphosource_results.json', 'w') as f:
+                      json.dump(error_data, f, indent=2)
+                  
+                  with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                      f.write(f"results={json.dumps(error_data)}\n")
+          
+          except Exception as e:
+              print(f"✗ Error: {str(e)}")
+              error_data = {"status": "error", "message": str(e)}
+              with open('morphosource_results.json', 'w') as f:
+                  json.dump(error_data, f, indent=2)
+              
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                  f.write(f"results={json.dumps(error_data)}\n")
+              sys.exit(1)
+          EOF
+      
+      - name: Upload MorphoSource Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: morphosource-results
+          path: morphosource_results.json
+
+  chatgpt-processing:
+    name: ChatGPT Query Processing
+    runs-on: ubuntu-latest
+    needs: morphosource-api
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install openai requests
+      
+      - name: Download MorphoSource Results
+        uses: actions/download-artifact@v4
+        with:
+          name: morphosource-results
+      
+      - name: Extract query
+        id: get-query
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "query=${{ inputs.query }}" >> $GITHUB_OUTPUT
+          else
+            echo "query=${{ github.event.client_payload.query }}" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Process with ChatGPT
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python - <<'EOF'
+          import os
+          import json
+          from openai import OpenAI
+
+          query = "${{ steps.get-query.outputs.query }}"
+          
+          print(f"Processing query with ChatGPT: {query}")
+          
+          # Load MorphoSource results
+          try:
+              with open('morphosource_results.json', 'r') as f:
+                  morphosource_data = json.load(f)
+          except Exception as e:
+              print(f"Warning: Could not load MorphoSource results: {e}")
+              morphosource_data = {}
+          
+          api_key = os.environ.get('OPENAI_API_KEY')
+          if not api_key:
+              print("✗ OPENAI_API_KEY not configured")
+              result = {
+                  "status": "error",
+                  "message": "OPENAI_API_KEY not configured"
+              }
+              with open('chatgpt_response.json', 'w') as f:
+                  json.dump(result, f, indent=2)
+              exit(0)
+          
+          try:
+              client = OpenAI(api_key=api_key)
+              
+              # Build context with MorphoSource data
+              context = f"User query: {query}\n\n"
+              context += "MorphoSource API Results:\n"
+              context += json.dumps(morphosource_data, indent=2)
+              
+              messages = [
+                  {
+                      "role": "system",
+                      "content": "You are a helpful assistant that answers questions about MorphoSource data. Use the provided API results to give accurate, informative responses."
+                  },
+                  {
+                      "role": "user",
+                      "content": context
+                  }
+              ]
+              
+              response = client.chat.completions.create(
+                  model="gpt-4",
+                  messages=messages,
+                  max_tokens=1000
+              )
+              
+              answer = response.choices[0].message.content
+              print(f"✓ ChatGPT Response:\n{answer}")
+              
+              result = {
+                  "status": "success",
+                  "query": query,
+                  "response": answer,
+                  "morphosource_summary": morphosource_data.get('status', 'unknown')
+              }
+              
+              with open('chatgpt_response.json', 'w') as f:
+                  json.dump(result, f, indent=2)
+              
+              print("\n" + "="*60)
+              print("FINAL RESPONSE")
+              print("="*60)
+              print(answer)
+              print("="*60)
+          
+          except Exception as e:
+              print(f"✗ Error: {str(e)}")
+              result = {
+                  "status": "error",
+                  "message": str(e)
+              }
+              with open('chatgpt_response.json', 'w') as f:
+                  json.dump(result, f, indent=2)
+          EOF
+      
+      - name: Upload ChatGPT Response
+        uses: actions/upload-artifact@v4
+        with:
+          name: chatgpt-response
+          path: chatgpt_response.json
+      
+      - name: Summary
+        run: |
+          echo "## Query Processing Complete ✓" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Query:** ${{ steps.get-query.outputs.query }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📊 **MorphoSource Results:** ${{ needs.morphosource-api.outputs.results }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f chatgpt_response.json ]; then
+            echo "🤖 **ChatGPT Response:**" >> $GITHUB_STEP_SUMMARY
+            echo '```json' >> $GITHUB_STEP_SUMMARY
+            cat chatgpt_response.json >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
