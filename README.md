@@ -2,30 +2,50 @@
 
 A user-friendly tool for researchers to compare their specimen metadata with Morphosource database records and verify voxel spacing values.
 
-## 🤖 NEW: AI-Powered MorphoSource Search
+## 🤖 NEW: AI-Powered MorphoSource Query System
 
-**Try our interactive AI assistant at: [GitHub Pages URL](https://johntrue15.github.io/Metadata-to-Morphsource-compare/)**
+**Try our interactive query system at: [https://johntrue15.github.io/Metadata-to-Morphsource-compare/](https://johntrue15.github.io/Metadata-to-Morphsource-compare/)**
 
 Ask natural language questions like:
 - "Tell me about lizards on MorphoSource"
 - "How many snake specimens are available?"
 - "Show me CT scans of crocodiles"
 
-The AI assistant uses ChatGPT to understand your query and automatically searches the MorphoSource database to provide relevant results.
+The system uses GitHub Actions to process your queries through:
+1. **MorphoSource API** - Searches the database for relevant specimens
+2. **ChatGPT** - Analyzes results and provides natural language responses
 
-### Setting Up the AI Assistant (For Repository Owner)
+### How It Works
 
-To enable GitHub Pages for this repository:
-1. Go to repository **Settings** → **Pages**
-2. Under **Source**, select **GitHub Actions**
-3. The site will be automatically deployed at: https://johntrue15.github.io/Metadata-to-Morphsource-compare/
+1. **Submit a Query**: Visit the GitHub Pages site and enter your question
+2. **Workflow Triggers**: Your query triggers a GitHub Actions workflow
+3. **Sequential Processing**: 
+   - Job 1: MorphoSource API searches for relevant data
+   - Job 2: ChatGPT processes the results and generates a response
+4. **View Results**: Check the GitHub Actions tab to see the workflow results and download artifacts
 
-### Using the AI Assistant
+### Setting Up (For Repository Owner)
+
+To enable the query system:
+
+1. **Enable GitHub Pages:**
+   - Go to repository **Settings** → **Pages**
+   - Under **Source**, select **GitHub Actions**
+   - The site will be automatically deployed
+
+2. **Configure API Keys:**
+   - Go to **Settings** → **Secrets and variables** → **Actions**
+   - Add these secrets:
+     - `OPENAI_API_KEY` - Your OpenAI API key
+     - `MORPHOSOURCE_API_KEY` - Your MorphoSource API key (optional)
+
+### Using the Query System
 
 1. Visit the GitHub Pages site
-2. Enter your OpenAI API key when prompted (get one at [https://platform.openai.com/api-keys](https://platform.openai.com/api-keys))
-3. Your API key is stored only in your browser - it's never sent to any server except OpenAI
-4. Start asking questions about MorphoSource specimens!
+2. Enter your question in the text box
+3. Click "Submit Query" to trigger the workflow
+4. Go to the **Actions** tab to view results
+5. Download artifacts for detailed MorphoSource and ChatGPT responses
 
 ---
 
