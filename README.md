@@ -2,6 +2,33 @@
 
 A user-friendly tool for researchers to compare their specimen metadata with Morphosource database records and verify voxel spacing values.
 
+## 🤖 NEW: AI-Powered MorphoSource Search
+
+**Try our interactive AI assistant at: [GitHub Pages URL](https://johntrue15.github.io/Metadata-to-Morphsource-compare/)**
+
+Ask natural language questions like:
+- "Tell me about lizards on MorphoSource"
+- "How many snake specimens are available?"
+- "Show me CT scans of crocodiles"
+
+The AI assistant uses ChatGPT to understand your query and automatically searches the MorphoSource database to provide relevant results.
+
+### Setting Up the AI Assistant (For Repository Owner)
+
+To enable GitHub Pages for this repository:
+1. Go to repository **Settings** → **Pages**
+2. Under **Source**, select **GitHub Actions**
+3. The site will be automatically deployed at: https://johntrue15.github.io/Metadata-to-Morphsource-compare/
+
+### Using the AI Assistant
+
+1. Visit the GitHub Pages site
+2. Enter your OpenAI API key when prompted (get one at [https://platform.openai.com/api-keys](https://platform.openai.com/api-keys))
+3. Your API key is stored only in your browser - it's never sent to any server except OpenAI
+4. Start asking questions about MorphoSource specimens!
+
+---
+
 ## For Researchers: Quick Start Guide
 
 **Step 1:** Upload your CSV file to the `data/csv/` folder in this repository
@@ -74,16 +101,21 @@ The repository uses this file structure:
 └── run_comparison.py # Helper script for local execution
 ```
 
-### Required API Key (For Repository Maintainers)
+### Required API Keys (For Repository Maintainers)
 
-To use the verification feature, a Morphosource API key must be configured:
+To use the verification feature and AI assistant backend, configure these API keys:
 
 1. Go to repository Settings
 2. Select "Secrets and variables" → "Actions"
 3. Click "New repository secret"
-4. Name: `MORPHOSOURCE_API_KEY`
-5. Value: Your Morphosource API key
-6. Click "Add secret"
+4. Add the following secrets:
+   - Name: `MORPHOSOURCE_API_KEY`
+     Value: Your Morphosource API key
+   - Name: `OPENAI_API_KEY`
+     Value: Your OpenAI API key (for backend chat processing)
+5. Click "Add secret" for each
+
+**Note:** The OPENAI_API_KEY is optional. The AI assistant works client-side with users providing their own keys. The repository secret is only needed if you want to implement a backend API to handle API keys centrally.
 
 ### Running Locally (For Advanced Users)
 
