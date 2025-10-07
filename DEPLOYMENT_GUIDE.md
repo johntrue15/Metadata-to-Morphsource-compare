@@ -200,10 +200,10 @@ The site will automatically redeploy with the old version.
 
 If you encounter issues:
 
-1. Check the [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) guide
-2. Review [GitHub Pages documentation](https://docs.github.com/en/pages)
-3. Check deployment logs in Actions tab
-4. Review browser console for errors
+1. Review [GitHub Pages documentation](https://docs.github.com/en/pages)
+2. Check deployment logs in Actions tab
+3. Review browser console for errors
+4. Check the [Query System Guide](docs/QUERY_SYSTEM_GUIDE.md) for usage instructions
 
 ## Next Steps
 
