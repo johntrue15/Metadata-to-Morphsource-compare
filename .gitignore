@@ -48,3 +48,12 @@ temp/
 
 # Backup files
 *-old.*
+
+# Testing and Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+.tox/
+*.cover
+.hypothesis/
