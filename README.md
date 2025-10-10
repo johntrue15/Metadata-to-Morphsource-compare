@@ -1,5 +1,7 @@
 # Metadata-to-Morphosource Compare
 
+[![Tests](https://github.com/johntrue15/Metadata-to-Morphsource-compare/actions/workflows/tests.yml/badge.svg)](https://github.com/johntrue15/Metadata-to-Morphsource-compare/actions/workflows/tests.yml)
+
 A user-friendly tool for researchers to compare their specimen metadata with Morphosource database records and verify voxel spacing values.
 
 ## 🤖 NEW: AI-Powered MorphoSource Query System
