@@ -1,5 +1,7 @@
 # Metadata-to-Morphosource Compare
 
+[![Tests](https://github.com/johntrue15/Metadata-to-Morphsource-compare/actions/workflows/tests.yml/badge.svg)](https://github.com/johntrue15/Metadata-to-Morphsource-compare/actions/workflows/tests.yml)
+
 A user-friendly tool for researchers to compare their specimen metadata with Morphosource database records and verify voxel spacing values.
 
 ## 🤖 NEW: AI-Powered MorphoSource Query System
@@ -151,6 +153,34 @@ cd Metadata-to-Morphsource-compare
 # Run the comparison
 python run_comparison.py --csv "Your CSV Filename.csv" --api-key "your-api-key-here"
 ```
+
+## For Developers
+
+### Testing
+
+This project includes a comprehensive test suite. To run tests locally:
+
+```bash
+# Install test dependencies
+pip install -r requirements-test.txt
+
+# Run all tests
+pytest tests/
+
+# Run tests with coverage
+pytest tests/ --cov=. --cov-report=term
+```
+
+For detailed testing information, see [TESTING.md](TESTING.md).
+
+### Continuous Integration
+
+Tests automatically run on:
+- Push to main or develop branches
+- Pull requests
+- Manual workflow dispatch
+
+View test results in the **Actions** tab.
 
 ## Troubleshooting
 
