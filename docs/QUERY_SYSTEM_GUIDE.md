@@ -39,9 +39,19 @@ The MorphoSource Query System allows you to ask natural language questions about
 
 ## Understanding Results
 
-### Job 1: MorphoSource API Query
+### Job 1: ChatGPT Query Formatter
 
-This job searches the MorphoSource database and returns:
+This job uses ChatGPT to convert your natural language query into a properly formatted MorphoSource API search:
+- Extracts scientific terms and taxonomic names
+- Removes conversational words
+- Formats into API parameters
+- Creates optimized search query
+
+**Result Location:** Download `formatted-query` artifact
+
+### Job 2: MorphoSource API Query
+
+This job searches the MorphoSource database using the formatted query and returns:
 - Specimen metadata
 - Taxonomy information
 - Available media types
@@ -49,7 +59,7 @@ This job searches the MorphoSource database and returns:
 
 **Result Location:** Download `morphosource-results` artifact
 
-### Job 2: ChatGPT Processing
+### Job 3: ChatGPT Response Processing
 
 This job analyzes the MorphoSource data and provides:
 - Natural language summary
@@ -73,18 +83,26 @@ When you create an issue with the `query-request` label:
 4. Passes the issue number for response posting
 
 ### Workflow 2: Query Processor
-Runs two sequential jobs:
+Runs three sequential jobs:
 
 ```
 User Query (via issue)
     ↓
-Job 1: MorphoSource API Search
+Job 1: ChatGPT Query Formatter
+    ├─ Analyze natural language query
+    ├─ Extract scientific terms
+    ├─ Format into API parameters
+    └─ Save formatted query
+    ↓
+Job 2: MorphoSource API Search
+    ├─ Use formatted query
     ├─ Search database
     ├─ Save results as artifact
     └─ Output summary
     ↓
-Job 2: ChatGPT Processing
+Job 3: ChatGPT Response Processing
     ├─ Load MorphoSource results
+    ├─ Load formatted query info
     ├─ Send to ChatGPT with context
     ├─ Generate response
     ├─ Save as artifact

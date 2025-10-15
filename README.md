@@ -14,8 +14,9 @@ Ask natural language questions like:
 - "Show me CT scans of crocodiles"
 
 The system uses GitHub Actions to process your queries through:
-1. **MorphoSource API** - Searches the database for relevant specimens
-2. **ChatGPT** - Analyzes results and provides natural language responses
+1. **ChatGPT Query Formatter** - Converts natural language to optimized API queries
+2. **MorphoSource API** - Searches the database with formatted queries
+3. **ChatGPT Response Processor** - Analyzes results and provides natural language responses
 
 ### How It Works
 
@@ -23,8 +24,9 @@ The system uses GitHub Actions to process your queries through:
 2. **Create Issue**: Click to create a GitHub Issue (requires free GitHub account)
 3. **Auto-Trigger**: The issue automatically triggers the query processor workflow
 4. **Sequential Processing**: 
-   - Job 1: MorphoSource API searches for relevant data
-   - Job 2: ChatGPT processes the results and generates a response
+   - Job 1: ChatGPT formats your natural language query into an optimized API call
+   - Job 2: MorphoSource API searches for relevant data using the formatted query
+   - Job 3: ChatGPT processes the results and generates a natural language response
 5. **Get Results**: Results are posted as a comment on your issue + you get notified
 
 **Why Issues?** This approach eliminates HTTP 401 errors by using GitHub's native issue system instead of API authentication.

@@ -62,22 +62,23 @@ Instead of trying to authenticate from the browser, we leverage GitHub's native 
               │ (with issue_number param)   │
               └──────────────┬──────────────┘
                              │
-                   ┌─────────┴─────────┐
-                   │                   │
-                   ▼                   ▼
-         ┌─────────────────┐  ┌─────────────────┐
-         │ MorphoSource    │  │ ChatGPT         │
-         │ API Query       │→ │ Processing      │
-         └─────────────────┘  └────────┬────────┘
-                                       │
-                              Results ready
-                                       │
-                                       ▼
-                            ┌─────────────────┐
-                            │ Post comment    │
-                            │ to issue        │
-                            │ Close issue     │
-                            └────────┬────────┘
+                   ┌─────────┴─────────┬─────────┐
+                   │                   │         │
+                   ▼                   ▼         ▼
+         ┌─────────────────┐  ┌──────────────┐  ┌─────────────────┐
+         │ Job 1: ChatGPT  │  │ Job 2:       │  │ Job 3: ChatGPT  │
+         │ Query Formatter │→ │ MorphoSource │→ │ Response        │
+         │ (Format query)  │  │ API Query    │  │ Processing      │
+         └─────────────────┘  └──────────────┘  └────────┬────────┘
+                                                          │
+                                                 Results ready
+                                                          │
+                                                          ▼
+                                               ┌─────────────────┐
+                                               │ Post comment    │
+                                               │ to issue        │
+                                               │ Close issue     │
+                                               └────────┬────────┘
                                      │
                                      ▼
                             ┌─────────────────┐
