@@ -202,14 +202,14 @@ jobs:
               headers['Authorization'] = f'Bearer {api_key}'
           
           try:
-              # Search specimens
-              search_url = f"{MORPHOSOURCE_API_BASE}/specimens"
+              # Search media
+              search_url = f"{MORPHOSOURCE_API_BASE}/media"
               
               response = requests.get(search_url, params=api_params, headers=headers, timeout=30)
               
               if response.status_code == 200:
                   data = response.json()
-                  print(f"✓ Found results from specimens endpoint")
+                  print(f"✓ Found results from media endpoint")
                   print(json.dumps(data, indent=2))
                   
                   # Save to output
@@ -219,7 +219,7 @@ jobs:
                   # Set output (truncated for GitHub Actions)
                   results_summary = {
                       "status": "success",
-                      "count": len(data.get('specimens', [])),
+                      "count": len(data.get('media', [])),
                       "formatted_query": formatted_query
                   }
                   with open(os.environ['GITHUB_OUTPUT'], 'a') as f:

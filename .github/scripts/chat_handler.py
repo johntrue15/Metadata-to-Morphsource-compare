@@ -28,8 +28,8 @@ def search_morphosource(query):
         if api_key:
             headers['Authorization'] = f'Bearer {api_key}'
         
-        # Try different API endpoints
-        search_url = f"{MORPHOSOURCE_API_BASE}/specimens"
+        # Use the media endpoint for searches
+        search_url = f"{MORPHOSOURCE_API_BASE}/media"
         params = {'q': query, 'per_page': 10}
         
         response = requests.get(search_url, params=params, headers=headers, timeout=30)
@@ -37,18 +37,10 @@ def search_morphosource(query):
         if response.status_code == 200:
             return response.json()
         else:
-            # If specimens endpoint doesn't work, try media endpoint
-            media_url = f"{MORPHOSOURCE_API_BASE}/media"
-            params = {'q': query, 'per_page': 10}
-            response = requests.get(media_url, params=params, headers=headers, timeout=30)
-            
-            if response.status_code == 200:
-                return response.json()
-            else:
-                return {
-                    "error": f"API returned status {response.status_code}",
-                    "message": response.text[:200]
-                }
+            return {
+                "error": f"API returned status {response.status_code}",
+                "message": response.text[:200]
+            }
     
     except Exception as e:
         return {"error": str(e)}
