@@ -249,14 +249,17 @@ jobs:
           path: chatgpt_response.json
       
       - name: Summary
+        env:
+          QUERY_TEXT: ${{ steps.get-query.outputs.query }}
+          MORPHOSOURCE_RESULTS: ${{ needs.morphosource-api.outputs.results }}
         run: |
           echo "## Query Processing Complete ✓" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Query:** ${{ steps.get-query.outputs.query }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Query:** $QUERY_TEXT" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "📊 **MorphoSource Results:** ${{ needs.morphosource-api.outputs.results }}" >> $GITHUB_STEP_SUMMARY
+          echo "📊 **MorphoSource Results:** $MORPHOSOURCE_RESULTS" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ -f chatgpt_response.json ]; then
             echo "🤖 **ChatGPT Response:**" >> $GITHUB_STEP_SUMMARY
