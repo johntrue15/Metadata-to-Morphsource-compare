@@ -10,15 +10,24 @@ The MorphoSource Query System allows you to ask natural language questions about
 
 1. Visit the GitHub Pages site: https://johntrue15.github.io/Metadata-to-Morphsource-compare/
 2. Enter your question in the text box
-3. Click "Submit Query"
+3. Click "Prepare to Submit Query"
+4. Click the link to create a GitHub Issue (requires GitHub account)
+5. Submit the pre-filled issue
+
+**Note:** You need a GitHub account to submit queries. The issue submission is free and automatically triggers the query processor.
 
 ### Step 2: View Results
 
-1. Click the workflow link shown after submission
-2. Navigate to the **Actions** tab in the GitHub repository
-3. Find your workflow run (named "Query Processor")
-4. View the workflow summary for quick results
-5. Download artifacts for detailed JSON responses
+**Automatic (Recommended):**
+- Results will be posted as a comment on your issue automatically
+- The issue will be closed when processing is complete
+- You'll receive a GitHub notification when results are ready
+
+**Manual:**
+1. Navigate to the **Actions** tab in the GitHub repository
+2. Find your workflow run (named "Query Processor")
+3. View the workflow summary for quick results
+4. Download artifacts for detailed JSON responses
 
 ## Example Queries
 
@@ -54,26 +63,43 @@ This job analyzes the MorphoSource data and provides:
 
 ## Workflow Details
 
-The query workflow runs two sequential jobs:
+The query system uses three workflows:
+
+### Workflow 1: Issue Query Trigger
+When you create an issue with the `query-request` label:
+1. Extracts your query from the issue body
+2. Posts a "processing" comment
+3. Triggers the Query Processor workflow
+4. Passes the issue number for response posting
+
+### Workflow 2: Query Processor
+Runs two sequential jobs:
 
 ```
-User Query
-    ↓
-Trigger Workflow (repository_dispatch)
+User Query (via issue)
     ↓
 Job 1: MorphoSource API Search
     ├─ Search database
-    ├─ Save results
+    ├─ Save results as artifact
     └─ Output summary
     ↓
 Job 2: ChatGPT Processing
     ├─ Load MorphoSource results
     ├─ Send to ChatGPT with context
     ├─ Generate response
-    └─ Create summary
+    ├─ Save as artifact
+    └─ Post results to issue
     ↓
-Results Available
+Results Available (in issue comment + artifacts)
 ```
+
+### Benefits of Issue-Based System
+- ✅ No 401 authentication errors
+- ✅ Automatic workflow triggering
+- ✅ Results delivered to you (no need to search Actions)
+- ✅ Email notifications via GitHub
+- ✅ Discussion thread for follow-up questions
+- ✅ Searchable query history
 
 ## Manual Workflow Trigger
 
@@ -89,9 +115,15 @@ This method gives you more control and doesn't require API authentication from t
 
 ## Troubleshooting
 
-### "Repository dispatch failed"
+### "Issue creation required"
 
-If the browser-based submission fails, use the manual workflow trigger method instead:
+The new system uses GitHub Issues to submit queries. This requires a GitHub account but provides:
+- Automatic workflow triggering (no 401 errors!)
+- Results posted directly to your issue
+- Email notifications when processing completes
+- No need to manually navigate to GitHub Actions
+
+If you don't have a GitHub account or prefer not to create an issue, use the manual workflow trigger method:
 - Go to Actions → Query Processor → Run workflow
 
 ### "Workflow not showing up"

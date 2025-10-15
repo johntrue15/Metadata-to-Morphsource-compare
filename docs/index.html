@@ -220,6 +220,9 @@
     <div class="container">
         <h1>🔬 MorphoSource Query</h1>
         <p class="subtitle">Ask questions about specimens in the MorphoSource database</p>
+        <p style="text-align: center; margin-top: -1rem; margin-bottom: 2rem;">
+            <a href="QUERY_SUBMISSION_GUIDE.md" target="_blank" style="color: rgba(255, 255, 255, 0.9); font-size: 0.9rem; text-decoration: underline;">📖 View detailed submission guide</a>
+        </p>
         
         <div class="input-section">
             <form id="queryForm">
@@ -263,49 +266,76 @@
         const GITHUB_OWNER = 'johntrue15';
         const GITHUB_REPO = 'Metadata-to-Morphsource-compare';
         const WORKFLOW_URL = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/actions/workflows/query-processor.yml`;
+        const NEW_ISSUE_URL = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/issues/new`;
         
-        document.getElementById('queryForm').addEventListener('submit', (e) => {
+        document.getElementById('queryForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
             const queryText = document.getElementById('queryText').value.trim();
             if (!queryText) return;
             
-            // Copy query to clipboard for convenience
-            navigator.clipboard.writeText(queryText).then(() => {
-                const statusDiv = document.getElementById('status');
-                statusDiv.className = 'status info';
+            const statusDiv = document.getElementById('status');
+            const workflowLinkDiv = document.getElementById('workflowLink');
+            const submitBtn = document.getElementById('submitBtn');
+            
+            // Disable button during submission
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner"></span> Submitting...';
+            
+            try {
+                // Create issue title and body
+                const issueTitle = `Query: ${queryText.substring(0, 50)}${queryText.length > 50 ? '...' : ''}`;
+                const issueBody = `## MorphoSource Query Submission
+
+**Query:**
+${queryText}
+
+---
+*This query was submitted via the MorphoSource Query System. A GitHub Actions workflow will automatically process this query and post results as a comment.*`;
+                
+                // Encode parameters for URL
+                const params = new URLSearchParams({
+                    title: issueTitle,
+                    body: issueBody,
+                    labels: 'query-request'
+                });
+                
+                const issueUrl = `${NEW_ISSUE_URL}?${params.toString()}`;
+                
+                // Show success message
+                statusDiv.className = 'status success';
                 statusDiv.innerHTML = `
-                    <strong>✓ Query copied to clipboard!</strong><br><br>
-                    Now follow these steps:<br>
-                    1. Click the button below to open the GitHub Actions workflow page<br>
-                    2. Click the "Run workflow" dropdown button<br>
-                    3. Paste your query (already in your clipboard)<br>
-                    4. Click the green "Run workflow" button<br><br>
-                    Your query will be processed and results will appear in the workflow run.
+                    <strong>✓ Ready to submit your query!</strong><br><br>
+                    Click the button below to create a GitHub issue with your query.<br>
+                    Once created, the system will automatically process it and post results as a comment.<br><br>
+                    <strong>Note:</strong> You'll need a GitHub account to submit the issue.
                 `;
                 
-                const workflowLinkDiv = document.getElementById('workflowLink');
                 workflowLinkDiv.className = 'workflow-link show';
-                document.getElementById('workflowUrl').href = WORKFLOW_URL;
-            }).catch(() => {
-                // Fallback if clipboard fails
-                const statusDiv = document.getElementById('status');
-                statusDiv.className = 'status info';
-                statusDiv.innerHTML = `
-                    <strong>Ready to submit your query!</strong><br><br>
-                    Follow these steps:<br>
-                    1. Copy your query text above<br>
-                    2. Click the button below to open the GitHub Actions workflow page<br>
-                    3. Click the "Run workflow" dropdown button<br>
-                    4. Paste your query into the text box<br>
-                    5. Click the green "Run workflow" button<br><br>
-                    Your query will be processed and results will appear in the workflow run.
+                workflowLinkDiv.innerHTML = `
+                    <strong>Submit Query:</strong><br>
+                    <a id="issueUrl" href="${issueUrl}" target="_blank">Click here to submit your query via GitHub Issue →</a><br><br>
+                    <small><em>Alternative:</em> <a href="${WORKFLOW_URL}" target="_blank">Manually trigger the workflow →</a></small>
                 `;
                 
-                const workflowLinkDiv = document.getElementById('workflowLink');
+            } catch (error) {
+                console.error('Error:', error);
+                statusDiv.className = 'status error';
+                statusDiv.innerHTML = `
+                    <strong>⚠ Error preparing submission</strong><br><br>
+                    ${error.message}<br><br>
+                    You can still manually trigger the workflow using the link below.
+                `;
+                
                 workflowLinkDiv.className = 'workflow-link show';
-                document.getElementById('workflowUrl').href = WORKFLOW_URL;
-            });
+                workflowLinkDiv.innerHTML = `
+                    <strong>Manual Option:</strong><br>
+                    <a href="${WORKFLOW_URL}" target="_blank">Click here to manually run the workflow →</a>
+                `;
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = 'Prepare to Submit Query';
+            }
         });
         
         function clearForm() {

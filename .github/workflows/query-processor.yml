@@ -7,6 +7,10 @@ on:
         description: 'Query text to process'
         required: true
         type: string
+      issue_number:
+        description: 'Issue number to post results to (optional)'
+        required: false
+        type: string
   repository_dispatch:
     types: [query_request]
 
@@ -260,3 +264,76 @@ jobs:
             cat chatgpt_response.json >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
           fi
+      
+      - name: Post results to issue
+        if: ${{ inputs.issue_number != '' }}
+        env:
+          ISSUE_NUMBER: ${{ inputs.issue_number }}
+          QUERY: ${{ steps.get-query.outputs.query }}
+          MORPHOSOURCE_RESULTS: ${{ needs.morphosource-api.outputs.results }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const issueNumber = parseInt(process.env.ISSUE_NUMBER || '0');
+            
+            if (!issueNumber) {
+              console.log('No issue number provided, skipping comment');
+              return;
+            }
+            
+            try {
+              // Read the ChatGPT response
+              let responseText = 'Processing completed. See workflow artifacts for details.';
+              
+              if (fs.existsSync('chatgpt_response.json')) {
+                const responseData = JSON.parse(fs.readFileSync('chatgpt_response.json', 'utf8'));
+                
+                if (responseData.status === 'success' && responseData.response) {
+                  responseText = responseData.response;
+                } else if (responseData.status === 'error') {
+                  responseText = '⚠️ Error: ' + responseData.message;
+                }
+              }
+              
+              const query = process.env.QUERY || 'N/A';
+              const morphosourceResults = process.env.MORPHOSOURCE_RESULTS || '{}';
+              
+              // Build the comment body
+              const commentBody = '## ✅ Query Processing Complete\n\n' +
+                '**Query:** ' + query + '\n\n' +
+                '---\n\n' +
+                '### 🤖 ChatGPT Response\n\n' +
+                responseText + '\n\n' +
+                '---\n\n' +
+                '### 📊 MorphoSource API Results\n\n' +
+                '```json\n' +
+                morphosourceResults + '\n' +
+                '```\n\n' +
+                '---\n\n' +
+                '**View full details:** [Workflow Run](https://github.com/' + context.repo.owner + '/' + context.repo.repo + '/actions/runs/' + context.runId + ')\n\n' +
+                '*Download artifacts from the workflow run for complete JSON responses.*';
+              
+              // Post comment with results
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body: commentBody
+              });
+              
+              // Update issue labels
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                labels: ['query-request', 'completed'],
+                state: 'closed'
+              });
+              
+              console.log('Successfully posted results to issue #' + issueNumber);
+              
+            } catch (error) {
+              console.error('Error posting to issue:', error);
+              // Don't fail the workflow if posting fails
+            }

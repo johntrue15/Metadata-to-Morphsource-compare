@@ -1,0 +1,93 @@
+name: Issue Query Trigger
+
+on:
+  issues:
+    types: [opened, labeled]
+
+jobs:
+  trigger-query:
+    # Only run if the issue has the query-request label
+    if: contains(github.event.issue.labels.*.name, 'query-request')
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      actions: write
+      contents: read
+    
+    steps:
+      - name: Extract query from issue
+        id: extract
+        run: |
+          # Extract query from issue body
+          ISSUE_BODY='${{ github.event.issue.body }}'
+          
+          # Try to extract the query between "**Query:**" and "---"
+          QUERY=$(echo "$ISSUE_BODY" | sed -n '/\*\*Query:\*\*/,/---/p' | sed '1d;$d' | tr '\n' ' ' | xargs)
+          
+          # If extraction failed, use the entire body
+          if [ -z "$QUERY" ]; then
+            QUERY=$(echo "$ISSUE_BODY" | head -n 100 | tr '\n' ' ' | xargs)
+          fi
+          
+          echo "query=$QUERY" >> $GITHUB_OUTPUT
+          echo "Extracted query: $QUERY"
+      
+      - name: Add comment to issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: '🔄 **Query received!**\n\nYour query is being processed. Results will be posted here shortly.\n\n⏳ Status: Processing...'
+            });
+      
+      - name: Trigger query processor workflow
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const query = `${{ steps.extract.outputs.query }}`;
+            
+            try {
+              const response = await github.rest.actions.createWorkflowDispatch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'query-processor.yml',
+                ref: 'main',
+                inputs: {
+                  query: query,
+                  issue_number: context.issue.number.toString()
+                }
+              });
+              
+              console.log('Workflow triggered successfully');
+              
+              // Add comment with link to workflow
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: `✅ **Query processor started!**\n\nView the workflow run progress here:\n[GitHub Actions](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/workflows/query-processor.yml)\n\nResults will be posted as a comment once processing is complete.`
+              });
+              
+              // Store issue number in workflow metadata for later reference
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                labels: ['query-request', 'processing']
+              });
+              
+            } catch (error) {
+              console.error('Error triggering workflow:', error);
+              
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: `❌ **Error triggering query processor**\n\n${error.message}\n\nPlease try manually triggering the workflow at:\n[Query Processor Workflow](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/workflows/query-processor.yml)`
+              });
+              
+              throw error;
+            }
