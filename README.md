@@ -20,11 +20,14 @@ The system uses GitHub Actions to process your queries through:
 ### How It Works
 
 1. **Submit a Query**: Visit the GitHub Pages site and enter your question
-2. **Workflow Triggers**: Your query triggers a GitHub Actions workflow
-3. **Sequential Processing**: 
+2. **Create Issue**: Click to create a GitHub Issue (requires free GitHub account)
+3. **Auto-Trigger**: The issue automatically triggers the query processor workflow
+4. **Sequential Processing**: 
    - Job 1: MorphoSource API searches for relevant data
    - Job 2: ChatGPT processes the results and generates a response
-4. **View Results**: Check the GitHub Actions tab to see the workflow results and download artifacts
+5. **Get Results**: Results are posted as a comment on your issue + you get notified
+
+**Why Issues?** This approach eliminates HTTP 401 errors by using GitHub's native issue system instead of API authentication.
 
 ### Setting Up (For Repository Owner)
 
@@ -45,9 +48,11 @@ To enable the query system:
 
 1. Visit the GitHub Pages site
 2. Enter your question in the text box
-3. Click "Submit Query" to trigger the workflow
-4. Go to the **Actions** tab to view results
-5. Download artifacts for detailed MorphoSource and ChatGPT responses
+3. Click "Prepare to Submit Query"
+4. Click the link to create a GitHub Issue (requires GitHub account)
+5. Submit the pre-filled issue
+6. Wait for results to be posted as a comment on your issue (usually within 1-2 minutes)
+7. Optionally download artifacts from the Actions tab for detailed JSON responses
 
 ---
 
