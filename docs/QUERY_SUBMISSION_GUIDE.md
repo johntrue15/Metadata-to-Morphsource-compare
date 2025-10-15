@@ -128,12 +128,13 @@ If your first query is too specific and returns no results:
 
 ### Issue doesn't trigger workflow
 **Check:**
-- Issue has the `query-request` label
+- Issue title starts with "Query:" or body contains "MorphoSource Query Submission"
 - You're in the correct repository
 - Workflows are enabled (check Settings → Actions)
 
 **Solution:**
-- Close and re-open the issue with the label
+- Ensure your issue follows the query submission format (use the web form)
+- The `query-request` label is added automatically when a query is detected
 - Or manually trigger the workflow from Actions tab
 
 ### No results found

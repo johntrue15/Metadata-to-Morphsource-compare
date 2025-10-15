@@ -6,8 +6,6 @@ on:
 
 jobs:
   trigger-query:
-    # Only run if the issue has the query-request label
-    if: contains(github.event.issue.labels.*.name, 'query-request')
     runs-on: ubuntu-latest
     permissions:
       issues: write
@@ -15,10 +13,29 @@ jobs:
       contents: read
     
     steps:
+      - name: Check if issue is a query submission
+        id: check
+        run: |
+          ISSUE_BODY='${{ github.event.issue.body }}'
+          ISSUE_TITLE='${{ github.event.issue.title }}'
+          
+          # Check if this is a query submission by looking for the marker text
+          if echo "$ISSUE_BODY" | grep -q "MorphoSource Query Submission"; then
+            echo "is_query=true" >> $GITHUB_OUTPUT
+            echo "This is a query submission issue"
+          elif echo "$ISSUE_TITLE" | grep -q "^Query:"; then
+            echo "is_query=true" >> $GITHUB_OUTPUT
+            echo "This is a query submission issue (detected by title)"
+          else
+            echo "is_query=false" >> $GITHUB_OUTPUT
+            echo "This is not a query submission issue, skipping"
+          fi
+      
       - name: Extract query from issue
         id: extract
         env:
           ISSUE_BODY: ${{ github.event.issue.body }}
+        if: steps.check.outputs.is_query == 'true'
         run: |
           # Extract query from issue body
           # Try to extract the query between "**Query:**" and "---"
@@ -32,7 +49,25 @@ jobs:
           echo "query=$QUERY" >> $GITHUB_OUTPUT
           echo "Extracted query: $QUERY"
       
+      - name: Add query-request label
+        if: steps.check.outputs.is_query == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Add the query-request label if not already present
+            const labels = context.payload.issue.labels.map(l => l.name);
+            if (!labels.includes('query-request')) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                labels: ['query-request']
+              });
+              console.log('Added query-request label');
+            }
+      
       - name: Add comment to issue
+        if: steps.check.outputs.is_query == 'true'
         uses: actions/github-script@v7
         with:
           script: |
@@ -46,6 +81,7 @@ jobs:
       - name: Trigger query processor workflow
         env:
           QUERY_TEXT: ${{ steps.extract.outputs.query }}
+        if: steps.check.outputs.is_query == 'true'
         uses: actions/github-script@v7
         with:
           script: |
