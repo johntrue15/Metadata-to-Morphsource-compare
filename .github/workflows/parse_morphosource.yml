@@ -30,11 +30,13 @@ jobs:
         run: mkdir -p data/output
       
       - name: Run comparison script
+        env:
+          CSV_FILENAME: ${{ github.event.inputs.csv_filename }}
         run: |
-          echo "Running comparison with ${{ github.event.inputs.csv_filename }}"
+          echo "Running comparison with $CSV_FILENAME"
           python compare.py << EOF
           data/json/morphosource_data_complete_compare.json
-          data/csv/${{ github.event.inputs.csv_filename }}
+          data/csv/$CSV_FILENAME
           data/output/matched.csv
           n
           EOF

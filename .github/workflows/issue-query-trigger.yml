@@ -33,11 +33,11 @@ jobs:
       
       - name: Extract query from issue
         id: extract
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
         if: steps.check.outputs.is_query == 'true'
         run: |
           # Extract query from issue body
-          ISSUE_BODY='${{ github.event.issue.body }}'
-          
           # Try to extract the query between "**Query:**" and "---"
           QUERY=$(echo "$ISSUE_BODY" | sed -n '/\*\*Query:\*\*/,/---/p' | sed '1d;$d' | tr '\n' ' ' | xargs)
           
@@ -79,11 +79,13 @@ jobs:
             });
       
       - name: Trigger query processor workflow
+        env:
+          QUERY_TEXT: ${{ steps.extract.outputs.query }}
         if: steps.check.outputs.is_query == 'true'
         uses: actions/github-script@v7
         with:
           script: |
-            const query = `${{ steps.extract.outputs.query }}`;
+            const query = process.env.QUERY_TEXT;
             
             try {
               const response = await github.rest.actions.createWorkflowDispatch({
