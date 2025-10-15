@@ -37,17 +37,21 @@ jobs:
       
       - name: Extract query
         id: get-query
+        env:
+          DISPATCH_QUERY: ${{ inputs.query }}
+          PAYLOAD_QUERY: ${{ github.event.client_payload.query }}
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "query=${{ inputs.query }}" >> $GITHUB_OUTPUT
+            echo "query=$DISPATCH_QUERY" >> $GITHUB_OUTPUT
           else
-            echo "query=${{ github.event.client_payload.query }}" >> $GITHUB_OUTPUT
+            echo "query=$PAYLOAD_QUERY" >> $GITHUB_OUTPUT
           fi
       
       - name: Search MorphoSource
         id: search
         env:
           MORPHOSOURCE_API_KEY: ${{ secrets.MORPHOSOURCE_API_KEY }}
+          QUERY_TEXT: ${{ steps.get-query.outputs.query }}
         run: |
           python - <<'EOF'
           import os
@@ -55,7 +59,7 @@ jobs:
           import requests
           import sys
 
-          query = "${{ steps.get-query.outputs.query }}"
+          query = os.environ.get('QUERY_TEXT', '')
           api_key = os.environ.get('MORPHOSOURCE_API_KEY', '')
           
           print(f"Searching MorphoSource for: {query}")
@@ -149,23 +153,27 @@ jobs:
       
       - name: Extract query
         id: get-query
+        env:
+          DISPATCH_QUERY: ${{ inputs.query }}
+          PAYLOAD_QUERY: ${{ github.event.client_payload.query }}
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "query=${{ inputs.query }}" >> $GITHUB_OUTPUT
+            echo "query=$DISPATCH_QUERY" >> $GITHUB_OUTPUT
           else
-            echo "query=${{ github.event.client_payload.query }}" >> $GITHUB_OUTPUT
+            echo "query=$PAYLOAD_QUERY" >> $GITHUB_OUTPUT
           fi
       
       - name: Process with ChatGPT
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          QUERY_TEXT: ${{ steps.get-query.outputs.query }}
         run: |
           python - <<'EOF'
           import os
           import json
           from openai import OpenAI
 
-          query = "${{ steps.get-query.outputs.query }}"
+          query = os.environ.get('QUERY_TEXT', '')
           
           print(f"Processing query with ChatGPT: {query}")
           
