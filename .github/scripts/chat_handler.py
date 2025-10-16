@@ -202,6 +202,7 @@ def process_chat(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
             client,
             conversation,
             model="gpt-5",
+            model="gpt-4",
             tools=TOOLS,
             tool_choice="auto",
         )
