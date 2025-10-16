@@ -129,7 +129,7 @@ https://www.morphosource.org/api/physical-objects?f%5Bobject_type%5D%5B%5D=Biolo
         ]
         
         response = client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-5",
             messages=messages,
             temperature=0.3,
             max_tokens=200
