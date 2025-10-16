@@ -55,7 +55,7 @@ def process_with_chatgpt(query, morphosource_data, formatted_query_info):
         ]
         
         response = client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-5",
             messages=messages,
             max_tokens=1000
         )
