@@ -56,6 +56,51 @@ class TestQueryFormatter:
             # Should fallback to original query
             assert result['formatted_query'] == "test query"
             assert result['api_params'] == {'q': 'test query', 'per_page': 10}
+    
+    @patch('query_formatter.OpenAI')
+    def test_format_query_with_encoded_params(self, mock_openai):
+        """Test format_query with new URL format including encoded array-style parameters"""
+        # Mock OpenAI response with new URL format (encoded array-style parameters)
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "https://www.morphosource.org/api/physical-objects?f%5Bobject_type%5D%5B%5D=BiologicalSpecimen&f%5Btaxonomy_gbif%5D%5B%5D=Serpentes&locale=en&object_type=BiologicalSpecimen&per_page=1&page=1&taxonomy_gbif=Serpentes"
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai.return_value = mock_client
+        
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'}):
+            result = query_formatter.format_query("How many snake specimens are available?")
+            
+            assert 'formatted_query' in result
+            assert 'api_params' in result
+            # Check for both array-style and plain parameters
+            assert result['api_params'].get('taxonomy_gbif') == 'Serpentes'
+            assert result['api_params'].get('object_type') == 'BiologicalSpecimen'
+            assert result['api_params'].get('locale') == 'en'
+            assert result['api_params'].get('per_page') == '1'
+            assert result['api_params'].get('page') == '1'
+    
+    @patch('query_formatter.OpenAI')
+    def test_format_query_ct_scans_with_modality(self, mock_openai):
+        """Test format_query with CT scan request including modality filter"""
+        # Mock OpenAI response for CT scans with modality filter
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "https://www.morphosource.org/api/media?f%5Bmodality%5D%5B%5D=MicroNanoXRayComputedTomography&f%5Btaxonomy_gbif%5D%5B%5D=Reptilia&locale=en&modality=MicroNanoXRayComputedTomography&per_page=12&taxonomy_gbif=Reptilia&page=1"
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai.return_value = mock_client
+        
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'}):
+            result = query_formatter.format_query("Show me CT scans of reptiles")
+            
+            assert 'formatted_query' in result
+            assert 'api_params' in result
+            # Check for modality parameter
+            assert result['api_params'].get('modality') == 'MicroNanoXRayComputedTomography'
+            assert result['api_params'].get('taxonomy_gbif') == 'Reptilia'
+            assert result['api_params'].get('locale') == 'en'
+            assert result['api_params'].get('per_page') == '12'
 
 
 class TestMorphosourceAPI:
