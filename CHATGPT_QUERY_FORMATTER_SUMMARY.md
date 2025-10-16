@@ -37,23 +37,24 @@ User Natural Language Query
 ### 1. Modified Workflow: `.github/workflows/query-processor.yml`
 
 #### Added Job 1: `query-formatter`
-- **Purpose**: Convert natural language to optimized API queries
+- **Purpose**: Convert natural language to optimized MorphoSource API URLs
 - **Inputs**: Raw user query from issue
 - **Process**: 
-  - Uses GPT-4 to analyze the query
-  - Extracts taxonomic terms, specimen types, keywords
-  - Removes conversational words ("tell me", "show me", "find", etc.)
-  - Formats into MorphoSource API parameters
+  - Uses GPT-4 as an API query planner
+  - Maps common names to GBIF taxonomic names (e.g., "snakes" → "Serpentes")
+  - Selects appropriate endpoint (physical-objects or media)
+  - Generates complete API URL with taxonomy_gbif parameter
+  - Optimizes for counting with per_page=1&page=1
 - **Outputs**: 
-  - `formatted_query`: Cleaned search terms
-  - `api_params`: JSON object with API parameters
-- **Artifact**: `formatted-query` (JSON file with formatting details)
+  - `formatted_query`: Extracted taxonomic term
+  - `api_params`: Parsed parameters from generated URL
+- **Artifact**: `formatted-query` (JSON file with URL and formatting details)
 
 **Example Transformations:**
-- "Tell me about lizard specimens" → `{"q": "lizard", "per_page": 10}`
-- "How many snake specimens are available?" → `{"q": "snake", "per_page": 10}`
-- "Show me CT scans of crocodiles" → `{"q": "crocodile CT", "per_page": 10}`
-- "What Anolis specimens are in the database?" → `{"q": "Anolis", "per_page": 10}`
+- "Tell me about lizard specimens" → `https://www.morphosource.org/api/physical-objects?object_type=BiologicalSpecimen&taxonomy_gbif=Lacertilia&per_page=1&page=1`
+- "How many snake specimens are available?" → `https://www.morphosource.org/api/physical-objects?object_type=BiologicalSpecimen&taxonomy_gbif=Serpentes&per_page=1&page=1`
+- "Show me CT scans of crocodiles" → `https://www.morphosource.org/api/media?taxonomy_gbif=Crocodylia&per_page=1&page=1`
+- "What Anolis specimens are in the database?" → `https://www.morphosource.org/api/physical-objects?object_type=BiologicalSpecimen&taxonomy_gbif=Anolis&per_page=1&page=1`
 
 #### Modified Job 2: `morphosource-api`
 - **Changes**: 
@@ -100,12 +101,13 @@ User Natural Language Query
 ### Query Formatting Logic
 
 The ChatGPT prompt instructs the model to:
-1. Extract core search terms from natural language
-2. Focus on taxonomic names, specimen types, scientific keywords
-3. Remove conversational/filler words
-4. Return structured JSON with:
-   - `search_query`: Cleaned search terms
-   - `api_params`: Object with `q` (query) and `per_page` parameters
+1. Act as an API query planner
+2. Map common names to GBIF taxonomic names (e.g., "snakes" → "Serpentes")
+3. Choose appropriate endpoint (physical-objects for specimens, media for files/scans)
+4. Generate complete MorphoSource API URLs with proper parameters
+5. Use taxonomy_gbif parameter for taxonomic filtering (preferred over raw search)
+6. Include per_page=1&page=1 for efficient counting
+7. Return only URL(s), one per line (no prose or JSON wrappers)
 
 ### Fallback Behavior
 
@@ -132,18 +134,21 @@ This ensures sequential execution and proper data flow.
 ## Benefits
 
 ### 1. Improved Search Accuracy
-- Scientific terms properly extracted
-- Conversational noise removed
-- Better MorphoSource API results
+- Scientific taxonomic names properly mapped from common names
+- Appropriate endpoint selection (physical-objects vs media)
+- Uses taxonomy_gbif parameter for precise filtering
+- Better MorphoSource API results with accurate counts
 
 ### 2. Better User Experience
-- Users can ask natural language questions
-- No need to know API syntax
+- Users can ask natural language questions using common names
+- System handles taxonomic mapping automatically
+- No need to know GBIF taxonomy or API syntax
 - More intuitive query submission
 
 ### 3. Consistent API Usage
-- Queries standardized before API calls
-- Optimal parameter selection
+- Queries standardized into complete URLs before API calls
+- Optimal endpoint and parameter selection
+- Efficient counting with pagination metadata
 - Reduced API errors from malformed queries
 
 ### 4. Enhanced Transparency
@@ -162,17 +167,19 @@ This ensures sequential execution and proper data flow.
 ```json
 {
   "original_query": "Tell me about micro-CT scans of Anolis lizards from Jamaica",
-  "formatted_query": "Anolis micro-CT Jamaica",
+  "formatted_query": "Anolis",
   "api_params": {
-    "q": "Anolis micro-CT Jamaica",
-    "per_page": 10
-  }
+    "taxonomy_gbif": "Anolis",
+    "per_page": "1",
+    "page": "1"
+  },
+  "generated_url": "https://www.morphosource.org/api/media?taxonomy_gbif=Anolis&per_page=1&page=1"
 }
 ```
 
 **Job 2 - MorphoSource API:**
-- Searches with: `q=Anolis micro-CT Jamaica&per_page=10`
-- Returns relevant specimen data
+- Uses the generated URL: `https://www.morphosource.org/api/media?taxonomy_gbif=Anolis&per_page=1&page=1`
+- Returns relevant specimen data with pagination metadata for counting
 
 **Job 3 - ChatGPT Response:**
 - Receives original query
