@@ -100,6 +100,37 @@ class TestWorkflowStructure:
                 f"{job_name} must upload artifact named {artifact_name}"
 
 
+    def test_scripts_are_called(self):
+        """Test that jobs call Python scripts instead of inline code"""
+        workflow_path = '.github/workflows/query-processor.yml'
+        
+        with open(workflow_path, 'r') as f:
+            workflow = yaml.safe_load(f)
+        
+        jobs = workflow['jobs']
+        
+        # Check query-formatter calls query_formatter.py
+        formatter_steps = jobs['query-formatter']['steps']
+        format_step = [s for s in formatter_steps if s.get('name') == 'Format query with ChatGPT'][0]
+        assert 'run' in format_step
+        assert 'query_formatter.py' in format_step['run'], \
+            "query-formatter should call query_formatter.py"
+        
+        # Check morphosource-api calls morphosource_api.py
+        api_steps = jobs['morphosource-api']['steps']
+        search_step = [s for s in api_steps if s.get('name') == 'Search MorphoSource'][0]
+        assert 'run' in search_step
+        assert 'morphosource_api.py' in search_step['run'], \
+            "morphosource-api should call morphosource_api.py"
+        
+        # Check chatgpt-processing calls chatgpt_processor.py
+        processing_steps = jobs['chatgpt-processing']['steps']
+        process_step = [s for s in processing_steps if s.get('name') == 'Process with ChatGPT'][0]
+        assert 'run' in process_step
+        assert 'chatgpt_processor.py' in process_step['run'], \
+            "chatgpt-processing should call chatgpt_processor.py"
+
+
 class TestIssueQueryTrigger:
     """Test issue-query-trigger workflow"""
     
