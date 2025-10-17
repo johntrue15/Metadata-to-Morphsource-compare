@@ -7,10 +7,40 @@ Converts user queries into MorphoSource API requests.
 import os
 import json
 import sys
-from openai import OpenAI
+import importlib.util
+
+if 'openai' in sys.modules:
+    OpenAI = getattr(sys.modules['openai'], 'OpenAI', None)  # type: ignore
+else:
+    _openai_spec = importlib.util.find_spec("openai")
+    if _openai_spec:
+        from openai import OpenAI  # type: ignore
+    else:
+        OpenAI = None  # type: ignore
 
 
-def format_query(query):
+def _build_user_prompt(query, feedback):
+    """Construct the user prompt optionally including retry feedback."""
+
+    if not feedback:
+        return query
+
+    previous_url = feedback.get('failed_url', 'Unknown URL')
+    response_excerpt = feedback.get('response_excerpt', '')
+    attempt = feedback.get('attempt', 1)
+
+    return (
+        "The previous MorphoSource API request returned no results. "
+        "Adjust the API request so it still answers the user's question but has a better chance of returning data. "
+        "You may switch endpoints (media vs physical-objects), broaden or narrow taxonomy filters, or remove filters as needed.\n\n"
+        f"Original user request:\n{query}\n\n"
+        f"Previous attempt #{attempt} URL:\n{previous_url}\n\n"
+        "API JSON response excerpt (may be truncated):\n"
+        f"{response_excerpt}"
+    )
+
+
+def format_query(query, feedback=None):
     """
     Format a natural language query using ChatGPT to generate MorphoSource API parameters.
     
@@ -25,9 +55,22 @@ def format_query(query):
         print("✗ OPENAI_API_KEY not configured")
         # Fallback to using raw query
         return {
+            'original_query': query,
             'formatted_query': query,
             'api_params': {'q': query, 'per_page': 10},
-            'generated_url': None
+            'generated_url': None,
+            'api_endpoint': None
+        }
+
+    if OpenAI is None:
+        print("✗ OpenAI package is not installed")
+        # Fallback to using raw query
+        return {
+            'original_query': query,
+            'formatted_query': query,
+            'api_params': {'q': query, 'per_page': 10},
+            'generated_url': None,
+            'api_endpoint': None
         }
     
     try:
@@ -117,6 +160,13 @@ https://www.morphosource.org/api/media?f%5Bmodality%5D%5B%5D=MicroNanoXRayComput
 
 https://www.morphosource.org/api/physical-objects?f%5Bobject_type%5D%5B%5D=BiologicalSpecimen&f%5Btaxonomy_gbif%5D%5B%5D=Serpentes&locale=en&object_type=BiologicalSpecimen&per_page=1&page=1&taxonomy_gbif=Serpentes"""
 
+        retry_instruction = (
+            "If you receive context about a previous API request that returned no results, "
+            "produce a revised URL (or URLs) that is materially different and more likely to return matching records."
+        )
+
+        system_prompt = f"{system_prompt}\n\n{retry_instruction}"
+
         messages = [
             {
                 "role": "system",
@@ -124,14 +174,13 @@ https://www.morphosource.org/api/physical-objects?f%5Bobject_type%5D%5B%5D=Biolo
             },
             {
                 "role": "user",
-                "content": query
+                "content": _build_user_prompt(query, feedback)
             }
         ]
         
         response = client.chat.completions.create(
             model="gpt-5",
             messages=messages,
-            temperature=0.3,
             max_tokens=200
         )
         
@@ -151,42 +200,53 @@ https://www.morphosource.org/api/physical-objects?f%5Bobject_type%5D%5B%5D=Biolo
                 from urllib.parse import urlparse, parse_qs
                 parsed_url = urlparse(api_url)
                 query_params = parse_qs(parsed_url.query)
-                
+
                 # Convert from lists to single values
                 api_params = {k: v[0] if len(v) == 1 else v for k, v in query_params.items()}
-                
+
                 # Extract a formatted query from the URL - use taxonomy_gbif if present
                 formatted_query = api_params.get('taxonomy_gbif', api_params.get('q', query))
+
+                # Determine endpoint from the parsed URL
+                path_parts = [part for part in parsed_url.path.split('/') if part]
+                api_endpoint = None
+                if len(path_parts) >= 2 and path_parts[0] == 'api':
+                    api_endpoint = path_parts[1]
             else:
                 # No URL found, fallback
                 print("Warning: No URL found in response, using original query")
                 formatted_query = query
                 api_params = {'q': query, 'per_page': 10}
                 api_url = None
+                api_endpoint = None
         except Exception as parse_error:
             # Fallback if URL parsing fails
             print(f"Warning: Could not parse URL response: {parse_error}, using original query")
             formatted_query = query
             api_params = {'q': query, 'per_page': 10}
             api_url = None
-        
+            api_endpoint = None
+
         print(f"✓ Formatted query: {formatted_query}")
         print(f"✓ API params: {json.dumps(api_params)}")
-        
+
         return {
             'original_query': query,
             'formatted_query': formatted_query,
             'api_params': api_params,
-            'generated_url': api_url
+            'generated_url': api_url,
+            'api_endpoint': api_endpoint
         }
-    
+
     except Exception as e:
         print(f"✗ Error: {str(e)}")
         # Fallback to using raw query
         return {
+            'original_query': query,
             'formatted_query': query,
             'api_params': {'q': query, 'per_page': 10},
-            'generated_url': None
+            'generated_url': None,
+            'api_endpoint': None
         }
 
 
