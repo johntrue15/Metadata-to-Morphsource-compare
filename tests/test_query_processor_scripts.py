@@ -157,13 +157,38 @@ class TestMorphosourceAPI:
             ]
         }
         mock_get.return_value = mock_response
-        
+
         api_params = {'taxonomy_gbif': 'Serpentes', 'per_page': 1}
         result = morphosource_api.search_morphosource(api_params, 'Serpentes')
-        
+
         assert result['summary']['status'] == 'success'
         assert result['summary']['count'] == 1
         assert 'media' in result['full_data']
+
+    @patch('morphosource_api.requests.get')
+    def test_search_morphosource_success_nested_response(self, mock_get):
+        """Ensure nested `response` payloads still report non-zero counts."""
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'response': {
+                'physical_objects': [
+                    {'id': '0001', 'title': 'Specimen'}
+                ],
+                'pages': {
+                    'total_count': 1
+                }
+            }
+        }
+        mock_get.return_value = mock_response
+
+        api_params = {'taxonomy_gbif': 'Squamata', 'per_page': 12}
+        result = morphosource_api.search_morphosource(api_params, 'Squamata')
+
+        assert result['summary']['status'] == 'success'
+        assert result['summary']['count'] == 1
+        assert result['summary']['endpoint'] == 'media'
     
     @patch('morphosource_api.requests.get')
     def test_search_morphosource_error(self, mock_get):
