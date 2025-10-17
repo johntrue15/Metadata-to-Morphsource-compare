@@ -48,9 +48,9 @@ def media_ct_scan(taxon: str, *, open_access: bool = False,
     if open_access:
         parts.append("f%5Bvisibility%5D%5B%5D=Open")
     parts.extend([
-        f"f%5Btaxonomy_gbif%5D%5B%5D={encoded}",
         "locale=en",
         "search_field=all_fields",
+        f"q={encoded}",
     ])
     if per_page is not None:
         parts.append(f"per_page={per_page}")

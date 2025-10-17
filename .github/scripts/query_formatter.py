@@ -201,12 +201,15 @@ https://www.morphosource.org/api/media?...
 
 Taxonomy (critical for common names)
 
-Map common names to the GBIF taxon and pass it as array-style and mirrored plain:
-f[taxonomy_gbif][]=<GBIF name> and taxonomy_gbif=<GBIF name>.
+Map common names to the GBIF taxon. For the media endpoint, pass that literal
+value to the q parameter so the search spans all fields. For physical objects,
+continue mirroring the term via f[taxonomy_gbif][] and taxonomy_gbif.
 
-Examples: Serpentes (snakes), Crocodylia (crocodiles), Reptilia (reptiles), Anura (frogs), Squamata (lizards & snakes).
+Examples: Serpentes (snakes), Crocodylia (crocodiles), Reptilia (reptiles),
+Anura (frogs), Squamata (lizards & snakes).
 
-If the user gives a genus/species, pass that literal value in both places.
+If the user gives a genus/species, use that literal value in q (media) or in
+both taxonomy parameters (physical objects).
 
 Modality / media narrowing (Media endpoint only, if implied)
 
@@ -236,12 +239,12 @@ URL templates
 
 Media (CT scans, browse)
 
-https://www.morphosource.org/api/media?f%5Bmodality%5D%5B%5D=MicroNanoXRayComputedTomography&f%5Btaxonomy_gbif%5D%5B%5D=<GBIF taxon>&locale=en&search_field=all_fields
+https://www.morphosource.org/api/media?f%5Bmodality%5D%5B%5D=MicroNanoXRayComputedTomography&locale=en&search_field=all_fields&q=<GBIF taxon>
 
 
 Media (CT scans, open only)
 
-https://www.morphosource.org/api/media?f%5Bmodality%5D%5B%5D=MicroNanoXRayComputedTomography&f%5Bvisibility%5D%5B%5D=Open&f%5Btaxonomy_gbif%5D%5B%5D=<GBIF taxon>&locale=en&search_field=all_fields
+https://www.morphosource.org/api/media?f%5Bmodality%5D%5B%5D=MicroNanoXRayComputedTomography&f%5Bvisibility%5D%5B%5D=Open&locale=en&search_field=all_fields&q=<GBIF taxon>
 
 
 Specimens (count)
@@ -257,12 +260,12 @@ Tests (exact outputs)
 
 "Show me CT scans of reptiles"
 
-https://www.morphosource.org/api/media?f%5Bmodality%5D%5B%5D=MicroNanoXRayComputedTomography&f%5Btaxonomy_gbif%5D%5B%5D=Reptilia&locale=en&search_field=all_fields
+https://www.morphosource.org/api/media?f%5Bmodality%5D%5B%5D=MicroNanoXRayComputedTomography&locale=en&search_field=all_fields&q=Reptilia
 
 
 "Show me CT scans of crocodiles"
 
-https://www.morphosource.org/api/media?f%5Bmodality%5D%5B%5D=MicroNanoXRayComputedTomography&f%5Btaxonomy_gbif%5D%5B%5D=Crocodylia&locale=en&search_field=all_fields
+https://www.morphosource.org/api/media?f%5Bmodality%5D%5B%5D=MicroNanoXRayComputedTomography&locale=en&search_field=all_fields&q=Crocodylia
 
 
 "How many snake specimens are available?" (count)
