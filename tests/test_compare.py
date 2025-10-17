@@ -2,7 +2,8 @@
 Unit tests for compare.py
 """
 import unittest
-import pandas as pd
+import pytest
+pd = pytest.importorskip("pandas")
 import json
 import os
 import sys

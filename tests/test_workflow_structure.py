@@ -1,9 +1,10 @@
 """
 Test workflow structure and configuration
 """
-import yaml
 import os
 import pytest
+
+yaml = pytest.importorskip("yaml")
 
 
 class TestWorkflowStructure:
