@@ -7,7 +7,16 @@ Processes MorphoSource API results with ChatGPT to generate human-readable respo
 import os
 import json
 import sys
-from openai import OpenAI
+import importlib.util
+
+if 'openai' in sys.modules:
+    OpenAI = getattr(sys.modules['openai'], 'OpenAI', None)  # type: ignore
+else:
+    _openai_spec = importlib.util.find_spec("openai")
+    if _openai_spec:
+        from openai import OpenAI  # type: ignore
+    else:
+        OpenAI = None  # type: ignore
 
 
 def process_with_chatgpt(query, morphosource_data, formatted_query_info):
@@ -28,6 +37,13 @@ def process_with_chatgpt(query, morphosource_data, formatted_query_info):
         return {
             "status": "error",
             "message": "OPENAI_API_KEY not configured"
+        }
+
+    if OpenAI is None:
+        print("✗ OpenAI package is not installed")
+        return {
+            "status": "error",
+            "message": "OpenAI client library is not installed"
         }
     
     try:
