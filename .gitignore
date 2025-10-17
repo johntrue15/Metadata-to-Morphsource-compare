@@ -28,6 +28,9 @@ ENV/
 # Output files (but keep data/json and data/csv source files)
 data/output/
 
+# Generated query formatter output
+formatted_query.json
+
 # IDE
 .vscode/
 .idea/
