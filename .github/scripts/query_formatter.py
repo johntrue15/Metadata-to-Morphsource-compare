@@ -7,7 +7,16 @@ Converts user queries into MorphoSource API requests.
 import os
 import json
 import sys
-from openai import OpenAI
+import importlib.util
+
+if 'openai' in sys.modules:
+    OpenAI = getattr(sys.modules['openai'], 'OpenAI', None)  # type: ignore
+else:
+    _openai_spec = importlib.util.find_spec("openai")
+    if _openai_spec:
+        from openai import OpenAI  # type: ignore
+    else:
+        OpenAI = None  # type: ignore
 
 
 def _build_user_prompt(query, feedback):
@@ -44,6 +53,17 @@ def format_query(query, feedback=None):
     api_key = os.environ.get('OPENAI_API_KEY')
     if not api_key:
         print("✗ OPENAI_API_KEY not configured")
+        # Fallback to using raw query
+        return {
+            'original_query': query,
+            'formatted_query': query,
+            'api_params': {'q': query, 'per_page': 10},
+            'generated_url': None,
+            'api_endpoint': None
+        }
+
+    if OpenAI is None:
+        print("✗ OpenAI package is not installed")
         # Fallback to using raw query
         return {
             'original_query': query,
@@ -161,6 +181,7 @@ https://www.morphosource.org/api/physical-objects?f%5Bobject_type%5D%5B%5D=Biolo
         response = client.chat.completions.create(
             model="gpt-5",
             messages=messages,
+            max_tokens=200
             temperature=0.3,
             max_completion_tokens=200
         )
