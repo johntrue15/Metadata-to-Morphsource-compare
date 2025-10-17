@@ -87,7 +87,7 @@ Endpoint (decide from user wording)
 
 Specimens → Physical Objects:
 https://www.morphosource.org/api/physical-objects?...
-Include: f[object_type][]=BiologicalSpecimen (and mirror as object_type=BiologicalSpecimen).
+Include only the taxonomy filters (no object_type parameter).
 
 Media / scans / CT / images / meshes / volumes / files → Media:
 https://www.morphosource.org/api/media?...
@@ -139,12 +139,12 @@ https://www.morphosource.org/api/media?f%5Bmodality%5D%5B%5D=MicroNanoXRayComput
 
 Specimens (count)
 
-https://www.morphosource.org/api/physical-objects?f%5Bobject_type%5D%5B%5D=BiologicalSpecimen&f%5Btaxonomy_gbif%5D%5B%5D=<GBIF taxon>&locale=en&object_type=BiologicalSpecimen&per_page=1&page=1&taxonomy_gbif=<GBIF taxon>
+https://www.morphosource.org/api/physical-objects?f%5Btaxonomy_gbif%5D%5B%5D=<GBIF taxon>&locale=en&per_page=1&page=1&taxonomy_gbif=<GBIF taxon>
 
 
 Specimens (browse)
 
-https://www.morphosource.org/api/physical-objects?f%5Bobject_type%5D%5B%5D=BiologicalSpecimen&f%5Btaxonomy_gbif%5D%5B%5D=<GBIF taxon>&locale=en&object_type=BiologicalSpecimen&per_page=12&page=1&taxonomy_gbif=<GBIF taxon>
+https://www.morphosource.org/api/physical-objects?f%5Btaxonomy_gbif%5D%5B%5D=<GBIF taxon>&locale=en&per_page=12&page=1&taxonomy_gbif=<GBIF taxon>
 
 Tests (exact outputs)
 
@@ -160,7 +160,7 @@ https://www.morphosource.org/api/media?f%5Bmodality%5D%5B%5D=MicroNanoXRayComput
 
 "How many snake specimens are available?" (count)
 
-https://www.morphosource.org/api/physical-objects?f%5Bobject_type%5D%5B%5D=BiologicalSpecimen&f%5Btaxonomy_gbif%5D%5B%5D=Serpentes&locale=en&object_type=BiologicalSpecimen&per_page=1&page=1&taxonomy_gbif=Serpentes"""
+https://www.morphosource.org/api/physical-objects?f%5Btaxonomy_gbif%5D%5B%5D=Serpentes&locale=en&per_page=1&page=1&taxonomy_gbif=Serpentes"""
 
         retry_instruction = (
             "If you receive context about a previous API request that returned no results, "

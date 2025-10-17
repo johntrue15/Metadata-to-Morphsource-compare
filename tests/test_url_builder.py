@@ -29,9 +29,8 @@ def test_specimen_count_template_matches_prompt_example():
     template = url_builder.specimens_count("Serpentes")
     expected = (
         "https://www.morphosource.org/api/physical-objects?"
-        "f%5Bobject_type%5D%5B%5D=BiologicalSpecimen"
-        "&f%5Btaxonomy_gbif%5D%5B%5D=Serpentes"
-        "&locale=en&object_type=BiologicalSpecimen"
+        "f%5Btaxonomy_gbif%5D%5B%5D=Serpentes"
+        "&locale=en"
         "&per_page=1&page=1&taxonomy_gbif=Serpentes"
     )
     assert template.url == expected
@@ -41,12 +40,18 @@ def test_specimen_browse_template_matches_prompt_example():
     template = url_builder.specimens_browse("Serpentes")
     expected = (
         "https://www.morphosource.org/api/physical-objects?"
-        "f%5Bobject_type%5D%5B%5D=BiologicalSpecimen"
-        "&f%5Btaxonomy_gbif%5D%5B%5D=Serpentes"
-        "&locale=en&object_type=BiologicalSpecimen"
+        "f%5Btaxonomy_gbif%5D%5B%5D=Serpentes"
+        "&locale=en"
         "&per_page=12&page=1&taxonomy_gbif=Serpentes"
     )
     assert template.url == expected
+
+
+def test_physical_objects_url_no_object_type():
+    url = url_builder.specimens_browse("Squamata").url
+    assert "object_type" not in url
+    assert "f%5Btaxonomy_gbif%5D%5B%5D=Squamata" in url
+    assert "taxonomy_gbif=Squamata" in url
 
 
 def test_media_ct_scan_respects_custom_pagination():
