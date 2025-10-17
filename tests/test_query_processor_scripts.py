@@ -142,6 +142,26 @@ class TestQueryFormatter:
             assert result['api_params'].get('search_field') == 'all_fields'
             assert result['api_endpoint'] == 'media'
 
+    @patch('query_formatter.OpenAI')
+    def test_format_query_extracts_url_with_leading_text(self, mock_openai):
+        """Ensure URLs embedded in bullet lists are still parsed."""
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = (
+            "- https://www.morphosource.org/api/media?taxonomy_gbif=Squamata&per_page=12&page=1"
+        )
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai.return_value = mock_client
+
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'}):
+            result = query_formatter.format_query("Show me squamates")
+
+            assert result['generated_url'] == (
+                "https://www.morphosource.org/api/media?taxonomy_gbif=Squamata&per_page=12&page=1"
+            )
+            assert result['api_params'].get('taxonomy_gbif') == 'Squamata'
+
 
 class TestMorphosourceAPI:
     """Test morphosource_api.py script"""
