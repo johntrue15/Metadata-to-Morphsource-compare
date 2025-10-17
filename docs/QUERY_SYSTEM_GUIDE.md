@@ -182,7 +182,7 @@ Configure these in **Settings → Secrets and variables → Actions**:
 ### Customization
 
 Edit `.github/workflows/query-processor.yml` to:
-- Change GPT model (default: gpt-4)
+- Change GPT model (default: gpt-5)
 - Adjust response length (max_tokens)
 - Modify search parameters
 - Add additional processing steps
