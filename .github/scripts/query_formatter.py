@@ -186,6 +186,8 @@ def format_query(query, feedback=None):
 
 Goal: Convert the user's natural-language request into MorphoSource API requests that retrieve the intended records. Prefer taxonomic filters over plain keywords so common names map to the right clades.
 
+If the request is underspecified, still emit at least one valid MorphoSource API URL by falling back to a reasonable browse query. Never apologize or answer with prose—always provide a best-effort https:// URL.
+
 Key rules
 
 Endpoint (decide from user wording)
@@ -297,12 +299,13 @@ https://www.morphosource.org/api/physical-objects?f%5Btaxonomy_gbif%5D%5B%5D=Ser
         # Parse the URL response - the new prompt outputs URLs, not JSON
         try:
             # Extract the first URL from the response, allowing leading bullet markers or text
-            url_pattern = re.compile(r'https?://[^\s<>\]\)}]+')
+            # Ignore trailing punctuation or quotes that may surround URLs in prose/JSON.
+            url_pattern = re.compile(r"https?://[^\s<>\]\)\}'\"]+")
             urls = []
             for line in result_text.split('\n'):
                 match = url_pattern.search(line)
                 if match:
-                    urls.append(match.group().rstrip('.,;'))
+                    urls.append(match.group().rstrip(".,;\"'"))
 
             if urls:
                 api_url = urls[0]
