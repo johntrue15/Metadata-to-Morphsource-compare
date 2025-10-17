@@ -7,6 +7,7 @@ Converts user queries into MorphoSource API requests.
 import os
 import json
 import sys
+import re
 import importlib.util
 
 if 'openai' in sys.modules:
@@ -191,9 +192,14 @@ https://www.morphosource.org/api/physical-objects?f%5Btaxonomy_gbif%5D%5B%5D=Ser
         
         # Parse the URL response - the new prompt outputs URLs, not JSON
         try:
-            # Split by lines and get the first URL
-            urls = [line.strip() for line in result_text.split('\n') if line.strip().startswith('http')]
-            
+            # Extract the first URL from the response, allowing leading bullet markers or text
+            url_pattern = re.compile(r'https?://[^\s<>\]\)}]+')
+            urls = []
+            for line in result_text.split('\n'):
+                match = url_pattern.search(line)
+                if match:
+                    urls.append(match.group().rstrip('.,;'))
+
             if urls:
                 api_url = urls[0]
                 print(f"Extracted API URL: {api_url}")
