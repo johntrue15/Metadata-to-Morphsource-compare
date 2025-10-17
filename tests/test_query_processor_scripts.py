@@ -70,7 +70,10 @@ class TestQueryFormatter:
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = "https://www.morphosource.org/api/media?taxonomy_gbif=Serpentes&per_page=1&page=1"
+        mock_response.choices[0].message.content = (
+            "https://www.morphosource.org/api/media?locale=en&search_field=all_fields"
+            "&q=Serpentes&per_page=1&page=1"
+        )
         mock_client.chat.completions.create.return_value = mock_response
         mock_openai.return_value = mock_client
         
@@ -79,7 +82,7 @@ class TestQueryFormatter:
 
             assert 'formatted_query' in result
             assert 'api_params' in result
-            assert result['api_params'].get('taxonomy_gbif') == 'Serpentes'
+            assert result['api_params'].get('q') == 'Serpentes'
             assert result['api_endpoint'] == 'media'
     
     @patch('query_formatter.OpenAI')
@@ -126,7 +129,10 @@ class TestQueryFormatter:
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = "https://www.morphosource.org/api/media?f%5Bmodality%5D%5B%5D=MicroNanoXRayComputedTomography&f%5Btaxonomy_gbif%5D%5B%5D=Reptilia&locale=en&search_field=all_fields"
+        mock_response.choices[0].message.content = (
+            "https://www.morphosource.org/api/media?f%5Bmodality%5D%5B%5D=MicroNanoXRayComputedTomography"
+            "&locale=en&search_field=all_fields&q=Reptilia"
+        )
         mock_client.chat.completions.create.return_value = mock_response
         mock_openai.return_value = mock_client
         
@@ -137,7 +143,7 @@ class TestQueryFormatter:
             assert 'api_params' in result
             # Check for modality parameter
             assert result['api_params'].get('modality') or 'f[modality][]' in result['api_params']
-            assert result['api_params'].get('taxonomy_gbif') or 'f[taxonomy_gbif][]' in result['api_params']
+            assert result['api_params'].get('q') == 'Reptilia'
             assert result['api_params'].get('locale') == 'en'
             assert result['api_params'].get('search_field') == 'all_fields'
             assert result['api_endpoint'] == 'media'
@@ -149,7 +155,8 @@ class TestQueryFormatter:
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
         mock_response.choices[0].message.content = (
-            "- https://www.morphosource.org/api/media?taxonomy_gbif=Squamata&per_page=12&page=1"
+            "- https://www.morphosource.org/api/media?locale=en&search_field=all_fields"
+            "&q=Squamata&per_page=12&page=1"
         )
         mock_client.chat.completions.create.return_value = mock_response
         mock_openai.return_value = mock_client
@@ -158,9 +165,10 @@ class TestQueryFormatter:
             result = query_formatter.format_query("Show me squamates")
 
             assert result['generated_url'] == (
-                "https://www.morphosource.org/api/media?taxonomy_gbif=Squamata&per_page=12&page=1"
+                "https://www.morphosource.org/api/media?locale=en&search_field=all_fields"
+                "&q=Squamata&per_page=12&page=1"
             )
-            assert result['api_params'].get('taxonomy_gbif') == 'Squamata'
+            assert result['api_params'].get('q') == 'Squamata'
 
     @patch('query_formatter.OpenAI')
     def test_format_query_infers_taxonomy_when_missing_url(self, mock_openai):
@@ -285,8 +293,17 @@ class TestMorphosourceAPI:
         mock_format_query.return_value = {
             'original_query': 'Tell me about lizard specimens',
             'formatted_query': 'Anolis',
-            'api_params': {'taxonomy_gbif': 'Anolis', 'per_page': '12'},
-            'generated_url': 'https://www.morphosource.org/api/media?taxonomy_gbif=Anolis&per_page=12&page=1&locale=en',
+            'api_params': {
+                'q': 'Anolis',
+                'per_page': '12',
+                'page': '1',
+                'locale': 'en',
+                'search_field': 'all_fields'
+            },
+            'generated_url': (
+                'https://www.morphosource.org/api/media?locale=en&search_field=all_fields'
+                '&q=Anolis&per_page=12&page=1'
+            ),
             'api_endpoint': 'media'
         }
 
@@ -342,7 +359,7 @@ class TestChatGPTProcessor:
         }
         formatted_query_info = {
             'formatted_query': 'Serpentes',
-            'api_params': {'taxonomy_gbif': 'Serpentes'}
+            'api_params': {'q': 'Serpentes'}
         }
         
         with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'}):
