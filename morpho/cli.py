@@ -80,8 +80,21 @@ def _ensure_ct_modality(params: MutableMapping[str, Any]) -> None:
 
 
 def _ensure_specimen_filters(params: MutableMapping[str, Any]) -> None:
-    params.setdefault('object_type', 'BiologicalSpecimen')
-    params.setdefault('f[object_type][]', 'BiologicalSpecimen')
+    """Ensure specimen-related taxonomy filters stay in sync."""
+
+    array_key = 'f[taxonomy_gbif][]'
+    taxonomy_value: Any = params.get('taxonomy_gbif')
+
+    if taxonomy_value and array_key not in params:
+        params[array_key] = taxonomy_value
+        return
+
+    array_value = params.get(array_key)
+    if array_value and 'taxonomy_gbif' not in params:
+        if isinstance(array_value, list):
+            params['taxonomy_gbif'] = array_value[0]
+        else:
+            params['taxonomy_gbif'] = array_value
 
 
 def _format_media_title(media: Mapping[str, Any], fallback: str) -> str:

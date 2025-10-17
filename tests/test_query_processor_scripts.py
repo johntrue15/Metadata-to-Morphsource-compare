@@ -102,7 +102,7 @@ class TestQueryFormatter:
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = "https://www.morphosource.org/api/physical-objects?f%5Bobject_type%5D%5B%5D=BiologicalSpecimen&f%5Btaxonomy_gbif%5D%5B%5D=Serpentes&locale=en&object_type=BiologicalSpecimen&per_page=1&page=1&taxonomy_gbif=Serpentes"
+        mock_response.choices[0].message.content = "https://www.morphosource.org/api/physical-objects?f%5Btaxonomy_gbif%5D%5B%5D=Serpentes&locale=en&per_page=1&page=1&taxonomy_gbif=Serpentes"
         mock_client.chat.completions.create.return_value = mock_response
         mock_openai.return_value = mock_client
         
@@ -113,11 +113,11 @@ class TestQueryFormatter:
             assert 'api_params' in result
             # Check for both array-style and plain parameters
             assert result['api_params'].get('taxonomy_gbif') == 'Serpentes'
-            assert result['api_params'].get('object_type') == 'BiologicalSpecimen'
             assert result['api_params'].get('locale') == 'en'
             assert result['api_params'].get('per_page') == '1'
             assert result['api_params'].get('page') == '1'
             assert result['api_endpoint'] == 'physical-objects'
+            assert 'object_type' not in result['api_params']
     
     @patch('query_formatter.OpenAI')
     def test_format_query_ct_scans_with_modality(self, mock_openai):

@@ -65,10 +65,8 @@ def specimens_count(taxon: str) -> URLTemplate:
 
     encoded = _encode_taxon(taxon)
     parts = (
-        "f%5Bobject_type%5D%5B%5D=BiologicalSpecimen",
         f"f%5Btaxonomy_gbif%5D%5B%5D={encoded}",
         "locale=en",
-        "object_type=BiologicalSpecimen",
         "per_page=1",
         "page=1",
         f"taxonomy_gbif={encoded}",
@@ -81,10 +79,8 @@ def specimens_browse(taxon: str, *, per_page: int = 12, page: int = 1) -> URLTem
 
     encoded = _encode_taxon(taxon)
     parts = (
-        "f%5Bobject_type%5D%5B%5D=BiologicalSpecimen",
         f"f%5Btaxonomy_gbif%5D%5B%5D={encoded}",
         "locale=en",
-        "object_type=BiologicalSpecimen",
         f"per_page={per_page}",
         f"page={page}",
         f"taxonomy_gbif={encoded}",
