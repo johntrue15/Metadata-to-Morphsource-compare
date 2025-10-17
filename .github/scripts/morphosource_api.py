@@ -6,12 +6,75 @@ Searches MorphoSource database using API parameters.
 
 import os
 import json
-import requests
 import sys
 from copy import deepcopy
-from urllib.parse import urlparse
+from types import SimpleNamespace
+from urllib.parse import urlencode, urlparse
 
-from requests import Request
+try:
+    import requests  # type: ignore
+    from requests import Request  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover - fallback when requests missing
+    import urllib.error
+    import urllib.request
+
+    class _FallbackResponse:
+        """Simplified response object mimicking :mod:`requests`."""
+
+        def __init__(self, status_code, body, url):
+            self.status_code = status_code
+            self._body = body
+            self.url = url
+
+        def json(self):
+            return json.loads(self.text)
+
+        @property
+        def text(self):
+            return self._body.decode('utf-8', errors='replace')
+
+    class _FallbackRequest:
+        """Minimal stand-in for :class:`requests.Request`."""
+
+        def __init__(self, method, url, params=None):
+            self.method = method
+            self.url = url
+            self.params = params or {}
+
+        def prepare(self):
+            if self.params:
+                query = urlencode(self.params, doseq=True)
+                prepared_url = f"{self.url}?{query}"
+            else:
+                prepared_url = self.url
+            return SimpleNamespace(url=prepared_url)
+
+    class _FallbackRequestsModule:
+        Request = _FallbackRequest
+
+        @staticmethod
+        def get(url, params=None, headers=None, timeout=30):  # pylint: disable=unused-argument
+            headers = headers or {}
+            if params:
+                query = urlencode(params, doseq=True)
+                url = f"{url}?{query}"
+
+            req = urllib.request.Request(url, headers=headers)
+            try:
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    body = resp.read()
+                    status_code = resp.getcode()
+            except urllib.error.HTTPError as exc:  # pragma: no cover - network errors not in tests
+                body = exc.read()
+                status_code = exc.code
+            except urllib.error.URLError as exc:  # pragma: no cover - network errors not in tests
+                body = str(exc).encode('utf-8')
+                status_code = 0
+
+            return _FallbackResponse(status_code, body, url)
+
+    requests = _FallbackRequestsModule()
+    Request = _FallbackRequest
 
 import query_formatter
 
