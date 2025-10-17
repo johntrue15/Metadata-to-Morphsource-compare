@@ -181,9 +181,8 @@ https://www.morphosource.org/api/physical-objects?f%5Bobject_type%5D%5B%5D=Biolo
         response = client.chat.completions.create(
             model="gpt-5",
             messages=messages,
-            max_tokens=200,
-            temperature=0.3,
-            max_completion_tokens=200
+            max_completion_tokens=2000,
+            temperature=0.3
         )
         
         result_text = response.choices[0].message.content.strip()
