@@ -93,14 +93,17 @@ jobs:
           MORPHOSOURCE_API_KEY: ${{ secrets.MORPHOSOURCE_API_KEY }}
           FORMATTED_QUERY: ${{ needs.query-formatter.outputs.formatted_query }}
           API_PARAMS: ${{ needs.query-formatter.outputs.api_params }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           python .github/scripts/morphosource_api.py "$FORMATTED_QUERY" "$API_PARAMS"
-      
+
       - name: Upload MorphoSource Results
         uses: actions/upload-artifact@v4
         with:
           name: morphosource-results
-          path: morphosource_results.json
+          path: |
+            morphosource_results.json
+            formatted_query_final.json
 
   chatgpt-processing:
     name: ChatGPT Query Processing
