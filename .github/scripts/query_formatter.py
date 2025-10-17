@@ -115,6 +115,8 @@ Pagination & locale
 
 Always include locale=en.
 
+For media endpoint, include search_field=all_fields.
+
 Counts: per_page=1&page=1 (read pages.total_count).
 
 Browse: per_page=12&page=1 (or as requested).
@@ -127,12 +129,12 @@ URL templates
 
 Media (CT scans, browse)
 
-https://www.morphosource.org/api/media?f%5Bmodality%5D%5B%5D=MicroNanoXRayComputedTomography&f%5Btaxonomy_gbif%5D%5B%5D=<GBIF taxon>&locale=en&modality=MicroNanoXRayComputedTomography&per_page=12&taxonomy_gbif=<GBIF taxon>&page=1
+https://www.morphosource.org/api/media?f%5Bmodality%5D%5B%5D=MicroNanoXRayComputedTomography&f%5Btaxonomy_gbif%5D%5B%5D=<GBIF taxon>&locale=en&search_field=all_fields
 
 
 Media (CT scans, open only)
 
-https://www.morphosource.org/api/media?f%5Bmodality%5D%5B%5D=MicroNanoXRayComputedTomography&f%5Bvisibility%5D%5B%5D=Open&f%5Btaxonomy_gbif%5D%5B%5D=<GBIF taxon>&locale=en&modality=MicroNanoXRayComputedTomography&per_page=12&taxonomy_gbif=<GBIF taxon>&page=1
+https://www.morphosource.org/api/media?f%5Bmodality%5D%5B%5D=MicroNanoXRayComputedTomography&f%5Bvisibility%5D%5B%5D=Open&f%5Btaxonomy_gbif%5D%5B%5D=<GBIF taxon>&locale=en&search_field=all_fields
 
 
 Specimens (count)
@@ -148,12 +150,12 @@ Tests (exact outputs)
 
 "Show me CT scans of reptiles"
 
-https://www.morphosource.org/api/media?f%5Bmodality%5D%5B%5D=MicroNanoXRayComputedTomography&f%5Btaxonomy_gbif%5D%5B%5D=Reptilia&locale=en&modality=MicroNanoXRayComputedTomography&per_page=12&taxonomy_gbif=Reptilia&page=1
+https://www.morphosource.org/api/media?f%5Bmodality%5D%5B%5D=MicroNanoXRayComputedTomography&f%5Btaxonomy_gbif%5D%5B%5D=Reptilia&locale=en&search_field=all_fields
 
 
 "Show me CT scans of crocodiles"
 
-https://www.morphosource.org/api/media?f%5Bmodality%5D%5B%5D=MicroNanoXRayComputedTomography&f%5Btaxonomy_gbif%5D%5B%5D=Crocodylia&locale=en&modality=MicroNanoXRayComputedTomography&per_page=12&taxonomy_gbif=Crocodylia&page=1
+https://www.morphosource.org/api/media?f%5Bmodality%5D%5B%5D=MicroNanoXRayComputedTomography&f%5Btaxonomy_gbif%5D%5B%5D=Crocodylia&locale=en&search_field=all_fields
 
 
 "How many snake specimens are available?" (count)

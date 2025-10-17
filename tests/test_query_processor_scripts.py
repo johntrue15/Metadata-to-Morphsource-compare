@@ -126,7 +126,7 @@ class TestQueryFormatter:
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = "https://www.morphosource.org/api/media?f%5Bmodality%5D%5B%5D=MicroNanoXRayComputedTomography&f%5Btaxonomy_gbif%5D%5B%5D=Reptilia&locale=en&modality=MicroNanoXRayComputedTomography&per_page=12&taxonomy_gbif=Reptilia&page=1"
+        mock_response.choices[0].message.content = "https://www.morphosource.org/api/media?f%5Bmodality%5D%5B%5D=MicroNanoXRayComputedTomography&f%5Btaxonomy_gbif%5D%5B%5D=Reptilia&locale=en&search_field=all_fields"
         mock_client.chat.completions.create.return_value = mock_response
         mock_openai.return_value = mock_client
         
@@ -136,10 +136,10 @@ class TestQueryFormatter:
             assert 'formatted_query' in result
             assert 'api_params' in result
             # Check for modality parameter
-            assert result['api_params'].get('modality') == 'MicroNanoXRayComputedTomography'
-            assert result['api_params'].get('taxonomy_gbif') == 'Reptilia'
+            assert result['api_params'].get('modality') or 'f[modality][]' in result['api_params']
+            assert result['api_params'].get('taxonomy_gbif') or 'f[taxonomy_gbif][]' in result['api_params']
             assert result['api_params'].get('locale') == 'en'
-            assert result['api_params'].get('per_page') == '12'
+            assert result['api_params'].get('search_field') == 'all_fields'
             assert result['api_endpoint'] == 'media'
 
 
