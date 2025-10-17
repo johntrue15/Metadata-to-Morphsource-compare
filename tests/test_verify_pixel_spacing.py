@@ -2,7 +2,8 @@
 Unit tests for verify_pixel_spacing.py
 """
 import unittest
-import pandas as pd
+import pytest
+pd = pytest.importorskip("pandas")
 import os
 import sys
 import tempfile
