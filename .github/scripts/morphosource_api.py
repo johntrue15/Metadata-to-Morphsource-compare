@@ -105,15 +105,25 @@ def _extract_result_count(data):
     if not isinstance(data, dict):
         return 0
 
-    for key in ('media', 'physical_objects', 'assets'):
-        if isinstance(data.get(key), list):
-            return len(data[key])
+    # Some responses nest the payload under a top-level "response" key. Check
+    # both the top-level dict and the nested payload for result arrays and
+    # pagination metadata so we correctly detect non-empty responses.
+    payloads_to_check = [data]
+    nested = data.get('response')
+    if isinstance(nested, dict):
+        payloads_to_check.append(nested)
 
-    pages = data.get('pages')
-    if isinstance(pages, dict):
-        total_count = pages.get('total_count')
-        if isinstance(total_count, int):
-            return total_count
+    for payload in payloads_to_check:
+        for key in ('media', 'physical_objects', 'assets'):
+            value = payload.get(key)
+            if isinstance(value, list):
+                return len(value)
+
+        pages = payload.get('pages')
+        if isinstance(pages, dict):
+            total_count = pages.get('total_count')
+            if isinstance(total_count, int):
+                return total_count
 
     return 0
 
