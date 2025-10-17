@@ -8,6 +8,8 @@ import os
 import json
 import sys
 import re
+from collections import Counter
+from urllib.parse import urlencode
 import importlib.util
 
 if 'openai' in sys.modules:
@@ -39,6 +41,108 @@ def _build_user_prompt(query, feedback):
         "API JSON response excerpt (may be truncated):\n"
         f"{response_excerpt}"
     )
+
+
+_COMMON_NAME_TO_GBIF = {
+    'lizard': 'Lacertilia',
+    'lizards': 'Lacertilia',
+    'snake': 'Serpentes',
+    'snakes': 'Serpentes',
+    'amphisbaenian': 'Amphisbaenia',
+    'amphisbaenians': 'Amphisbaenia',
+}
+
+
+_TAXON_STOPWORDS = {
+    'Here', 'What', 'Total', 'Media', 'Institutions', 'Stable',
+    'MorphoSource', 'Records', 'Help', 'Broader', 'Context', 'Taxa',
+    'Specimens', 'Visibility', 'Public', 'Mesh', 'Files', 'Female',
+    'Page', 'Snapshot', 'Current', 'Search', 'Matching', 'Includes',
+    'Family', 'Genus', 'Open', 'Mesh', 'Ark', 'Stable', 'Identifiers',
+    'This', 'Page', 'Specimen', 'Media', 'Available', 'Represented',
+    'Museum', 'Center', 'Collection', 'Research', 'Diversity',
+    'Amphibian', 'Reptile', 'Uta', 'Mvz', 'Ucm', 'Help', 'Total',
+}
+
+_SPECIES_STOPWORDS = {
+    'from', 'with', 'which', 'this', 'that', 'page', 'search', 'specimens',
+    'records', 'lizards', 'current', 'total', 'media', 'help', 'genus',
+    'institutions', 'represented', 'available', 'all', 'are', 'on', 'the'
+}
+
+
+def _infer_taxonomy_from_text(text):
+    """Infer a reasonable taxonomy term from free-form text."""
+
+    genus_counts: Counter[str] = Counter()
+    tokens = re.findall(r"[A-Za-z][A-Za-z-]*", text)
+    for idx, token in enumerate(tokens[:-1]):
+        if not token or not token[0].isupper() or not token[1:].islower():
+            continue
+        candidate_species = tokens[idx + 1]
+        species_lower = candidate_species.lower()
+        if species_lower in _SPECIES_STOPWORDS:
+            continue
+        if candidate_species.islower() and len(candidate_species) >= 3:
+            genus_counts[token] += 1
+
+    if genus_counts:
+        return genus_counts.most_common(1)[0][0]
+
+    genus_label_match = re.search(r"genus\s+([A-Z][a-z]+)", text, flags=re.IGNORECASE)
+    if genus_label_match:
+        return genus_label_match.group(1)
+
+    single_counts: Counter[str] = Counter()
+    for match in re.findall(r"\b([A-Z][a-z]{3,})\b", text):
+        if match in _TAXON_STOPWORDS:
+            continue
+        single_counts[match] += 1
+
+    if not single_counts:
+        colon_terms = Counter(
+            term for term in re.findall(r"\b([A-Z][a-z]{3,})\s*:", text)
+            if term not in _TAXON_STOPWORDS
+        )
+        single_counts.update(colon_terms)
+
+    if single_counts:
+        return single_counts.most_common(1)[0][0]
+
+    lowered = text.lower()
+    for keyword, gbif in _COMMON_NAME_TO_GBIF.items():
+        if keyword in lowered:
+            return gbif
+
+    return None
+
+
+def _build_fallback_from_taxonomy(taxonomy_term):
+    """Construct fallback API details when no URL is returned."""
+
+    params = [
+        ("f[taxonomy_gbif][]", taxonomy_term),
+        ("taxonomy_gbif", taxonomy_term),
+        ("locale", "en"),
+        ("per_page", "12"),
+        ("page", "1"),
+    ]
+    generated_url = (
+        "https://www.morphosource.org/api/physical-objects?" + urlencode(params, doseq=True)
+    )
+    api_params = {
+        "f[taxonomy_gbif][]": taxonomy_term,
+        "taxonomy_gbif": taxonomy_term,
+        "locale": "en",
+        "per_page": "12",
+        "page": "1",
+    }
+    return {
+        "formatted_query": taxonomy_term,
+        "api_params": api_params,
+        "generated_url": generated_url,
+        "api_endpoint": "physical-objects",
+    }
 
 
 def format_query(query, feedback=None):
@@ -223,10 +327,18 @@ https://www.morphosource.org/api/physical-objects?f%5Btaxonomy_gbif%5D%5B%5D=Ser
             else:
                 # No URL found, fallback
                 print("Warning: No URL found in response, using original query")
-                formatted_query = query
-                api_params = {'q': query, 'per_page': 10}
-                api_url = None
-                api_endpoint = None
+                inferred = _infer_taxonomy_from_text(query)
+                if inferred:
+                    fallback_details = _build_fallback_from_taxonomy(inferred)
+                    formatted_query = fallback_details["formatted_query"]
+                    api_params = fallback_details["api_params"]
+                    api_url = fallback_details["generated_url"]
+                    api_endpoint = fallback_details["api_endpoint"]
+                else:
+                    formatted_query = query
+                    api_params = {'q': query, 'per_page': 10}
+                    api_url = None
+                    api_endpoint = None
         except Exception as parse_error:
             # Fallback if URL parsing fails
             print(f"Warning: Could not parse URL response: {parse_error}, using original query")
