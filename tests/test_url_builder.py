@@ -7,8 +7,8 @@ def test_media_ct_scan_template_matches_prompt_example():
     expected = (
         "https://www.morphosource.org/api/media?"
         "f%5Bmodality%5D%5B%5D=MicroNanoXRayComputedTomography"
-        "&f%5Btaxonomy_gbif%5D%5B%5D=Reptilia"
         "&locale=en&search_field=all_fields"
+        "&q=Reptilia"
     )
     assert template.url == expected
 
@@ -19,8 +19,8 @@ def test_media_ct_scan_open_access_template_matches_prompt_example():
         "https://www.morphosource.org/api/media?"
         "f%5Bmodality%5D%5B%5D=MicroNanoXRayComputedTomography"
         "&f%5Bvisibility%5D%5B%5D=Open"
-        "&f%5Btaxonomy_gbif%5D%5B%5D=Crocodylia"
         "&locale=en&search_field=all_fields"
+        "&q=Crocodylia"
     )
     assert template.url == expected
 
@@ -57,5 +57,6 @@ def test_physical_objects_url_no_object_type():
 def test_media_ct_scan_respects_custom_pagination():
     template = url_builder.media_ct_scan("Anolis", per_page=24, page=2)
     params = template.as_params()
+    assert params["q"] == "Anolis"
     assert params["per_page"] == "24"
     assert params["page"] == "2"
