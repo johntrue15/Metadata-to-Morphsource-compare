@@ -105,12 +105,17 @@ def main():
     
     # Load formatted query information
     formatted_query_info = {}
-    try:
-        with open('formatted_query.json', 'r') as f:
-            formatted_query_info = json.load(f)
-    except Exception as e:
-        print(f"Warning: Could not load formatted query: {e}")
-    
+    formatted_query_candidates = ['formatted_query_final.json', 'formatted_query.json']
+    for candidate in formatted_query_candidates:
+        try:
+            if os.path.exists(candidate):
+                with open(candidate, 'r') as f:
+                    formatted_query_info = json.load(f)
+                print(f"Loaded formatted query details from {candidate}")
+                break
+        except Exception as e:
+            print(f"Warning: Could not load {candidate}: {e}")
+
     result = process_with_chatgpt(query, morphosource_data, formatted_query_info)
     
     # Save result to output file for artifact
