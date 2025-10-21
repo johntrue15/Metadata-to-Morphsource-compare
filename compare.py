@@ -1,22 +1,22 @@
-import pandas as pd
-import numpy as np
-import json
-import re
-from fuzzywuzzy import fuzz, process
-import matplotlib.pyplot as plt
-import seaborn as sns
-from IPython.display import display, HTML
-import ipywidgets as widgets
-from datetime import datetime, timedelta
-import ast
-import os
+"""MorphoSource specimen data comparison tool.
 
-# Install required packages if not already installed
-try:
-    import fuzzywuzzy
-except ImportError:
-    import subprocess
-    subprocess.check_call(["pip", "install", "pandas", "numpy", "fuzzywuzzy", "python-Levenshtein", "matplotlib", "seaborn", "ipywidgets"])
+This module provides functionality to compare local specimen metadata
+with MorphoSource database records, using fuzzy matching on catalog
+numbers and taxonomic information.
+"""
+import ast
+import json
+import os
+import re
+from datetime import datetime, timedelta
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
+from fuzzywuzzy import fuzz, process
+from IPython.display import HTML, display
+from ipywidgets import widgets
 
 # Define the MorphosourceMatcher class
 class MorphosourceMatcher:

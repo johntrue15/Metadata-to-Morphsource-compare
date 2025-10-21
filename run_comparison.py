@@ -1,6 +1,11 @@
+"""Local comparison runner for MorphoSource data.
+
+This script provides a command-line interface for running the comparison
+and verification workflow locally, without using GitHub Actions.
+"""
+import argparse
 import os
 import subprocess
-import argparse
 
 def ensure_dir(directory):
     """Make sure the directory exists"""
