@@ -1,6 +1,9 @@
 # Metadata-to-Morphosource Compare
 
 [![Tests](https://github.com/johntrue15/Metadata-to-Morphsource-compare/actions/workflows/tests.yml/badge.svg)](https://github.com/johntrue15/Metadata-to-Morphsource-compare/actions/workflows/tests.yml)
+[![Code Quality](https://github.com/johntrue15/Metadata-to-Morphsource-compare/actions/workflows/code-quality.yml/badge.svg)](https://github.com/johntrue15/Metadata-to-Morphsource-compare/actions/workflows/code-quality.yml)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A user-friendly tool for researchers to compare their specimen metadata with Morphosource database records and verify voxel spacing values.
 
@@ -155,10 +158,36 @@ If you prefer to run the tool locally rather than through GitHub Actions:
 git clone https://github.com/yourusername/Metadata-to-Morphsource-compare.git
 cd Metadata-to-Morphsource-compare
 
+# Create and activate a virtual environment (recommended)
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Optional: Set up environment variables
+cp .env.example .env
+# Edit .env and add your API keys
+
 # Place your CSV in the data/csv directory
 
 # Run the comparison
 python run_comparison.py --csv "Your CSV Filename.csv" --api-key "your-api-key-here"
+```
+
+### Installation as a Package (Optional)
+
+You can also install this tool as a Python package:
+
+```bash
+# Install in development mode
+pip install -e .
+
+# Or install with development dependencies
+pip install -e ".[dev]"
+
+# Use the morpho command-line tool
+morpho --help
 ```
 
 ## For Developers
@@ -211,8 +240,16 @@ View test results in the **Actions** tab.
 If you encounter issues:
 1. Check the workflow run logs for error messages
 2. Verify your CSV format matches expected columns
-3. Contact repository maintainers for assistance
+3. Open an issue on GitHub for assistance
+
+## Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on:
+- Setting up your development environment
+- Code style and quality standards
+- Testing requirements
+- How to submit pull requests
 
 ## License
 
-[Your license information here]
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
