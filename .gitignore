@@ -49,6 +49,9 @@ Thumbs.db
 tmp/
 temp/
 
+# Environment variables
+.env
+
 # Backup files
 *-old.*
 

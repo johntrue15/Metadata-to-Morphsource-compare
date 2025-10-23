@@ -1,12 +1,17 @@
-# Import required libraries
+"""MorphoSource voxel spacing verification tool.
+
+This module provides functionality to verify voxel spacing values in CT scans
+by comparing local metadata with values fetched from the MorphoSource API.
+"""
+import argparse
+import json
+import os
+import re
+import time
+from urllib.parse import urlparse
+
 import pandas as pd
 import requests
-import re
-import json
-import time
-import os
-from urllib.parse import urlparse
-import argparse
 
 class MorphosourceVoxelVerifier:
     def __init__(self, input_csv, api_key=None):
