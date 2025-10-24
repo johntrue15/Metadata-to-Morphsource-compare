@@ -51,7 +51,7 @@ jobs:
       
       - name: Add query-request label
         if: steps.check.outputs.is_query == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             // Add the query-request label if not already present
@@ -68,7 +68,7 @@ jobs:
       
       - name: Add comment to issue
         if: steps.check.outputs.is_query == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             await github.rest.issues.createComment({
@@ -82,7 +82,7 @@ jobs:
         env:
           QUERY_TEXT: ${{ steps.extract.outputs.query }}
         if: steps.check.outputs.is_query == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const query = process.env.QUERY_TEXT;
