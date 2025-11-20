@@ -46,12 +46,8 @@ jobs:
               return false;
             }
             
-            // Check if already graded
-            const isGraded = labels.includes('graded');
-            if (isGraded) {
-              console.log('Issue already graded, skipping');
-              return false;
-            }
+            // Note: We don't skip if already graded - there might be new responses to grade
+            // The extract step will determine if there are any ungraded responses
             
             // Check if response has been posted
             const hasCompleted = labels.includes('completed');
@@ -70,7 +66,7 @@ jobs:
               const containsResponse = comment.body.includes('Query Processing Complete') || 
                                       comment.body.includes('ChatGPT Response');
               
-              if (isBot && containsResponse && !isGraded) {
+              if (isBot && containsResponse) {
                 core.setOutput('should_grade', 'true');
                 core.setOutput('issue_number', issueNumber);
                 return true;
@@ -138,9 +134,8 @@ jobs:
               per_page: 100
             });
             
-            // Find the response comment
-            let responseText = '';
-            let morphosourceResults = '{}';
+            // Find ALL response comments and check which ones are already graded
+            const responses = [];
             
             for (const comment of comments.data) {
               const commentBody = comment.body;
@@ -150,47 +145,113 @@ jobs:
                 
                 // Extract ChatGPT response
                 const responseMatch = commentBody.match(/### 🤖 ChatGPT Response\s*\n\n([\s\S]*?)\n\n---/);
+                let responseText = '';
                 if (responseMatch) {
                   responseText = responseMatch[1].trim();
                 }
                 
                 // Extract MorphoSource results
                 const resultsMatch = commentBody.match(/### 📊 MorphoSource API Results\s*\n\n```json\s*\n([\s\S]*?)\n```/);
+                let morphosourceResults = '{}';
                 if (resultsMatch) {
                   morphosourceResults = resultsMatch[1].trim();
                 }
                 
-                break;
+                if (responseText) {
+                  responses.push({
+                    commentId: comment.id,
+                    responseText: responseText,
+                    morphosourceResults: morphosourceResults
+                  });
+                }
               }
             }
             
-            if (!responseText) {
-              console.log('No response found yet, skipping grading');
+            if (responses.length === 0) {
+              console.log('No responses found yet, skipping grading');
               core.setOutput('has_response', 'false');
               return;
             }
             
+            console.log(`Found ${responses.length} response(s) to grade`);
+            
+            // Check which responses have already been graded by looking for grade comments
+            const gradedCommentIds = new Set();
+            for (const comment of comments.data) {
+              const commentBody = comment.body;
+              if (commentBody.includes('Response Grade:') && commentBody.includes('Graded by automated response evaluation system')) {
+                // Extract which response was graded (if we can identify it)
+                // For now, we'll mark the workflow to track graded responses
+                const match = commentBody.match(/<!-- graded-comment-id: (\d+) -->/);
+                if (match) {
+                  gradedCommentIds.add(parseInt(match[1]));
+                }
+              }
+            }
+            
+            // Filter out already graded responses
+            const ungradedResponses = responses.filter(r => !gradedCommentIds.has(r.commentId));
+            
+            if (ungradedResponses.length === 0) {
+              console.log('All responses have already been graded');
+              core.setOutput('has_response', 'false');
+              return;
+            }
+            
+            console.log(`Found ${ungradedResponses.length} ungraded response(s)`);
             core.setOutput('has_response', 'true');
+            core.setOutput('response_count', ungradedResponses.length.toString());
             
-            // Write to files for Python script
-            fs.writeFileSync('response_data.json', JSON.stringify({
-              status: 'success',
-              response: responseText
-            }));
+            // Write all ungraded responses to files for Python script
+            fs.writeFileSync('responses.json', JSON.stringify(ungradedResponses, null, 2));
             
-            fs.writeFileSync('morphosource_data.json', morphosourceResults);
-            
-            console.log('Extracted response and results for grading');
+            console.log('Extracted responses and results for grading');
       
-      - name: Grade the response
+      - name: Grade all responses
         if: steps.check.outputs.should_grade == 'true' && steps.extract.outputs.has_response == 'true'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           QUERY: ${{ steps.extract.outputs.query }}
         run: |
-          python .github/scripts/grade_response.py "$QUERY" response_data.json morphosource_data.json
+          # Grade each response separately
+          python3 << 'EOF'
+          import json
+          import os
+          import sys
+          
+          # Import the grade_response function
+          sys.path.insert(0, '.github/scripts')
+          from grade_response import grade_response
+          
+          query = os.environ['QUERY']
+          
+          # Read all responses
+          with open('responses.json', 'r') as f:
+              responses = json.load(f)
+          
+          # Grade each response
+          all_grades = []
+          for i, response_data in enumerate(responses):
+              print(f"\n{'='*60}")
+              print(f"Grading response {i+1} of {len(responses)}")
+              print(f"{'='*60}")
+              
+              response_text = response_data['responseText']
+              morphosource_results = json.loads(response_data['morphosourceResults'])
+              comment_id = response_data['commentId']
+              
+              grade_result = grade_response(query, response_text, morphosource_results)
+              grade_result['comment_id'] = comment_id
+              all_grades.append(grade_result)
+          
+          # Write all grades to file
+          with open('all_grades.json', 'w') as f:
+              json.dump(all_grades, f, indent=2)
+          
+          print(f"\n✓ Graded {len(all_grades)} response(s)")
+          EOF
       
-      - name: Post grade to issue
+      - name: Post grades to issue
         if: steps.check.outputs.should_grade == 'true' && steps.extract.outputs.has_response == 'true'
         env:
           ISSUE_NUMBER: ${{ steps.check.outputs.issue_number }}
@@ -200,72 +261,101 @@ jobs:
             const fs = require('fs');
             const issueNumber = parseInt(process.env.ISSUE_NUMBER);
             
-            if (!fs.existsSync('grade_result.json')) {
-              console.log('No grade result file found');
+            if (!fs.existsSync('all_grades.json')) {
+              console.log('No grade results file found');
               return;
             }
             
-            const gradeData = JSON.parse(fs.readFileSync('grade_result.json', 'utf8'));
+            const allGrades = JSON.parse(fs.readFileSync('all_grades.json', 'utf8'));
             
-            if (gradeData.status !== 'success') {
-              console.log('Grading failed:', gradeData.message);
+            console.log(`Posting ${allGrades.length} grade(s) to issue #${issueNumber}`);
+            
+            let allSuccessful = true;
+            let highestGradeLabel = 'grade-low';
+            
+            // Post a grade comment for each response
+            for (let i = 0; i < allGrades.length; i++) {
+              const gradeData = allGrades[i];
               
-              // Post error comment
+              if (gradeData.status !== 'success') {
+                console.log(`Grading failed for response ${i+1}:`, gradeData.message);
+                
+                // Post error comment
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  body: `⚠️ **Grading Error (Response ${i+1})**\n\nFailed to grade the response: ${gradeData.message}`
+                });
+                allSuccessful = false;
+                continue;
+              }
+              
+              // Format grade emoji
+              const grade = gradeData.grade;
+              let gradeEmoji = '❌';
+              let gradeLabel = 'grade-low';
+              if (grade >= 80) {
+                gradeEmoji = '🌟';
+                gradeLabel = 'grade-excellent';
+              } else if (grade >= 60) {
+                gradeEmoji = '✅';
+                gradeLabel = 'grade-good';
+              } else if (grade >= 40) {
+                gradeEmoji = '⚠️';
+                gradeLabel = 'grade-fair';
+              }
+              
+              // Update highest grade label
+              const gradeValues = {
+                'grade-excellent': 4,
+                'grade-good': 3,
+                'grade-fair': 2,
+                'grade-low': 1
+              };
+              if (gradeValues[gradeLabel] > gradeValues[highestGradeLabel]) {
+                highestGradeLabel = gradeLabel;
+              }
+              
+              // Build comment with grade
+              const responseNumber = allGrades.length > 1 ? ` (Response ${i+1}/${allGrades.length})` : '';
+              const commentBody = `## ${gradeEmoji} Response Grade${responseNumber}: ${grade}/100\n\n` +
+                `### Breakdown\n\n` +
+                `| Criterion | Score |\n` +
+                `|-----------|-------|\n` +
+                `| Query Formation | ${gradeData.breakdown.query_formation}/25 |\n` +
+                `| Results Quality | ${gradeData.breakdown.results_quality}/25 |\n` +
+                `| Response Accuracy | ${gradeData.breakdown.response_accuracy}/25 |\n` +
+                `| Response Completeness | ${gradeData.breakdown.response_completeness}/25 |\n` +
+                `| **Total** | **${grade}/100** |\n\n` +
+                `### Evaluation\n\n` +
+                `**Strengths:** ${gradeData.strengths}\n\n` +
+                `**Areas for Improvement:** ${gradeData.weaknesses}\n\n` +
+                `**Reasoning:** ${gradeData.reasoning}\n\n` +
+                `---\n\n` +
+                `**Results Found:** ${gradeData.result_count || 0} specimens\n\n` +
+                `*Graded by automated response evaluation system*\n` +
+                `<!-- graded-comment-id: ${gradeData.comment_id} -->`;
+              
+              // Post comment with grade
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: issueNumber,
-                body: '⚠️ **Grading Error**\n\nFailed to grade the response: ' + gradeData.message
+                body: commentBody
               });
-              return;
+              
+              console.log(`✓ Posted grade ${grade}/100 for response ${i+1}/${allGrades.length}`);
             }
             
-            // Format grade emoji
-            const grade = gradeData.grade;
-            let gradeEmoji = '❌';
-            if (grade >= 80) gradeEmoji = '🌟';
-            else if (grade >= 60) gradeEmoji = '✅';
-            else if (grade >= 40) gradeEmoji = '⚠️';
-            
-            // Build comment with grade
-            const commentBody = `## ${gradeEmoji} Response Grade: ${grade}/100\n\n` +
-              `### Breakdown\n\n` +
-              `| Criterion | Score |\n` +
-              `|-----------|-------|\n` +
-              `| Query Formation | ${gradeData.breakdown.query_formation}/25 |\n` +
-              `| Results Quality | ${gradeData.breakdown.results_quality}/25 |\n` +
-              `| Response Accuracy | ${gradeData.breakdown.response_accuracy}/25 |\n` +
-              `| Response Completeness | ${gradeData.breakdown.response_completeness}/25 |\n` +
-              `| **Total** | **${grade}/100** |\n\n` +
-              `### Evaluation\n\n` +
-              `**Strengths:** ${gradeData.strengths}\n\n` +
-              `**Areas for Improvement:** ${gradeData.weaknesses}\n\n` +
-              `**Reasoning:** ${gradeData.reasoning}\n\n` +
-              `---\n\n` +
-              `**Results Found:** ${gradeData.result_count || 0} specimens\n\n` +
-              `*Graded by automated response evaluation system*`;
-            
-            // Post comment with grade
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: issueNumber,
-              body: commentBody
-            });
-            
-            // Add 'graded' label and appropriate grade label
-            let gradeLabel = 'grade-low';
-            if (grade >= 80) gradeLabel = 'grade-excellent';
-            else if (grade >= 60) gradeLabel = 'grade-good';
-            else if (grade >= 40) gradeLabel = 'grade-fair';
-            
+            // Add 'graded' label and appropriate grade label based on highest grade
             const currentLabels = (await github.rest.issues.get({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issueNumber
             })).data.labels.map(l => l.name);
             
-            const newLabels = [...currentLabels.filter(l => !l.startsWith('grade-')), 'graded', gradeLabel];
+            const newLabels = [...currentLabels.filter(l => !l.startsWith('grade-')), 'graded', highestGradeLabel];
             
             await github.rest.issues.update({
               owner: context.repo.owner,
@@ -274,19 +364,27 @@ jobs:
               labels: newLabels
             });
             
-            console.log(`✓ Posted grade ${grade}/100 to issue #${issueNumber}`);
+            console.log(`✓ Added 'graded' and '${highestGradeLabel}' labels to issue #${issueNumber}`);
       
       - name: Summary
         if: steps.check.outputs.should_grade == 'true' && steps.extract.outputs.has_response == 'true'
         env:
           ISSUE_NUMBER: ${{ steps.check.outputs.issue_number }}
         run: |
-          if [ -f grade_result.json ]; then
-            GRADE=$(jq -r '.grade // 0' grade_result.json)
+          if [ -f all_grades.json ]; then
+            RESPONSE_COUNT=$(jq '. | length' all_grades.json)
             echo "## Response Grading Complete ✓" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "**Issue:** #$ISSUE_NUMBER" >> $GITHUB_STEP_SUMMARY
-            echo "**Grade:** $GRADE/100" >> $GITHUB_STEP_SUMMARY
+            echo "**Responses Graded:** $RESPONSE_COUNT" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # Show grades for each response
+            for i in $(seq 0 $((RESPONSE_COUNT - 1))); do
+              GRADE=$(jq -r ".[$i].grade // 0" all_grades.json)
+              echo "- Response $((i + 1)): **$GRADE/100**" >> $GITHUB_STEP_SUMMARY
+            done
+            
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "View the full grade breakdown on the issue." >> $GITHUB_STEP_SUMMARY
           fi
