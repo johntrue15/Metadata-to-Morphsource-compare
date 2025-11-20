@@ -83,7 +83,7 @@ jobs:
           pip install requests
       
       - name: Download Formatted Query
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: formatted-query
       
@@ -125,12 +125,12 @@ jobs:
           pip install openai requests
       
       - name: Download MorphoSource Results
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: morphosource-results
       
       - name: Download Formatted Query
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: formatted-query
       
