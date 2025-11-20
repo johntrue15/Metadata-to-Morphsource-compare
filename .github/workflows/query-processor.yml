@@ -56,7 +56,7 @@ jobs:
           python .github/scripts/query_formatter.py "${{ steps.get-query.outputs.query }}"
       
       - name: Upload Formatted Query
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: formatted-query
           path: formatted_query.json
@@ -98,7 +98,7 @@ jobs:
           python .github/scripts/morphosource_api.py "$FORMATTED_QUERY" "$API_PARAMS"
 
       - name: Upload MorphoSource Results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: morphosource-results
           path: |
@@ -154,7 +154,7 @@ jobs:
           python .github/scripts/chatgpt_processor.py "$QUERY_TEXT"
       
       - name: Upload ChatGPT Response
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: chatgpt-response
           path: chatgpt_response.json
