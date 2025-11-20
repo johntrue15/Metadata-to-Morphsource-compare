@@ -1,26 +1,101 @@
 query
-Tell me about lizards on MorphoSource
-How many snake specimens are available?
-Show me CT scans of crocodiles
-What turtle specimens do you have?
-Find amphibian fossils
-List all specimens from genus Iguana
-Show me specimens collected in 2020
-What bird specimens are available?
-Find specimens from the University of Florida
-Show me specimens with voxel spacing data
-List all specimens from family Gekkonidae
-What specimens have contrast enhancement?
-Show me specimens from Madagascar
-Find specimens with catalog number starting with UF
-List all specimens from order Squamata
-What specimens were collected by Smith?
-Show me specimens with longitude data
-Find specimens from genus Anolis
-What specimens are from the Cretaceous period?
-List specimens with slice thickness greater than 0.05mm
-Show me specimens from institution code AMNH
-Find specimens with pixel spacing calibration
-What specimens have shading correction applied?
-List all specimens from subfamily Chamaeleoninae
-Show me specimens scanned with microCT
+Show me dog scans
+Show me cat scans
+Show me horse scans
+Show me cow scans
+Show me pig scans
+Show me sheep scans
+Show me goat scans
+Show me chicken scans
+Show me duck scans
+Show me turkey scans
+Show me lion scans
+Show me tiger scans
+Show me leopard scans
+Show me cheetah scans
+Show me jaguar scans
+Show me wolf scans
+Show me fox scans
+Show me bear scans
+Show me panda scans
+Show me koala scans
+Show me kangaroo scans
+Show me wallaby scans
+Show me elephant scans
+Show me giraffe scans
+Show me zebra scans
+Show me hippopotamus scans
+Show me rhinoceros scans
+Show me camel scans
+Show me llama scans
+Show me alpaca scans
+Show me deer scans
+Show me moose scans
+Show me caribou scans
+Show me reindeer scans
+Show me bison scans
+Show me buffalo scans
+Show me antelope scans
+Show me gazelle scans
+Show me boar scans
+Show me warthog scans
+Show me chimpanzee scans
+Show me gorilla scans
+Show me orangutan scans
+Show me baboon scans
+Show me lemur scans
+Show me sloth scans
+Show me otter scans
+Show me raccoon scans
+Show me skunk scans
+Show me badger scans
+Show me eagle scans
+Show me hawk scans
+Show me falcon scans
+Show me owl scans
+Show me vulture scans
+Show me parrot scans
+Show me macaw scans
+Show me cockatoo scans
+Show me penguin scans
+Show me flamingo scans
+Show me pelican scans
+Show me heron scans
+Show me stork scans
+Show me crane scans
+Show me swan scans
+Show me goose scans
+Show me puffin scans
+Show me albatross scans
+Show me seagull scans
+Show me hummingbird scans
+Show me shark scans
+Show me dolphin scans
+Show me whale scans
+Show me orca scans
+Show me seal scans
+Show me sea lion scans
+Show me walrus scans
+Show me manatee scans
+Show me sea turtle scans
+Show me octopus scans
+Show me squid scans
+Show me jellyfish scans
+Show me starfish scans
+Show me seahorse scans
+Show me lobster scans
+Show me crab scans
+Show me shrimp scans
+Show me salmon scans
+Show me trout scans
+Show me tuna scans
+Show me frog scans
+Show me toad scans
+Show me salamander scans
+Show me newt scans
+Show me crocodile scans
+Show me alligator scans
+Show me iguana scans
+Show me python scans
+Show me cobra scans
+Show me lizard scans
