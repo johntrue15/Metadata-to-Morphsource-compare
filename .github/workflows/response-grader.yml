@@ -1,0 +1,292 @@
+name: Response Grader
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to grade'
+        required: true
+        type: string
+
+jobs:
+  grade-response:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+    
+    steps:
+      - name: Check if this is a query response
+        id: check
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const issueNumber = context.issue?.number || parseInt('${{ inputs.issue_number }}');
+            
+            if (!issueNumber) {
+              console.log('No issue number found');
+              return false;
+            }
+            
+            // Get the issue details
+            const issue = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber
+            });
+            
+            // Check if this is a query issue
+            const labels = issue.data.labels.map(l => l.name);
+            const isQueryIssue = labels.includes('query-request') || labels.includes('batch-query');
+            
+            if (!isQueryIssue) {
+              console.log('Not a query issue, skipping');
+              return false;
+            }
+            
+            // Check if already graded
+            const isGraded = labels.includes('graded');
+            if (isGraded) {
+              console.log('Issue already graded, skipping');
+              return false;
+            }
+            
+            // Check if response has been posted
+            const hasCompleted = labels.includes('completed');
+            
+            // For workflow_dispatch, always process
+            if (context.eventName === 'workflow_dispatch') {
+              core.setOutput('should_grade', 'true');
+              core.setOutput('issue_number', issueNumber);
+              return true;
+            }
+            
+            // For issue_comment, check if the comment is the response
+            if (context.eventName === 'issue_comment') {
+              const comment = context.payload.comment;
+              const isBot = comment.user.type === 'Bot' || comment.user.login.includes('[bot]');
+              const containsResponse = comment.body.includes('Query Processing Complete') || 
+                                      comment.body.includes('ChatGPT Response');
+              
+              if (isBot && containsResponse && !isGraded) {
+                core.setOutput('should_grade', 'true');
+                core.setOutput('issue_number', issueNumber);
+                return true;
+              }
+            }
+            
+            console.log('Conditions not met for grading');
+            return false;
+      
+      - name: Checkout repository
+        if: steps.check.outputs.should_grade == 'true'
+        uses: actions/checkout@v5
+      
+      - name: Set up Python
+        if: steps.check.outputs.should_grade == 'true'
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        if: steps.check.outputs.should_grade == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          pip install openai
+      
+      - name: Extract query and response
+        if: steps.check.outputs.should_grade == 'true'
+        id: extract
+        env:
+          ISSUE_NUMBER: ${{ steps.check.outputs.issue_number }}
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+            const issueNumber = parseInt(process.env.ISSUE_NUMBER);
+            
+            // Get issue details
+            const issue = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber
+            });
+            
+            // Extract query from issue body
+            let query = '';
+            const body = issue.data.body || '';
+            
+            // Try to extract query between **Query:** and ---
+            const queryMatch = body.match(/\*\*Query:\*\*\s*\n([\s\S]*?)\n---/);
+            if (queryMatch) {
+              query = queryMatch[1].trim();
+            } else {
+              // Fallback: use title
+              query = issue.data.title.replace(/^Query:\s*/, '');
+            }
+            
+            console.log(`Extracted query: ${query}`);
+            core.setOutput('query', query);
+            
+            // Get all comments on the issue
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              per_page: 100
+            });
+            
+            // Find the response comment
+            let responseText = '';
+            let morphosourceResults = '{}';
+            
+            for (const comment of comments.data) {
+              const commentBody = comment.body;
+              
+              if (commentBody.includes('Query Processing Complete') || 
+                  commentBody.includes('ChatGPT Response')) {
+                
+                // Extract ChatGPT response
+                const responseMatch = commentBody.match(/### 🤖 ChatGPT Response\s*\n\n([\s\S]*?)\n\n---/);
+                if (responseMatch) {
+                  responseText = responseMatch[1].trim();
+                }
+                
+                // Extract MorphoSource results
+                const resultsMatch = commentBody.match(/### 📊 MorphoSource API Results\s*\n\n```json\s*\n([\s\S]*?)\n```/);
+                if (resultsMatch) {
+                  morphosourceResults = resultsMatch[1].trim();
+                }
+                
+                break;
+              }
+            }
+            
+            if (!responseText) {
+              console.log('No response found yet, skipping grading');
+              core.setOutput('has_response', 'false');
+              return;
+            }
+            
+            core.setOutput('has_response', 'true');
+            
+            // Write to files for Python script
+            fs.writeFileSync('response_data.json', JSON.stringify({
+              status: 'success',
+              response: responseText
+            }));
+            
+            fs.writeFileSync('morphosource_data.json', morphosourceResults);
+            
+            console.log('Extracted response and results for grading');
+      
+      - name: Grade the response
+        if: steps.check.outputs.should_grade == 'true' && steps.extract.outputs.has_response == 'true'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          QUERY: ${{ steps.extract.outputs.query }}
+        run: |
+          python .github/scripts/grade_response.py "$QUERY" response_data.json morphosource_data.json
+      
+      - name: Post grade to issue
+        if: steps.check.outputs.should_grade == 'true' && steps.extract.outputs.has_response == 'true'
+        env:
+          ISSUE_NUMBER: ${{ steps.check.outputs.issue_number }}
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+            const issueNumber = parseInt(process.env.ISSUE_NUMBER);
+            
+            if (!fs.existsSync('grade_result.json')) {
+              console.log('No grade result file found');
+              return;
+            }
+            
+            const gradeData = JSON.parse(fs.readFileSync('grade_result.json', 'utf8'));
+            
+            if (gradeData.status !== 'success') {
+              console.log('Grading failed:', gradeData.message);
+              
+              // Post error comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body: '⚠️ **Grading Error**\n\nFailed to grade the response: ' + gradeData.message
+              });
+              return;
+            }
+            
+            // Format grade emoji
+            const grade = gradeData.grade;
+            let gradeEmoji = '❌';
+            if (grade >= 80) gradeEmoji = '🌟';
+            else if (grade >= 60) gradeEmoji = '✅';
+            else if (grade >= 40) gradeEmoji = '⚠️';
+            
+            // Build comment with grade
+            const commentBody = `## ${gradeEmoji} Response Grade: ${grade}/100\n\n` +
+              `### Breakdown\n\n` +
+              `| Criterion | Score |\n` +
+              `|-----------|-------|\n` +
+              `| Query Formation | ${gradeData.breakdown.query_formation}/25 |\n` +
+              `| Results Quality | ${gradeData.breakdown.results_quality}/25 |\n` +
+              `| Response Accuracy | ${gradeData.breakdown.response_accuracy}/25 |\n` +
+              `| Response Completeness | ${gradeData.breakdown.response_completeness}/25 |\n` +
+              `| **Total** | **${grade}/100** |\n\n` +
+              `### Evaluation\n\n` +
+              `**Strengths:** ${gradeData.strengths}\n\n` +
+              `**Areas for Improvement:** ${gradeData.weaknesses}\n\n` +
+              `**Reasoning:** ${gradeData.reasoning}\n\n` +
+              `---\n\n` +
+              `**Results Found:** ${gradeData.result_count || 0} specimens\n\n` +
+              `*Graded by automated response evaluation system*`;
+            
+            // Post comment with grade
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: commentBody
+            });
+            
+            // Add 'graded' label and appropriate grade label
+            let gradeLabel = 'grade-low';
+            if (grade >= 80) gradeLabel = 'grade-excellent';
+            else if (grade >= 60) gradeLabel = 'grade-good';
+            else if (grade >= 40) gradeLabel = 'grade-fair';
+            
+            const currentLabels = (await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber
+            })).data.labels.map(l => l.name);
+            
+            const newLabels = [...currentLabels.filter(l => !l.startsWith('grade-')), 'graded', gradeLabel];
+            
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              labels: newLabels
+            });
+            
+            console.log(`✓ Posted grade ${grade}/100 to issue #${issueNumber}`);
+      
+      - name: Summary
+        if: steps.check.outputs.should_grade == 'true' && steps.extract.outputs.has_response == 'true'
+        env:
+          ISSUE_NUMBER: ${{ steps.check.outputs.issue_number }}
+        run: |
+          if [ -f grade_result.json ]; then
+            GRADE=$(jq -r '.grade // 0' grade_result.json)
+            echo "## Response Grading Complete ✓" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Issue:** #$ISSUE_NUMBER" >> $GITHUB_STEP_SUMMARY
+            echo "**Grade:** $GRADE/100" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "View the full grade breakdown on the issue." >> $GITHUB_STEP_SUMMARY
+          fi

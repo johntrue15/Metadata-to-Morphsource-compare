@@ -1,0 +1,131 @@
+name: Batch Query Processor
+
+on:
+  workflow_dispatch:
+    inputs:
+      csv_file:
+        description: 'CSV file containing queries (relative to repo root)'
+        required: false
+        default: 'test_queries.csv'
+        type: string
+
+jobs:
+  process-batch-queries:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+      
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.10'
+      
+      - name: Read and process queries
+        id: process
+        env:
+          CSV_FILE: ${{ inputs.csv_file }}
+        run: |
+          python3 << 'EOF'
+          import csv
+          import os
+          import json
+          
+          csv_file = os.environ.get('CSV_FILE', 'test_queries.csv')
+          
+          try:
+              with open(csv_file, 'r', encoding='utf-8') as f:
+                  reader = csv.DictReader(f)
+                  queries = []
+                  for i, row in enumerate(reader):
+                      if i >= 25:  # Limit to 25 queries
+                          break
+                      query_text = row.get('query', '').strip()
+                      if query_text:
+                          queries.append(query_text)
+              
+              # Output queries as JSON for GitHub Actions
+              queries_json = json.dumps(queries)
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                  f.write(f"queries={queries_json}\n")
+                  f.write(f"count={len(queries)}\n")
+              
+              print(f"✓ Read {len(queries)} queries from {csv_file}")
+              
+          except Exception as e:
+              print(f"✗ Error reading CSV: {e}")
+              exit(1)
+          EOF
+      
+      - name: Create issues for queries
+        uses: actions/github-script@v8
+        env:
+          QUERIES_JSON: ${{ steps.process.outputs.queries }}
+        with:
+          script: |
+            const queries = JSON.parse(process.env.QUERIES_JSON);
+            
+            console.log(`Creating ${queries.length} issues for batch query processing...`);
+            
+            const issueNumbers = [];
+            
+            for (let i = 0; i < queries.length; i++) {
+              const query = queries[i];
+              
+              // Create issue with query
+              const issue = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `Query: ${query.substring(0, 100)}${query.length > 100 ? '...' : ''}`,
+                body: `### MorphoSource Query Submission\n\n**Query:**\n${query}\n\n---\n\n*This is an automated batch query submission (Query ${i + 1} of ${queries.length})*\n\n**Batch Run:** [Workflow Run #${context.runId}](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+                labels: ['query-request', 'batch-query', 'awaiting-response']
+              });
+              
+              issueNumbers.push(issue.data.number);
+              console.log(`✓ Created issue #${issue.data.number} for query ${i + 1}: "${query.substring(0, 50)}..."`);
+              
+              // Small delay to avoid rate limiting
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+            
+            console.log(`\n✓ Successfully created ${issueNumbers.length} issues`);
+            console.log(`Issue numbers: ${issueNumbers.join(', ')}`);
+            
+            // Create summary issue
+            const summaryBody = `## Batch Query Processing Summary\n\n` +
+              `**Total Queries:** ${queries.length}\n` +
+              `**Workflow Run:** [#${context.runId}](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})\n\n` +
+              `### Created Issues:\n\n` +
+              issueNumbers.map((num, i) => `- Issue #${num}: ${queries[i].substring(0, 60)}...`).join('\n') +
+              `\n\n---\n\n` +
+              `*The query-processor workflow will automatically process each issue.*\n` +
+              `*The response-grader workflow will grade each response when available.*`;
+            
+            const summaryIssue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Batch Query Summary - ${new Date().toISOString().split('T')[0]}`,
+              body: summaryBody,
+              labels: ['batch-query', 'summary']
+            });
+            
+            console.log(`\n✓ Created summary issue #${summaryIssue.data.number}`);
+      
+      - name: Summary
+        env:
+          COUNT: ${{ steps.process.outputs.count }}
+        run: |
+          echo "## Batch Query Processing Complete ✓" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Total Queries Processed:** $COUNT" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "1. Each query will be automatically processed by the query-processor workflow" >> $GITHUB_STEP_SUMMARY
+          echo "2. Results will be posted as comments on the respective issues" >> $GITHUB_STEP_SUMMARY
+          echo "3. The response-grader workflow will grade each response when available" >> $GITHUB_STEP_SUMMARY
+          echo "4. Check the summary issue for an overview of all queries" >> $GITHUB_STEP_SUMMARY

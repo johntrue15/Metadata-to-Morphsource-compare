@@ -59,6 +59,15 @@ To enable the query system:
 6. Wait for results to be posted as a comment on your issue (usually within 1-2 minutes)
 7. Optionally download artifacts from the Actions tab for detailed JSON responses
 
+### 🧪 Batch Query Testing & Grading
+
+**NEW:** Test multiple queries at once and get automated quality assessments!
+
+- **Batch Query Processor** - Process up to 25 queries from a CSV file simultaneously
+- **Response Grader** - Automatically grade query responses from 0-100% using AI
+
+For details, see [BATCH_TESTING.md](BATCH_TESTING.md)
+
 ---
 
 ## For Researchers: Quick Start Guide
