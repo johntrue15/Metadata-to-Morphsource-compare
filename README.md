@@ -76,6 +76,8 @@ To enable the query system:
 
 This creates a natural conversational flow without having to create new issues for each question.
 
+For more details, see [CONVERSATION_CONTINUATION.md](CONVERSATION_CONTINUATION.md)
+
 ### 🧪 Batch Query Testing & Grading
 
 **NEW:** Test multiple queries at once and get automated quality assessments!
