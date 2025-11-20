@@ -148,3 +148,67 @@ class TestIssueQueryTrigger:
         assert True in workflow or 'on' in workflow, "Workflow must have trigger"
         trigger = workflow.get(True) or workflow.get('on')
         assert 'issues' in trigger, "Workflow must be triggered by issues"
+
+
+class TestBatchQueryProcessor:
+    """Test batch-query-processor workflow"""
+    
+    def test_batch_processor_workflow_syntax(self):
+        """Test that batch-query-processor.yml has valid YAML syntax"""
+        workflow_path = '.github/workflows/batch-query-processor.yml'
+        assert os.path.exists(workflow_path), "batch-query-processor.yml not found"
+        
+        with open(workflow_path, 'r') as f:
+            workflow = yaml.safe_load(f)
+        
+        assert workflow is not None, "Failed to parse workflow YAML"
+        assert 'jobs' in workflow, "Workflow must have jobs"
+    
+    def test_batch_processor_has_workflow_dispatch_trigger(self):
+        """Test that batch-query-processor.yml can be manually triggered"""
+        workflow_path = '.github/workflows/batch-query-processor.yml'
+        
+        with open(workflow_path, 'r') as f:
+            workflow = yaml.safe_load(f)
+        
+        # 'on' is parsed as True in YAML
+        trigger = workflow.get(True) or workflow.get('on')
+        assert 'workflow_dispatch' in trigger, "Workflow must have workflow_dispatch trigger"
+    
+    def test_batch_processor_triggers_query_processor(self):
+        """Test that batch processor triggers query-processor workflow for each issue"""
+        workflow_path = '.github/workflows/batch-query-processor.yml'
+        
+        with open(workflow_path, 'r') as f:
+            workflow = yaml.safe_load(f)
+        
+        jobs = workflow['jobs']
+        assert 'process-batch-queries' in jobs, "Must have process-batch-queries job"
+        
+        steps = jobs['process-batch-queries']['steps']
+        
+        # Find the step that triggers query processing
+        trigger_steps = [s for s in steps if s.get('name') == 'Trigger query processing for each issue']
+        assert len(trigger_steps) > 0, "Must have step to trigger query processing"
+        
+        trigger_step = trigger_steps[0]
+        assert 'uses' in trigger_step, "Trigger step must use an action"
+        assert 'github-script' in trigger_step['uses'], "Must use github-script action"
+    
+    def test_batch_processor_creates_issues_with_id(self):
+        """Test that issue creation step has an id to pass data to next step"""
+        workflow_path = '.github/workflows/batch-query-processor.yml'
+        
+        with open(workflow_path, 'r') as f:
+            workflow = yaml.safe_load(f)
+        
+        jobs = workflow['jobs']
+        steps = jobs['process-batch-queries']['steps']
+        
+        # Find the issue creation step
+        create_steps = [s for s in steps if s.get('name') == 'Create issues for queries']
+        assert len(create_steps) > 0, "Must have issue creation step"
+        
+        create_step = create_steps[0]
+        assert 'id' in create_step, "Issue creation step must have an id"
+        assert create_step['id'] == 'create-issues', "Step id should be 'create-issues'"
