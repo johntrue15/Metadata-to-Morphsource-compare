@@ -1,0 +1,204 @@
+name: Issue Comment Reply Handler
+
+"on":
+  issue_comment:
+    types: [created]
+
+jobs:
+  handle-reply:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      actions: write
+      contents: read
+    
+    steps:
+      - name: Check if this is a conversation continuation
+        id: check
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const comment = context.payload.comment;
+            const issue = context.payload.issue;
+            
+            // Skip if comment is from a bot
+            const isBot = comment.user.type === 'Bot' || comment.user.login.includes('[bot]');
+            if (isBot) {
+              console.log('Comment is from a bot, skipping');
+              core.setOutput('should_process', 'false');
+              return;
+            }
+            
+            // Check if this is a query issue
+            const labels = issue.labels.map(l => l.name);
+            const isQueryIssue = labels.includes('query-request') || labels.includes('batch-query');
+            
+            if (!isQueryIssue) {
+              console.log('Not a query issue, skipping');
+              core.setOutput('should_process', 'false');
+              return;
+            }
+            
+            // Skip if comment contains grading markers (this is a grading comment)
+            if (comment.body.includes('Response Grade:') || 
+                comment.body.includes('Query Processing Complete')) {
+              console.log('This is a system comment, skipping');
+              core.setOutput('should_process', 'false');
+              return;
+            }
+            
+            console.log('This is a user follow-up question on a query issue');
+            core.setOutput('should_process', 'true');
+            core.setOutput('issue_number', issue.number.toString());
+            core.setOutput('comment_id', comment.id.toString());
+            core.setOutput('follow_up_question', comment.body);
+      
+      - name: Extract conversation context
+        id: extract_context
+        if: steps.check.outputs.should_process == 'true'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const issueNumber = context.issue.number;
+            
+            // Get the issue to extract original query
+            const issue = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber
+            });
+            
+            // Extract original query from issue body
+            let originalQuery = '';
+            const body = issue.data.body || '';
+            
+            // Try to extract query between **Query:** and ---
+            const queryMatch = body.match(/\*\*Query:\*\*\s*\n([\s\S]*?)\n---/);
+            if (queryMatch) {
+              originalQuery = queryMatch[1].trim();
+            } else {
+              // Fallback: use title
+              originalQuery = issue.data.title.replace(/^Query:\s*/, '');
+            }
+            
+            console.log(`Original query: ${originalQuery}`);
+            core.setOutput('original_query', originalQuery);
+            
+            // Get all comments to build conversation history
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              per_page: 100
+            });
+            
+            // Build conversation context from Q&A pairs
+            let conversationContext = `Original Question: ${originalQuery}\n\n`;
+            
+            // Find the most recent bot response before this comment
+            let lastBotResponse = '';
+            for (const comment of comments.data) {
+              // Stop when we reach the current comment
+              if (comment.id === context.payload.comment.id) {
+                break;
+              }
+              
+              const isBot = comment.user.type === 'Bot' || comment.user.login.includes('[bot]');
+              
+              if (isBot && comment.body.includes('ChatGPT Response')) {
+                // Extract just the ChatGPT response text
+                const responseMatch = comment.body.match(/### 🤖 ChatGPT Response\s*\n\n([\s\S]*?)\n\n---/);
+                if (responseMatch) {
+                  lastBotResponse = responseMatch[1].trim();
+                }
+              }
+            }
+            
+            if (lastBotResponse) {
+              conversationContext += `Previous Response: ${lastBotResponse}\n\n`;
+            }
+            
+            conversationContext += `Follow-up Question: ${context.payload.comment.body}`;
+            
+            console.log(`Conversation context built: ${conversationContext.substring(0, 200)}...`);
+            core.setOutput('conversation_context', conversationContext);
+      
+      - name: Add acknowledgment comment
+        if: steps.check.outputs.should_process == 'true'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: '🔄 **Processing your follow-up question...**\n\nYour question is being sent to the query processor. Results will be posted here shortly.\n\n⏳ Status: Processing...'
+            });
+      
+      - name: Trigger query processor with conversation context
+        if: steps.check.outputs.should_process == 'true'
+        env:
+          FOLLOW_UP_QUESTION: ${{ steps.check.outputs.follow_up_question }}
+          CONVERSATION_CONTEXT: ${{ steps.extract_context.outputs.conversation_context }}
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const followUpQuestion = process.env.FOLLOW_UP_QUESTION;
+            const conversationContext = process.env.CONVERSATION_CONTEXT;
+            const issueNumber = context.issue.number;
+            
+            try {
+              // Create a combined query that includes the conversation context
+              const contextualQuery = `CONVERSATION CONTEXT:\n${conversationContext}\n\n===\n\nPlease answer the follow-up question above in the context of the previous conversation. Be concise and direct.`;
+              
+              const response = await github.rest.actions.createWorkflowDispatch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'query-processor.yml',
+                ref: 'main',
+                inputs: {
+                  query: contextualQuery,
+                  issue_number: issueNumber.toString()
+                }
+              });
+              
+              console.log('Query processor workflow triggered successfully');
+              
+              // Add comment with workflow link
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body: `✅ **Query processor started for your follow-up question!**\n\n` +
+                      `> ${followUpQuestion.split('\n')[0]}\n\n` +
+                      `View the workflow run progress here:\n` +
+                      `[GitHub Actions](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/workflows/query-processor.yml)\n\n` +
+                      `The response will be posted as a comment once processing is complete.`
+              });
+              
+              // Add 'processing' label if not present
+              const currentLabels = context.payload.issue.labels.map(l => l.name);
+              if (!currentLabels.includes('processing')) {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  labels: ['processing']
+                });
+              }
+              
+            } catch (error) {
+              console.error('Error triggering workflow:', error);
+              
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body: `❌ **Error processing follow-up question**\n\n` +
+                      `${error.message}\n\n` +
+                      `Please try manually triggering the workflow at:\n` +
+                      `[Query Processor Workflow](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/workflows/query-processor.yml)`
+              });
+              
+              throw error;
+            }

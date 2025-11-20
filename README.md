@@ -59,6 +59,23 @@ To enable the query system:
 6. Wait for results to be posted as a comment on your issue (usually within 1-2 minutes)
 7. Optionally download artifacts from the Actions tab for detailed JSON responses
 
+### 💬 NEW: Conversation Continuation
+
+**Ask follow-up questions!** You can now continue the conversation directly in the issue:
+
+1. After receiving a response to your query, simply **add a comment** to the same issue with your follow-up question
+2. The system automatically detects your follow-up and triggers the query processor with full conversation context
+3. The bot will quote the previous response and answer your new question in context
+4. You can keep asking follow-ups as many times as you like!
+
+**Example:**
+- Initial query: "How many snake specimens are available?"
+- Bot responds: "There are 4 snake specimens..."
+- You comment: "Can you list them?"
+- Bot responds with the full list, maintaining context from the original conversation
+
+This creates a natural conversational flow without having to create new issues for each question.
+
 ### 🧪 Batch Query Testing & Grading
 
 **NEW:** Test multiple queries at once and get automated quality assessments!
