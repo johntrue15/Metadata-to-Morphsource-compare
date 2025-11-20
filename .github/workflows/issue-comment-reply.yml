@@ -40,8 +40,19 @@ jobs:
             }
             
             // Skip if comment contains grading markers (this is a grading comment)
-            if (comment.body.includes('Response Grade:') || 
-                comment.body.includes('Query Processing Complete')) {
+            // But allow if the markers are in quoted text (user is replying to a system comment)
+            const lines = comment.body.split('\n');
+            const hasSystemMarkerNotQuoted = lines.some(line => {
+              // Skip lines that are quoted (start with >)
+              if (line.trimStart().startsWith('>')) {
+                return false;
+              }
+              // Check if line contains the marker
+              return line.includes('Response Grade:') || 
+                     line.includes('Query Processing Complete');
+            });
+            
+            if (hasSystemMarkerNotQuoted) {
               console.log('This is a system comment, skipping');
               core.setOutput('should_process', 'false');
               return;

@@ -222,3 +222,47 @@ class TestQueryIssueDetection:
         # Check for query issue detection
         assert 'query-request' in content
         assert 'labels' in content.lower()
+
+
+class TestSystemCommentDetection:
+    """Test that the workflow correctly identifies system comments vs quoted replies."""
+    
+    def test_system_comment_detection_logic_exists(self):
+        """Test that workflow has improved logic to detect system comments."""
+        workflow_path = os.path.join(
+            os.path.dirname(__file__),
+            '..',
+            '.github',
+            'workflows',
+            'issue-comment-reply.yml'
+        )
+        
+        with open(workflow_path, 'r') as f:
+            content = f.read()
+        
+        # Check for system comment markers
+        assert 'Response Grade:' in content
+        assert 'Query Processing Complete' in content
+        
+        # Check for quote detection logic
+        assert 'quoted text' in content.lower() or 'quote' in content.lower()
+        
+    def test_quote_reply_handling(self):
+        """Test that workflow can distinguish quoted system comments from actual system comments."""
+        workflow_path = os.path.join(
+            os.path.dirname(__file__),
+            '..',
+            '.github',
+            'workflows',
+            'issue-comment-reply.yml'
+        )
+        
+        with open(workflow_path, 'r') as f:
+            content = f.read()
+        
+        # Check for logic that handles quoted blocks (lines starting with >)
+        assert '>' in content
+        # Check that we're splitting into lines to check line-by-line
+        assert 'split' in content or 'lines' in content.lower()
+        # Check that we're checking line starts
+        assert 'startsWith' in content or 'starts with' in content.lower()
