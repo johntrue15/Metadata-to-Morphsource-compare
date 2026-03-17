@@ -1,0 +1,152 @@
+name: AutoResearchClaw Agent
+
+on:
+  workflow_dispatch:
+    inputs:
+      research_topic:
+        description: 'Research topic or goal to investigate'
+        required: true
+        type: string
+
+jobs:
+  create-research-issue:
+    name: Create Research Issue
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+    outputs:
+      issue_number: ${{ steps.create-issue.outputs.issue_number }}
+
+    steps:
+      - name: Create research discussion issue
+        id: create-issue
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const topic = `${{ inputs.research_topic }}`;
+
+            const body = [
+              '### 🧪 AutoResearchClaw Research Session',
+              '',
+              '**Research Topic:**',
+              topic,
+              '',
+              '---',
+              '',
+              '🔄 **Status:** Researching…',
+              '',
+              'This issue was created by the AutoResearchClaw agent. ',
+              'The agent will decompose the research topic into targeted MorphoSource queries, ',
+              'search for relevant specimen data, and post a synthesis report below.',
+              '',
+              'Feel free to add comments to refine the research direction — the ',
+              '[issue-comment-reply](' +
+              `https://github.com/${context.repo.owner}/${context.repo.repo}` +
+              '/actions/workflows/issue-comment-reply.yml) workflow will pick up follow-up questions.',
+            ].join('\n');
+
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Research: ${topic}`,
+              body: body,
+              labels: ['research-agent'],
+            });
+
+            core.setOutput('issue_number', issue.data.number.toString());
+            console.log(`Created research issue #${issue.data.number}`);
+
+  research-pipeline:
+    name: Run Research Pipeline
+    runs-on: ubuntu-latest
+    needs: create-research-issue
+    permissions:
+      issues: write
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install openai requests
+
+      - name: Run research agent
+        id: research
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          MORPHOSOURCE_API_KEY: ${{ secrets.MORPHOSOURCE_API_KEY }}
+        working-directory: .github/scripts
+        run: |
+          python research_agent.py "${{ inputs.research_topic }}"
+
+      - name: Upload research artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: research-report
+          path: |
+            .github/scripts/research_report.json
+            .github/scripts/research_report.md
+
+      - name: Post report to issue
+        env:
+          ISSUE_NUMBER: ${{ needs.create-research-issue.outputs.issue_number }}
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+            const issueNumber = parseInt(process.env.ISSUE_NUMBER || '0');
+            if (!issueNumber) {
+              console.log('No issue number, skipping');
+              return;
+            }
+
+            let reportBody = '';
+            const reportJsonPath = '.github/scripts/research_report.json';
+            const reportMdPath = '.github/scripts/research_report.md';
+
+            // Prefer the Markdown report file
+            if (fs.existsSync(reportMdPath)) {
+              reportBody = fs.readFileSync(reportMdPath, 'utf8');
+            } else if (fs.existsSync(reportJsonPath)) {
+              const data = JSON.parse(fs.readFileSync(reportJsonPath, 'utf8'));
+              reportBody = (data.report && data.report.report) || JSON.stringify(data, null, 2);
+            }
+
+            // Build comment
+            const comment = [
+              '## 📊 AutoResearchClaw Report',
+              '',
+              reportBody || '_No report was generated._',
+              '',
+              '---',
+              '',
+              `**[View workflow run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})**`,
+              '',
+              '_Post a follow-up comment on this issue to refine the research or ask additional questions._',
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: comment,
+            });
+
+            // Update labels to show completion
+            await github.rest.issues.setLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              labels: ['research-agent', 'completed'],
+            });
+
+            console.log(`Posted report to issue #${issueNumber}`);
