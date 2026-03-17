@@ -30,7 +30,7 @@ import morphosource_api
 # ---------------------------------------------------------------------------
 
 _DECOMPOSE_SYSTEM_PROMPT = (
-    "You are a research planning assistant specialising in biological specimen data. "
+    "You are a research planning assistant specializing in biological specimen data. "
     "The user will provide a high-level research goal. Your job is to decompose it "
     "into 3-5 specific search queries that should be run against MorphoSource "
     "(a database of 3-D specimen scans, media and physical objects).\n\n"
