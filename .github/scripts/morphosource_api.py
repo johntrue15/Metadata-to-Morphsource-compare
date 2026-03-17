@@ -288,25 +288,36 @@ def search_morphosource(api_params, formatted_query, query_info=None, max_retrie
                 new_params = refined.get('api_params') or current_params
 
                 if not new_url and new_params == current_params:
-                    print("Refined query did not change parameters; stopping retries.")
-                    results_summary = {
-                        "status": "success",
-                        "count": result_count,
-                        "formatted_query": current_formatted_query,
-                        "endpoint": endpoint,
-                        "attempts": attempt_history
-                    }
-
-                    return {
-                        'full_data': data,
-                        'summary': results_summary,
-                        'query_info': {
-                            **current_query_info,
-                            'formatted_query': current_formatted_query,
-                            'api_params': current_params,
-                            'api_endpoint': endpoint
+                    # Retry produced identical parameters.  Try a broader
+                    # keyword-based media search as a last-resort fallback.
+                    broad = query_formatter._build_fallback_from_keywords(
+                        current_query_info['original_query']
+                    )
+                    broad_params = broad.get('api_params', {})
+                    if broad_params and broad_params != current_params:
+                        print("Refined query unchanged; switching to keyword-based media search.")
+                        new_params = broad_params
+                        refined = broad
+                    else:
+                        print("Refined query did not change parameters; stopping retries.")
+                        results_summary = {
+                            "status": "success",
+                            "count": result_count,
+                            "formatted_query": current_formatted_query,
+                            "endpoint": endpoint,
+                            "attempts": attempt_history
                         }
-                    }
+
+                        return {
+                            'full_data': data,
+                            'summary': results_summary,
+                            'query_info': {
+                                **current_query_info,
+                                'formatted_query': current_formatted_query,
+                                'api_params': current_params,
+                                'api_endpoint': endpoint
+                            }
+                        }
 
                 current_params = deepcopy(new_params)
                 current_formatted_query = refined.get('formatted_query', current_formatted_query)
