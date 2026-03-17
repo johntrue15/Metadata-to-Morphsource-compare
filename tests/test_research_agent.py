@@ -170,6 +170,12 @@ class TestHeuristicDecompose:
         assert len(result) >= 1
         for q in result:
             assert len(q["query"]) < len(topic)  # Shorter than raw topic
+            # Verify meaningful words from the topic were extracted
+            topic_words = set(topic.lower().split())
+            query_words = set(q["query"].lower().split())
+            assert query_words & topic_words, (
+                f"Query '{q['query']}' should contain words from the topic"
+            )
 
 
 class TestExecuteSearches:

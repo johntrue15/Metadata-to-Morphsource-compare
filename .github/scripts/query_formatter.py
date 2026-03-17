@@ -97,8 +97,7 @@ def _infer_taxonomy_from_text(text):
             continue
         # Reject short hyphenated tokens (e.g. "X-ray") — real genera are
         # purely alphabetical or much longer before a hyphen.
-        alpha_prefix = token.split('-')[0]
-        if '-' in token and len(alpha_prefix) < 3:
+        if '-' in token and len(token.split('-')[0]) < 3:
             continue
         if token in _TAXON_STOPWORDS:
             continue
@@ -200,6 +199,9 @@ def _extract_search_keywords(text):
     Returns a list of keywords suitable for the MorphoSource ``q`` parameter.
     Prioritises biological and specimen-related terms over generic words.
     """
+    # Match multi-character words (may contain hyphens/apostrophes) OR single
+    # letters.  The two alternatives ensure e.g. "X-ray" is captured as one
+    # token while isolated initials are still available for downstream logic.
     tokens = re.findall(r"[A-Za-z][A-Za-z'-]*[A-Za-z]|[A-Za-z]", text)
     keywords = []
     for token in tokens:
