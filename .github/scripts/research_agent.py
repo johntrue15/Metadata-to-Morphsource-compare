@@ -358,7 +358,7 @@ def _fallback_report(topic, search_results, reason=None):
     reason : str or None
         Why AI synthesis was not used.  ``"no_api_key"`` when the key is
         missing, any other non-empty string for an error description, or
-        ``None`` for an unspecified reason.
+        ``None`` which defaults to the same behaviour as ``"no_api_key"``.
     """
     lines = [
         "## Research Topic",

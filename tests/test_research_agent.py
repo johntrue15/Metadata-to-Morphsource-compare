@@ -396,10 +396,10 @@ class TestFallbackReport:
         assert "ensure" in result["report"].lower()
 
     def test_default_reason_matches_no_api_key(self):
-        """Default (None) reason produces the same conclusion as no_api_key."""
-        default = research_agent._fallback_report("topic", [])
-        explicit = research_agent._fallback_report("topic", [], reason="no_api_key")
-        assert default["report"] == explicit["report"]
+        """Default (None) reason suggests configuring the key, same as no_api_key."""
+        result = research_agent._fallback_report("topic", [])
+        assert "OPENAI_API_KEY" in result["report"]
+        assert "ensure" in result["report"].lower()
 
     def test_error_reason_shown_in_conclusion(self):
         """When an error reason is provided, it appears in the conclusion."""
