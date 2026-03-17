@@ -199,6 +199,70 @@ def execute_searches(queries):
 
 
 # ---------------------------------------------------------------------------
+# Stage 2b: Iterative refinement for zero-result queries
+# ---------------------------------------------------------------------------
+
+MAX_REFINEMENT_ROUNDS = 2
+
+
+def _refine_zero_result_queries(search_results):
+    """Generate simplified queries for searches that returned zero results.
+
+    Returns a list of new query dicts to retry.
+    """
+    import re as _re
+
+    refined = []
+    seen = set()
+    for r in search_results:
+        if r["result_count"] > 0:
+            continue
+
+        original = r["query"]
+        words = _re.findall(r"[A-Za-z][A-Za-z'-]+", original)
+        meaningful = [
+            w for w in words
+            if w.lower() not in _DECOMPOSE_STOPWORDS and len(w) > 2
+        ]
+
+        # Strategy 1: try individual significant words
+        for word in meaningful:
+            if word.lower() not in seen:
+                refined.append({
+                    "query": word,
+                    "rationale": f"Simplified retry of '{original}' (zero results).",
+                })
+                seen.add(word.lower())
+
+        # Strategy 2: if multi-word, try shorter combinations
+        if len(meaningful) >= 2:
+            shorter = ' '.join(meaningful[:2])
+            if shorter.lower() not in seen:
+                refined.append({
+                    "query": shorter,
+                    "rationale": f"Paired-term retry of '{original}'.",
+                })
+                seen.add(shorter.lower())
+
+    return refined[:MAX_QUERIES]
+
+
+def refine_searches(search_results):
+    """Run a refinement pass: re-query zero-result searches with simplified terms.
+
+    Returns (new_results, had_refinements) where new_results is a list of
+    results from the refined queries and had_refinements is a boolean.
+    """
+    refined_queries = _refine_zero_result_queries(search_results)
+    if not refined_queries:
+        return [], False
+
+    print(f"\n🔄 Refining {len(refined_queries)} zero-result queries …")
+    new_results = execute_searches(refined_queries)
+    return new_results, True
+
+
+# ---------------------------------------------------------------------------
 # Stage 3: Synthesize a research report
 # ---------------------------------------------------------------------------
 
@@ -269,7 +333,11 @@ def synthesize_report(topic, search_results):
             ],
             max_completion_tokens=4000,
         )
-        report = response.choices[0].message.content.strip()
+        content = response.choices[0].message.content
+        report = (content or "").strip()
+        if not report:
+            print("⚠ LLM returned empty report, using fallback")
+            return _fallback_report(topic, search_results)
         return {"status": "success", "report": report}
     except Exception as exc:
         print(f"⚠ Synthesis failed: {exc}")
@@ -292,6 +360,23 @@ def _fallback_report(topic, search_results):
             f"- {status} **{r['query']}** — {r['result_count']} result(s) "
             f"via `{r['api_endpoint']}` endpoint ({r['result_status']})"
         )
+        # Include sample records when available
+        data = r.get("result_data", {})
+        for key in ("media", "physical_objects"):
+            items = data.get(key, [])
+            if not items and isinstance(data.get("response"), dict):
+                items = data["response"].get(key, [])
+            for item in items[:3]:
+                if isinstance(item, dict):
+                    name = (
+                        item.get("name")
+                        or item.get("title")
+                        or item.get("specimen", {}).get("name", "")
+                    )
+                else:
+                    name = str(item)
+                if name:
+                    lines.append(f"  - {name}")
     lines += [
         "",
         "## Recommendations",
@@ -313,7 +398,7 @@ def _fallback_report(topic, search_results):
 # ---------------------------------------------------------------------------
 
 def run_research(topic):
-    """End-to-end research pipeline: decompose → search → synthesize.
+    """End-to-end research pipeline: decompose → search → refine → synthesize.
 
     Returns a dict with ``topic``, ``queries``, ``search_results``, and
     ``report`` keys.
@@ -331,10 +416,33 @@ def run_research(topic):
     total_hits = sum(r["result_count"] for r in search_results)
     print(f"   → {total_hits} total results across {len(search_results)} queries")
 
+    # Stage 2b: Iterative refinement for zero-result queries
+    for iteration in range(1, MAX_REFINEMENT_ROUNDS + 1):
+        zero_count = sum(1 for r in search_results if r["result_count"] == 0)
+        if zero_count == 0:
+            break
+        print(f"\n🔄 Refinement round {iteration}: "
+              f"{zero_count} zero-result queries to retry …")
+        new_results, had_refinements = refine_searches(search_results)
+        if not had_refinements:
+            break
+        # Keep only new results that improved on zero-result originals
+        improved = [r for r in new_results if r["result_count"] > 0]
+        if improved:
+            search_results.extend(improved)
+            print(f"   → {len(improved)} refined queries returned results")
+        else:
+            print("   → No improvement from refinement")
+            break
+
+    total_hits = sum(r["result_count"] for r in search_results)
+    print(f"   → Final: {total_hits} total results across "
+          f"{len(search_results)} queries")
+
     # Stage 3
     print("\n📝 Stage 3: Synthesizing research report …")
     report = synthesize_report(topic, search_results)
-    print("   → Report generated")
+    print(f"   → Report generated (status: {report['status']})")
 
     return {
         "topic": topic,

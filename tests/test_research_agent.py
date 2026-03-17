@@ -290,6 +290,202 @@ class TestSynthesizeReport:
 
         assert result["status"] == "fallback"
 
+    @patch('research_agent.OpenAI')
+    def test_synthesize_falls_back_on_empty_content(self, mock_openai):
+        """Falls back when LLM returns empty content."""
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = ""
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai.return_value = mock_client
+
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'}):
+            result = research_agent.synthesize_report(
+                "topic",
+                [
+                    {
+                        "query": "q",
+                        "rationale": "r",
+                        "formatted_query": "Q",
+                        "api_endpoint": "media",
+                        "result_count": 12,
+                        "result_status": "success",
+                        "result_data": {},
+                    }
+                ],
+            )
+
+        assert result["status"] == "fallback"
+        assert "topic" in result["report"]
+        assert "12 result(s)" in result["report"]
+
+    @patch('research_agent.OpenAI')
+    def test_synthesize_falls_back_on_none_content(self, mock_openai):
+        """Falls back when LLM returns None content."""
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = None
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai.return_value = mock_client
+
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'}):
+            result = research_agent.synthesize_report("topic", [])
+
+        assert result["status"] == "fallback"
+
+
+class TestFallbackReport:
+    """Test the fallback report generation."""
+
+    def test_includes_sample_records(self):
+        """Fallback report includes sample record names when available."""
+        results = [
+            {
+                "query": "specimen",
+                "rationale": "r",
+                "formatted_query": "specimen",
+                "api_endpoint": "physical-objects",
+                "result_count": 3,
+                "result_status": "success",
+                "result_data": {
+                    "physical_objects": [
+                        {"name": "Alligator skull"},
+                        {"name": "Felis catus mandible"},
+                    ]
+                },
+            }
+        ]
+        result = research_agent._fallback_report("test topic", results)
+        assert "Alligator skull" in result["report"]
+        assert "Felis catus mandible" in result["report"]
+
+    def test_handles_missing_result_data(self):
+        """Fallback report works when result_data is absent."""
+        results = [
+            {
+                "query": "q",
+                "rationale": "r",
+                "formatted_query": "Q",
+                "api_endpoint": "media",
+                "result_count": 0,
+                "result_status": "success",
+            }
+        ]
+        result = research_agent._fallback_report("topic", results)
+        assert result["status"] == "fallback"
+        assert "0 result(s)" in result["report"]
+
+
+class TestRefineZeroResultQueries:
+    """Test the iterative refinement logic."""
+
+    def test_generates_refined_queries_for_zero_results(self):
+        """Produces simplified queries from zero-result searches."""
+        search_results = [
+            {
+                "query": "rare deep-sea anglerfish CT",
+                "rationale": "r",
+                "formatted_query": "Q",
+                "api_endpoint": "media",
+                "result_count": 0,
+                "result_status": "success",
+                "result_data": {},
+            },
+        ]
+        refined = research_agent._refine_zero_result_queries(search_results)
+        assert len(refined) >= 1
+        # Should contain simplified terms, not the full query
+        for q in refined:
+            assert len(q["query"]) < len(search_results[0]["query"])
+            assert "rationale" in q
+
+    def test_skips_queries_with_results(self):
+        """Does not refine queries that already have results."""
+        search_results = [
+            {
+                "query": "specimen",
+                "rationale": "r",
+                "formatted_query": "Q",
+                "api_endpoint": "media",
+                "result_count": 12,
+                "result_status": "success",
+                "result_data": {},
+            },
+        ]
+        refined = research_agent._refine_zero_result_queries(search_results)
+        assert refined == []
+
+    def test_respects_max_queries_limit(self):
+        """Refined queries are capped at MAX_QUERIES."""
+        search_results = [
+            {
+                "query": f"word{i} extra{i} more{i} stuff{i}",
+                "rationale": "r",
+                "formatted_query": "Q",
+                "api_endpoint": "media",
+                "result_count": 0,
+                "result_status": "success",
+                "result_data": {},
+            }
+            for i in range(10)
+        ]
+        refined = research_agent._refine_zero_result_queries(search_results)
+        assert len(refined) <= research_agent.MAX_QUERIES
+
+
+class TestRefineSearches:
+    """Test the refine_searches orchestration."""
+
+    @patch('research_agent.execute_searches')
+    def test_refine_searches_with_zero_results(self, mock_execute):
+        """Calls execute_searches with refined queries."""
+        mock_execute.return_value = [
+            {
+                "query": "anglerfish",
+                "rationale": "Simplified retry",
+                "formatted_query": "anglerfish",
+                "api_endpoint": "media",
+                "result_count": 5,
+                "result_status": "success",
+                "result_data": {},
+            }
+        ]
+        search_results = [
+            {
+                "query": "rare deep-sea anglerfish CT",
+                "rationale": "r",
+                "formatted_query": "Q",
+                "api_endpoint": "media",
+                "result_count": 0,
+                "result_status": "success",
+                "result_data": {},
+            }
+        ]
+        new_results, had_refinements = research_agent.refine_searches(search_results)
+
+        assert had_refinements is True
+        assert len(new_results) >= 1
+        mock_execute.assert_called_once()
+
+    def test_refine_searches_no_zero_results(self):
+        """Returns empty when no queries had zero results."""
+        search_results = [
+            {
+                "query": "specimen",
+                "rationale": "r",
+                "formatted_query": "Q",
+                "api_endpoint": "media",
+                "result_count": 12,
+                "result_status": "success",
+                "result_data": {},
+            }
+        ]
+        new_results, had_refinements = research_agent.refine_searches(search_results)
+        assert had_refinements is False
+        assert new_results == []
+
 
 class TestRunResearch:
     """Test the end-to-end orchestrator."""
@@ -348,6 +544,83 @@ class TestRunResearch:
 
         for sr in result["search_results"]:
             assert "result_data" not in sr
+
+    @patch('research_agent.synthesize_report')
+    @patch('research_agent.refine_searches')
+    @patch('research_agent.execute_searches')
+    @patch('research_agent.decompose_topic')
+    def test_run_research_iterates_on_zero_results(
+        self, mock_decompose, mock_execute, mock_refine, mock_synth
+    ):
+        """Calls refine_searches when initial queries return zero results."""
+        mock_decompose.return_value = [
+            {"query": "obscure taxon CT", "rationale": "r"},
+        ]
+        mock_execute.return_value = [
+            {
+                "query": "obscure taxon CT",
+                "rationale": "r",
+                "formatted_query": "Q",
+                "api_endpoint": "media",
+                "result_count": 0,
+                "result_status": "success",
+                "result_data": {},
+            }
+        ]
+        mock_refine.side_effect = [
+            (
+                [
+                    {
+                        "query": "taxon",
+                        "rationale": "Simplified retry",
+                        "formatted_query": "taxon",
+                        "api_endpoint": "media",
+                        "result_count": 3,
+                        "result_status": "success",
+                        "result_data": {},
+                    }
+                ],
+                True,
+            ),
+            ([], False),
+        ]
+        mock_synth.return_value = {"status": "fallback", "report": "report text"}
+
+        result = research_agent.run_research("obscure topic")
+
+        # Should have called refine at least once
+        mock_refine.assert_called()
+        # Final results should include the refined query's results
+        assert len(result["search_results"]) == 2
+        assert result["search_results"][1]["result_count"] == 3
+
+    @patch('research_agent.synthesize_report')
+    @patch('research_agent.execute_searches')
+    @patch('research_agent.decompose_topic')
+    def test_run_research_skips_refinement_when_all_have_results(
+        self, mock_decompose, mock_execute, mock_synth
+    ):
+        """Skips refinement when all queries already have results."""
+        mock_decompose.return_value = [
+            {"query": "specimen", "rationale": "r"},
+        ]
+        mock_execute.return_value = [
+            {
+                "query": "specimen",
+                "rationale": "r",
+                "formatted_query": "Q",
+                "api_endpoint": "media",
+                "result_count": 12,
+                "result_status": "success",
+                "result_data": {},
+            }
+        ]
+        mock_synth.return_value = {"status": "success", "report": "ok"}
+
+        result = research_agent.run_research("topic")
+
+        # No refinement needed - only 1 result from the original search
+        assert len(result["search_results"]) == 1
 
 
 class TestScriptStructure:
