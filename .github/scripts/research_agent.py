@@ -43,6 +43,85 @@ _DECOMPOSE_SYSTEM_PROMPT = (
     "Do NOT include any text outside the JSON array."
 )
 
+# Words to skip when extracting subject terms from a research topic
+_DECOMPOSE_STOPWORDS = {
+    'a', 'an', 'the', 'and', 'or', 'of', 'to', 'in', 'for', 'on', 'by',
+    'is', 'are', 'was', 'were', 'be', 'been', 'with', 'at', 'from', 'as',
+    'it', 'its', 'that', 'this', 'these', 'those', 'how', 'what', 'which',
+    'identify', 'analyze', 'analyse', 'find', 'show', 'most', 'promising',
+    'research', 'pathways', 'opportunities', 'wedges', 'commercialization',
+    'ecosystem', 'starting', 'let', 'lets', 'rethink', 'about',
+}
+
+# Known MorphoSource-relevant concepts to look for in research topics
+_CONCEPT_QUERIES = {
+    'specimen': {"query": "specimen", "rationale": "Browse physical specimen records."},
+    'specimens': {"query": "specimen", "rationale": "Browse physical specimen records."},
+    'ct': {"query": "CT scan", "rationale": "Browse CT scan media records."},
+    'x-ray': {"query": "CT scan", "rationale": "Browse X-ray / CT media records."},
+    'xray': {"query": "CT scan", "rationale": "Browse X-ray / CT media records."},
+    'micro-ct': {"query": "CT scan", "rationale": "Browse microCT scan records."},
+    'scan': {"query": "CT scan", "rationale": "Browse 3-D scan media."},
+    'scans': {"query": "CT scan", "rationale": "Browse 3-D scan media."},
+    'metadata': {"query": "metadata", "rationale": "Search records by metadata fields."},
+    '3d': {"query": "3D mesh", "rationale": "Browse 3-D mesh and surface models."},
+    '3-d': {"query": "3D mesh", "rationale": "Browse 3-D mesh and surface models."},
+    'mesh': {"query": "3D mesh", "rationale": "Browse 3-D mesh and surface models."},
+}
+
+
+def _heuristic_decompose(topic):
+    """Extract concrete, searchable sub-queries from a research topic.
+
+    Used when the LLM is unavailable or returns an unparseable response.
+    Scans the topic for known MorphoSource-relevant concepts and generates
+    up to MAX_QUERIES targeted queries.
+    """
+    import re as _re
+
+    queries = []
+    seen_query_texts = set()
+    lower_topic = topic.lower()
+
+    # 1. Detect known concepts (CT, specimen, metadata, etc.)
+    for keyword, entry in _CONCEPT_QUERIES.items():
+        if keyword in lower_topic and entry["query"] not in seen_query_texts:
+            queries.append(dict(entry))
+            seen_query_texts.add(entry["query"])
+
+    # 2. Extract biological / taxonomic terms (capitalized, Latin-looking)
+    tokens = _re.findall(r"\b([A-Z][a-z]{3,})\b", topic)
+    taxon_stopwords = {
+        'Analyze', 'Analysis', 'Identify', 'Data', 'Database',
+        'MorphoSource', 'Morphosource', 'Research', 'Pathways',
+        'Opportunities', 'Wedges', 'Commercialization', 'Promising',
+        'Ecosystem', 'Starting', 'Show', 'Find', 'List', 'Browse',
+    }
+    for token in tokens:
+        if token in taxon_stopwords:
+            continue
+        query_text = f"{token} specimens"
+        if query_text not in seen_query_texts:
+            queries.append({
+                "query": query_text,
+                "rationale": f"Search for {token} records on MorphoSource.",
+            })
+            seen_query_texts.add(query_text)
+
+    # 3. If still nothing, fall back to a broad browse query
+    if not queries:
+        # Extract a few non-stop keywords from the topic
+        words = _re.findall(r"[A-Za-z][A-Za-z'-]+", topic)
+        keywords = [w for w in words if w.lower() not in _DECOMPOSE_STOPWORDS and len(w) > 2]
+        q_text = ' '.join(keywords[:3]) if keywords else topic
+        queries.append({
+            "query": q_text,
+            "rationale": "Broad keyword search (heuristic fallback).",
+        })
+
+    return queries[:MAX_QUERIES]
+
+
 MAX_QUERIES = 5
 
 
@@ -50,11 +129,11 @@ def decompose_topic(topic):
     """Break a research topic into specific MorphoSource search queries.
 
     Returns a list of dicts with ``query`` and ``rationale`` keys, or a
-    single-element fallback list when the LLM is unavailable.
+    heuristic decomposition when the LLM is unavailable.
     """
     api_key = os.environ.get('OPENAI_API_KEY')
     if not api_key or OpenAI is None:
-        return [{"query": topic, "rationale": "Direct search (LLM unavailable)."}]
+        return _heuristic_decompose(topic)
 
     try:
         client = OpenAI(api_key=api_key)
@@ -76,11 +155,11 @@ def decompose_topic(topic):
 
         queries = json.loads(text)
         if not isinstance(queries, list) or not queries:
-            return [{"query": topic, "rationale": "Fallback (unexpected LLM format)."}]
+            return _heuristic_decompose(topic)
         return queries[:MAX_QUERIES]
     except Exception as exc:
         print(f"⚠ Decomposition failed: {exc}")
-        return [{"query": topic, "rationale": "Fallback (decomposition error)."}]
+        return _heuristic_decompose(topic)
 
 
 # ---------------------------------------------------------------------------

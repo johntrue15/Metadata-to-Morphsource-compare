@@ -62,12 +62,28 @@ _TAXON_STOPWORDS = {
     'This', 'Page', 'Specimen', 'Media', 'Available', 'Represented',
     'Museum', 'Center', 'Collection', 'Research', 'Diversity',
     'Amphibian', 'Reptile', 'Uta', 'Mvz', 'Ucm', 'Help', 'Total',
+    # Technology / methodology terms that are NOT taxonomy
+    'Analyze', 'Analysis', 'Identify', 'Data', 'Database',
+    'Ecosystem', 'Pathways', 'Opportunities', 'Wedges',
+    'Commercialization', 'Promising', 'Most',
+    # Imaging & scanning terms
+    'Scan', 'Scans', 'Computed', 'Tomography', 'Micro', 'Nano',
+    'Image', 'Images', 'Volume', 'Volumes',
+    # General research/academic terms
+    'Report', 'Study', 'Studies', 'Method', 'Methods',
+    'Overview', 'Summary', 'Compare', 'Comparison',
+    'Show', 'Find', 'List', 'Browse', 'Download',
+    'Type', 'Types', 'Format', 'Formats',
 }
 
 _SPECIES_STOPWORDS = {
     'from', 'with', 'which', 'this', 'that', 'page', 'search', 'specimens',
     'records', 'lizards', 'current', 'total', 'media', 'help', 'genus',
-    'institutions', 'represented', 'available', 'all', 'are', 'on', 'the'
+    'institutions', 'represented', 'available', 'all', 'are', 'on', 'the',
+    'and', 'but', 'not', 'for', 'its', 'has', 'was', 'were', 'can',
+    'may', 'also', 'via', 'per', 'into', 'most', 'more', 'than', 'ray',
+    'metadata', 'ecosystem', 'pathways', 'opportunities', 'wedges',
+    'data', 'identify', 'analyze', 'commercialization',
 }
 
 
@@ -78,6 +94,13 @@ def _infer_taxonomy_from_text(text):
     tokens = re.findall(r"[A-Za-z][A-Za-z-]*", text)
     for idx, token in enumerate(tokens[:-1]):
         if not token or not token[0].isupper() or not token[1:].islower():
+            continue
+        # Reject short hyphenated tokens (e.g. "X-ray") — real genera are
+        # purely alphabetical or much longer before a hyphen.
+        alpha_prefix = token.split('-')[0]
+        if '-' in token and len(alpha_prefix) < 3:
+            continue
+        if token in _TAXON_STOPWORDS:
             continue
         candidate_species = tokens[idx + 1]
         species_lower = candidate_species.lower()
@@ -142,6 +165,97 @@ def _build_fallback_from_taxonomy(taxonomy_term):
         "api_params": api_params,
         "generated_url": generated_url,
         "api_endpoint": "physical-objects",
+    }
+
+
+# Terms that signal the query is about CT/scan media rather than specimens
+_MEDIA_SIGNAL_WORDS = {
+    'ct', 'scan', 'scans', 'x-ray', 'xray', 'micro-ct', 'microct',
+    'image', 'images', 'mesh', 'meshes', '3d', '3-d',
+    'volume', 'volumes', 'media', 'tomography', 'computed',
+}
+
+# Words to drop from keyword extraction (not useful as search terms)
+_KEYWORD_STOPWORDS = {
+    'the', 'a', 'an', 'and', 'or', 'of', 'to', 'in', 'for', 'on', 'by',
+    'is', 'are', 'was', 'were', 'be', 'been', 'being', 'with', 'at', 'from',
+    'it', 'its', 'as', 'that', 'this', 'these', 'those', 'how', 'what',
+    'which', 'who', 'whom', 'where', 'when', 'why', 'can', 'could',
+    'most', 'more', 'identify', 'analyze', 'analyse', 'find', 'show',
+    'let', 'lets', 'me', 'my', 'we', 'our', 'i', 'you', 'your',
+    'about', 'into', 'through', 'over', 'between', 'not', 'no',
+    'all', 'any', 'some', 'many', 'much', 'each', 'every',
+    'also', 'just', 'only', 'very', 'really', 'quite',
+    'should', 'would', 'will', 'shall', 'may', 'might', 'must',
+    'has', 'have', 'had', 'do', 'does', 'did', 'get', 'got',
+    'make', 'made', 'take', 'took', 'give', 'gave',
+    'research', 'pathways', 'opportunities', 'wedges', 'promising',
+    'commercialization', 'ecosystem', 'starting',
+}
+
+
+def _extract_search_keywords(text):
+    """Extract meaningful search keywords from a natural language query.
+
+    Returns a list of keywords suitable for the MorphoSource ``q`` parameter.
+    Prioritises biological and specimen-related terms over generic words.
+    """
+    tokens = re.findall(r"[A-Za-z][A-Za-z'-]*[A-Za-z]|[A-Za-z]", text)
+    keywords = []
+    for token in tokens:
+        lower = token.lower()
+        if lower in _KEYWORD_STOPWORDS:
+            continue
+        if len(token) < 2:
+            continue
+        keywords.append(token)
+    return keywords
+
+
+def _build_fallback_from_keywords(query):
+    """Build a general media search when no taxonomy term can be inferred.
+
+    Uses extracted keywords with the ``media`` endpoint and ``q`` parameter
+    so the search spans all fields instead of forcing a taxonomy filter.
+    """
+    keywords = _extract_search_keywords(query)
+
+    # Detect whether the query is about media/scans vs specimens
+    lower_query = query.lower()
+    wants_media = any(w in lower_query for w in _MEDIA_SIGNAL_WORDS)
+
+    # Pick the best few keywords (up to 4) to avoid overly long queries
+    search_terms = keywords[:4] if keywords else [query]
+    q_value = ' '.join(search_terms)
+
+    if wants_media:
+        # Search the media endpoint; add modality filter if CT/X-ray mentioned
+        params = {"q": q_value, "locale": "en", "search_field": "all_fields",
+                  "per_page": "12", "page": "1"}
+        if any(w in lower_query for w in ('ct', 'x-ray', 'xray', 'micro-ct',
+                                           'microct', 'tomography', 'computed')):
+            params["f[modality][]"] = "MicroNanoXRayComputedTomography"
+        generated_url = (
+            "https://www.morphosource.org/api/media?" + urlencode(params, doseq=True)
+        )
+        return {
+            "formatted_query": q_value,
+            "api_params": params,
+            "generated_url": generated_url,
+            "api_endpoint": "media",
+        }
+
+    # Default: broad media search (spans all fields)
+    params = {"q": q_value, "locale": "en", "search_field": "all_fields",
+              "per_page": "12", "page": "1"}
+    generated_url = (
+        "https://www.morphosource.org/api/media?" + urlencode(params, doseq=True)
+    )
+    return {
+        "formatted_query": q_value,
+        "api_params": params,
+        "generated_url": generated_url,
+        "api_endpoint": "media",
     }
 
 
@@ -332,7 +446,7 @@ https://www.morphosource.org/api/physical-objects?f%5Btaxonomy_gbif%5D%5B%5D=Ser
                     api_endpoint = path_parts[1]
             else:
                 # No URL found, fallback
-                print("Warning: No URL found in response, using original query")
+                print("Warning: No URL found in response, using intelligent fallback")
                 inferred = _infer_taxonomy_from_text(query)
                 if inferred:
                     fallback_details = _build_fallback_from_taxonomy(inferred)
@@ -341,10 +455,12 @@ https://www.morphosource.org/api/physical-objects?f%5Btaxonomy_gbif%5D%5B%5D=Ser
                     api_url = fallback_details["generated_url"]
                     api_endpoint = fallback_details["api_endpoint"]
                 else:
-                    formatted_query = query
-                    api_params = {'q': query, 'per_page': 10}
-                    api_url = None
-                    api_endpoint = None
+                    # No taxonomy found — use keyword-based media search
+                    fallback_details = _build_fallback_from_keywords(query)
+                    formatted_query = fallback_details["formatted_query"]
+                    api_params = fallback_details["api_params"]
+                    api_url = fallback_details["generated_url"]
+                    api_endpoint = fallback_details["api_endpoint"]
         except Exception as parse_error:
             # Fallback if URL parsing fails
             print(f"Warning: Could not parse URL response: {parse_error}, using original query")

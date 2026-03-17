@@ -52,13 +52,16 @@ class TestDecomposeTopic:
     """Test research topic decomposition."""
 
     def test_decompose_without_api_key(self):
-        """Returns a single fallback query when no API key is set."""
+        """Returns heuristic sub-queries when no API key is set."""
         with patch.dict(os.environ, {'OPENAI_API_KEY': ''}, clear=True):
             result = research_agent.decompose_topic("lizard cranial morphology")
 
         assert isinstance(result, list)
-        assert len(result) == 1
-        assert result[0]["query"] == "lizard cranial morphology"
+        assert len(result) >= 1
+        # Heuristic decompose extracts keywords; raw topic is NOT used as-is
+        for item in result:
+            assert "query" in item
+            assert "rationale" in item
 
     @patch('research_agent.OpenAI')
     def test_decompose_success(self, mock_openai):
@@ -115,14 +118,58 @@ class TestDecomposeTopic:
 
     @patch('research_agent.OpenAI')
     def test_decompose_handles_exception(self, mock_openai):
-        """Returns a fallback query on LLM failure."""
+        """Returns heuristic sub-queries on LLM failure."""
         mock_openai.side_effect = Exception("API down")
 
         with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'}):
             result = research_agent.decompose_topic("anything")
 
-        assert len(result) == 1
-        assert result[0]["query"] == "anything"
+        assert len(result) >= 1
+        for item in result:
+            assert "query" in item
+            assert "rationale" in item
+
+
+class TestHeuristicDecompose:
+    """Test the heuristic fallback decomposition."""
+
+    def test_extracts_ct_and_specimen_concepts(self):
+        """Detects CT, specimen, and metadata from a complex topic."""
+        topic = (
+            "Analyze MorphoSource's specimen, CT/X-ray, and metadata ecosystem "
+            "to identify the most promising research pathways."
+        )
+        result = research_agent._heuristic_decompose(topic)
+        query_texts = [q["query"] for q in result]
+
+        assert len(result) >= 2
+        assert "specimen" in query_texts
+        assert "CT scan" in query_texts
+
+    def test_does_not_return_raw_verbose_topic(self):
+        """Heuristic decompose should never return the entire verbose topic."""
+        topic = (
+            "Analyze MorphoSource's specimen, CT/X-ray, and metadata ecosystem "
+            "to identify the most promising research pathways, AI opportunities, "
+            "and commercialization wedges."
+        )
+        result = research_agent._heuristic_decompose(topic)
+        for q in result:
+            assert q["query"] != topic
+
+    def test_respects_max_queries(self):
+        """Should return at most MAX_QUERIES results."""
+        topic = "specimen CT scan mesh 3D metadata x-ray micro-ct xray"
+        result = research_agent._heuristic_decompose(topic)
+        assert len(result) <= research_agent.MAX_QUERIES
+
+    def test_fallback_to_keywords(self):
+        """When no known concepts match, extract keywords."""
+        topic = "unusual morphological variation in deep sea organisms"
+        result = research_agent._heuristic_decompose(topic)
+        assert len(result) >= 1
+        for q in result:
+            assert len(q["query"]) < len(topic)  # Shorter than raw topic
 
 
 class TestExecuteSearches:

@@ -193,6 +193,58 @@ class TestQueryFormatter:
         assert result['api_params']['taxonomy_gbif'] == 'Sceloporus'
         assert result['generated_url']
 
+    @patch('query_formatter.OpenAI')
+    def test_format_query_keyword_fallback_for_non_taxonomy(self, mock_openai):
+        """When no URL or taxonomy is found, use keyword-based media search."""
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "   "
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai.return_value = mock_client
+
+        query = (
+            "Analyze MorphoSource's specimen, CT/X-ray, and metadata ecosystem "
+            "to identify the most promising research pathways."
+        )
+
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'}):
+            result = query_formatter.format_query(query)
+
+        # Should use media endpoint with q parameter, NOT taxonomy_gbif
+        assert result['api_endpoint'] == 'media'
+        assert 'q' in result['api_params']
+        assert 'taxonomy_gbif' not in result['api_params']
+        assert result['generated_url'] is not None
+
+    def test_infer_taxonomy_rejects_xray(self):
+        """X-ray should NOT be inferred as a taxonomy term."""
+        text = "CT/X-ray scans and metadata ecosystem"
+        result = query_formatter._infer_taxonomy_from_text(text)
+        assert result != 'X-ray', "X-ray is not a taxonomy term"
+
+    def test_infer_taxonomy_rejects_short_hyphenated(self):
+        """Short hyphenated words like X-ray should not pass genus detection."""
+        result = query_formatter._infer_taxonomy_from_text("X-ray and metadata analysis")
+        assert result is None or result != 'X-ray'
+
+    def test_build_fallback_from_keywords_media(self):
+        """Keyword fallback should use media endpoint with q parameter."""
+        result = query_formatter._build_fallback_from_keywords("specimen CT X-ray data")
+        assert result['api_endpoint'] == 'media'
+        assert 'q' in result['api_params']
+        assert 'taxonomy_gbif' not in result['api_params']
+
+    def test_build_fallback_from_keywords_ct_modality(self):
+        """CT-related queries should include modality filter."""
+        result = query_formatter._build_fallback_from_keywords("X-ray CT scan analysis")
+        assert result['api_params'].get('f[modality][]') == 'MicroNanoXRayComputedTomography'
+
+    def test_build_fallback_from_keywords_no_ct(self):
+        """Non-CT queries should not include modality filter."""
+        result = query_formatter._build_fallback_from_keywords("specimen morphology analysis")
+        assert 'f[modality][]' not in result['api_params']
+
 
 class TestMorphosourceAPI:
     """Test morphosource_api.py script"""
@@ -326,6 +378,58 @@ class TestMorphosourceAPI:
         assert result['summary']['attempts'][0]['endpoint'] == 'physical-objects'
         assert result['summary']['attempts'][1]['endpoint'] == 'media'
         assert result['query_info']['formatted_query'] == 'Anolis'
+
+    @patch('morphosource_api.query_formatter.format_query')
+    @patch('morphosource_api.requests.get')
+    def test_search_retry_falls_back_to_keyword_search(self, mock_get, mock_format_query):
+        """When refined query is identical, fall back to keyword-based media search."""
+        empty_response = Mock()
+        empty_response.status_code = 200
+        empty_response.json.return_value = {
+            'physical_objects': [],
+            'pages': {'total_count': 0}
+        }
+
+        keyword_response = Mock()
+        keyword_response.status_code = 200
+        keyword_response.json.return_value = {
+            'media': [{'id': '42', 'name': 'CT data'}]
+        }
+
+        mock_get.side_effect = [empty_response, keyword_response]
+
+        # Simulate format_query returning the SAME params (no change)
+        initial_params = {
+            'f[taxonomy_gbif][]': 'X-ray',
+            'taxonomy_gbif': 'X-ray',
+            'locale': 'en',
+            'per_page': '12',
+            'page': '1',
+        }
+        mock_format_query.return_value = {
+            'original_query': 'CT X-ray analysis',
+            'formatted_query': 'X-ray',
+            'api_params': dict(initial_params),
+            'generated_url': None,
+            'api_endpoint': 'physical-objects',
+        }
+
+        query_info = {
+            'original_query': 'CT X-ray analysis',
+            'formatted_query': 'X-ray',
+            'api_params': dict(initial_params),
+            'api_endpoint': 'physical-objects',
+        }
+
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'retry-key'}):
+            result = morphosource_api.search_morphosource(
+                dict(initial_params), 'X-ray', query_info=query_info
+            )
+
+        # Should have retried with a different (keyword-based) approach
+        assert mock_get.call_count == 2
+        assert result['summary']['status'] == 'success'
+        assert result['summary']['count'] == 1
 
 
 class TestChatGPTProcessor:
