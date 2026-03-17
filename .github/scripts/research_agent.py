@@ -334,7 +334,7 @@ def synthesize_report(topic, search_results):
             max_completion_tokens=4000,
         )
         content = response.choices[0].message.content
-        report = content.strip() if content else ""
+        report = (content or "").strip()
         if not report:
             print("⚠ LLM returned empty report, using fallback")
             return _fallback_report(topic, search_results)
@@ -367,13 +367,14 @@ def _fallback_report(topic, search_results):
             if not items and isinstance(data.get("response"), dict):
                 items = data["response"].get(key, [])
             for item in items[:3]:
-                name = (
-                    item.get("name")
-                    or item.get("title")
-                    or item.get("specimen", {}).get("name", "")
-                    if isinstance(item, dict)
-                    else str(item)
-                )
+                if isinstance(item, dict):
+                    name = (
+                        item.get("name")
+                        or item.get("title")
+                        or item.get("specimen", {}).get("name", "")
+                    )
+                else:
+                    name = str(item)
                 if name:
                     lines.append(f"  - {name}")
     lines += [
