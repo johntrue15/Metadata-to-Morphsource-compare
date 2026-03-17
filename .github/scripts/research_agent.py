@@ -294,7 +294,7 @@ def synthesize_report(topic, search_results):
     """
     api_key = os.environ.get('OPENAI_API_KEY')
     if not api_key or OpenAI is None:
-        return _fallback_report(topic, search_results)
+        return _fallback_report(topic, search_results, reason="no_api_key")
 
     # Build a compact context payload for the LLM
     context_items = []
@@ -337,15 +337,29 @@ def synthesize_report(topic, search_results):
         report = (content or "").strip()
         if not report:
             print("⚠ LLM returned empty report, using fallback")
-            return _fallback_report(topic, search_results)
+            return _fallback_report(
+                topic, search_results, reason="LLM returned empty response"
+            )
         return {"status": "success", "report": report}
     except Exception as exc:
         print(f"⚠ Synthesis failed: {exc}")
-        return _fallback_report(topic, search_results)
+        return _fallback_report(topic, search_results, reason=str(exc))
 
 
-def _fallback_report(topic, search_results):
-    """Build a plain-text report when the LLM is unavailable."""
+def _fallback_report(topic, search_results, reason=None):
+    """Build a plain-text report when the LLM is unavailable.
+
+    Parameters
+    ----------
+    topic : str
+        The original research topic.
+    search_results : list
+        Collected search results from MorphoSource.
+    reason : str or None
+        Why AI synthesis was not used.  ``"no_api_key"`` when the key is
+        missing, any other non-empty string for an error description, or
+        ``None`` for an unspecified reason.
+    """
     lines = [
         "## Research Topic",
         "",
@@ -387,9 +401,18 @@ def _fallback_report(topic, search_results):
         "",
         "## Conclusion",
         "",
-        "See the data summary above. A more detailed report requires an "
-        "OpenAI API key for AI-powered synthesis.",
     ]
+    if reason and reason != "no_api_key":
+        lines.append(
+            "AI-powered synthesis was attempted but encountered an issue: "
+            f"{reason}. Review the data summary above for research guidance."
+        )
+    else:
+        lines.append(
+            "See the data summary above. To enable AI-powered synthesis, "
+            "ensure the `OPENAI_API_KEY` secret is configured in your "
+            "repository settings."
+        )
     return {"status": "fallback", "report": "\n".join(lines)}
 
 

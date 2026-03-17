@@ -282,13 +282,15 @@ class TestSynthesizeReport:
 
     @patch('research_agent.OpenAI')
     def test_synthesize_handles_exception(self, mock_openai):
-        """Falls back on LLM errors."""
+        """Falls back on LLM errors and includes error in conclusion."""
         mock_openai.side_effect = Exception("fail")
 
         with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'}):
             result = research_agent.synthesize_report("t", [])
 
         assert result["status"] == "fallback"
+        assert "fail" in result["report"]
+        assert "AI-powered synthesis was attempted" in result["report"]
 
     @patch('research_agent.OpenAI')
     def test_synthesize_falls_back_on_empty_content(self, mock_openai):
@@ -319,6 +321,7 @@ class TestSynthesizeReport:
         assert result["status"] == "fallback"
         assert "topic" in result["report"]
         assert "12 result(s)" in result["report"]
+        assert "LLM returned empty response" in result["report"]
 
     @patch('research_agent.OpenAI')
     def test_synthesize_falls_back_on_none_content(self, mock_openai):
@@ -334,6 +337,15 @@ class TestSynthesizeReport:
             result = research_agent.synthesize_report("topic", [])
 
         assert result["status"] == "fallback"
+        assert "LLM returned empty response" in result["report"]
+
+    def test_synthesize_no_api_key_suggests_configuration(self):
+        """When no API key is set, conclusion suggests configuring it."""
+        with patch.dict(os.environ, {'OPENAI_API_KEY': ''}, clear=True):
+            result = research_agent.synthesize_report("topic", [])
+
+        assert result["status"] == "fallback"
+        assert "OPENAI_API_KEY" in result["report"]
 
 
 class TestFallbackReport:
@@ -376,6 +388,34 @@ class TestFallbackReport:
         result = research_agent._fallback_report("topic", results)
         assert result["status"] == "fallback"
         assert "0 result(s)" in result["report"]
+
+    def test_no_api_key_conclusion(self):
+        """Conclusion suggests configuring the API key when reason is no_api_key."""
+        result = research_agent._fallback_report("topic", [], reason="no_api_key")
+        assert "OPENAI_API_KEY" in result["report"]
+        assert "ensure" in result["report"].lower()
+
+    def test_default_reason_matches_no_api_key(self):
+        """Default (None) reason produces the same conclusion as no_api_key."""
+        default = research_agent._fallback_report("topic", [])
+        explicit = research_agent._fallback_report("topic", [], reason="no_api_key")
+        assert default["report"] == explicit["report"]
+
+    def test_error_reason_shown_in_conclusion(self):
+        """When an error reason is provided, it appears in the conclusion."""
+        result = research_agent._fallback_report(
+            "topic", [], reason="Connection timed out"
+        )
+        assert "Connection timed out" in result["report"]
+        assert "AI-powered synthesis was attempted" in result["report"]
+
+    def test_empty_response_reason(self):
+        """LLM empty response reason is surfaced in conclusion."""
+        result = research_agent._fallback_report(
+            "topic", [], reason="LLM returned empty response"
+        )
+        assert "LLM returned empty response" in result["report"]
+        assert "OPENAI_API_KEY" not in result["report"]
 
 
 class TestRefineZeroResultQueries:
