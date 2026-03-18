@@ -10,6 +10,7 @@ research report with actionable recommendations.
 import json
 import os
 import sys
+import time
 import importlib.util
 
 if 'openai' in sys.modules:
@@ -123,6 +124,32 @@ def _heuristic_decompose(topic):
 
 
 MAX_QUERIES = 5
+_LLM_RETRIES = 2
+
+
+def _parse_decompose_response(text):
+    """Parse an LLM decomposition response into a list of query dicts.
+
+    Handles markdown-fenced JSON and plain JSON arrays.  Returns ``None``
+    when the text cannot be parsed into a non-empty list.
+    """
+    if not text:
+        return None
+
+    # Strip markdown fences if present
+    if text.startswith('```'):
+        text = text.split('```')[1]
+        if text.startswith('json'):
+            text = text[4:]
+        text = text.strip()
+
+    if not text:
+        return None
+
+    queries = json.loads(text)
+    if not isinstance(queries, list) or not queries:
+        return None
+    return queries
 
 
 def decompose_topic(topic):
@@ -135,31 +162,37 @@ def decompose_topic(topic):
     if not api_key or OpenAI is None:
         return _heuristic_decompose(topic)
 
-    try:
-        client = OpenAI(api_key=api_key)
-        response = client.chat.completions.create(
-            model="gpt-5",
-            messages=[
-                {"role": "system", "content": _DECOMPOSE_SYSTEM_PROMPT},
-                {"role": "user", "content": topic},
-            ],
-            max_completion_tokens=2000,
-        )
-        text = response.choices[0].message.content.strip()
-        # Strip markdown fences if present
-        if text.startswith('```'):
-            text = text.split('```')[1]
-            if text.startswith('json'):
-                text = text[4:]
-            text = text.strip()
+    last_exc = None
+    for attempt in range(1, _LLM_RETRIES + 1):
+        try:
+            client = OpenAI(api_key=api_key)
+            response = client.chat.completions.create(
+                model="gpt-5",
+                messages=[
+                    {"role": "system", "content": _DECOMPOSE_SYSTEM_PROMPT},
+                    {"role": "user", "content": topic},
+                ],
+                max_completion_tokens=2000,
+            )
+            content = response.choices[0].message.content
+            text = (content or "").strip()
+            queries = _parse_decompose_response(text)
+            if queries is not None:
+                return queries[:MAX_QUERIES]
+            # Empty / unparseable — retry if attempts remain
+            print(f"⚠ Decomposition attempt {attempt}: LLM returned empty/unparseable response, retrying …")
+        except Exception as exc:
+            last_exc = exc
+            print(f"⚠ Decomposition attempt {attempt} failed: {exc}")
 
-        queries = json.loads(text)
-        if not isinstance(queries, list) or not queries:
-            return _heuristic_decompose(topic)
-        return queries[:MAX_QUERIES]
-    except Exception as exc:
-        print(f"⚠ Decomposition failed: {exc}")
-        return _heuristic_decompose(topic)
+        if attempt < _LLM_RETRIES:
+            time.sleep(1)
+
+    if last_exc:
+        print(f"⚠ Decomposition failed after {_LLM_RETRIES} attempts, using heuristic fallback")
+    else:
+        print("⚠ LLM returned empty content, using heuristic fallback")
+    return _heuristic_decompose(topic)
 
 
 # ---------------------------------------------------------------------------
@@ -323,27 +356,33 @@ def synthesize_report(topic, search_results):
         f"MorphoSource search results:\n{json.dumps(context_items, indent=2)}"
     )
 
-    try:
-        client = OpenAI(api_key=api_key)
-        response = client.chat.completions.create(
-            model="gpt-5",
-            messages=[
-                {"role": "system", "content": _SYNTHESIS_SYSTEM_PROMPT},
-                {"role": "user", "content": user_message},
-            ],
-            max_completion_tokens=4000,
-        )
-        content = response.choices[0].message.content
-        report = (content or "").strip()
-        if not report:
-            print("⚠ LLM returned empty report, using fallback")
-            return _fallback_report(
-                topic, search_results, reason="LLM returned empty response"
+    last_exc = None
+    for attempt in range(1, _LLM_RETRIES + 1):
+        try:
+            client = OpenAI(api_key=api_key)
+            response = client.chat.completions.create(
+                model="gpt-5",
+                messages=[
+                    {"role": "system", "content": _SYNTHESIS_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_message},
+                ],
+                max_completion_tokens=4000,
             )
-        return {"status": "success", "report": report}
-    except Exception as exc:
-        print(f"⚠ Synthesis failed: {exc}")
-        return _fallback_report(topic, search_results, reason=str(exc))
+            content = response.choices[0].message.content
+            report = (content or "").strip()
+            if report:
+                return {"status": "success", "report": report}
+            print(f"⚠ Synthesis attempt {attempt}: LLM returned empty report, retrying …")
+        except Exception as exc:
+            last_exc = exc
+            print(f"⚠ Synthesis attempt {attempt} failed: {exc}")
+
+        if attempt < _LLM_RETRIES:
+            time.sleep(1)
+
+    reason = str(last_exc) if last_exc else "LLM returned empty response"
+    print(f"⚠ Synthesis failed after {_LLM_RETRIES} attempts, using fallback")
+    return _fallback_report(topic, search_results, reason=reason)
 
 
 def _fallback_report(topic, search_results, reason=None):

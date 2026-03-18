@@ -129,6 +129,97 @@ class TestDecomposeTopic:
             assert "query" in item
             assert "rationale" in item
 
+    @patch('research_agent.time.sleep')
+    @patch('research_agent.OpenAI')
+    def test_decompose_retries_on_empty_content(self, mock_openai, mock_sleep):
+        """Retries when the LLM returns empty content, then falls back."""
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = ""
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai.return_value = mock_client
+
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'}):
+            result = research_agent.decompose_topic("lizard morphology")
+
+        # Should have retried (_LLM_RETRIES attempts)
+        assert mock_client.chat.completions.create.call_count == research_agent._LLM_RETRIES
+        # Falls back to heuristic
+        assert len(result) >= 1
+        for item in result:
+            assert "query" in item
+            assert "rationale" in item
+
+    @patch('research_agent.time.sleep')
+    @patch('research_agent.OpenAI')
+    def test_decompose_retries_on_none_content(self, mock_openai, mock_sleep):
+        """Retries when the LLM returns None content, then falls back."""
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = None
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai.return_value = mock_client
+
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'}):
+            result = research_agent.decompose_topic("test topic")
+
+        assert mock_client.chat.completions.create.call_count == research_agent._LLM_RETRIES
+        assert len(result) >= 1
+
+    @patch('research_agent.time.sleep')
+    @patch('research_agent.OpenAI')
+    def test_decompose_succeeds_on_second_attempt(self, mock_openai, mock_sleep):
+        """Succeeds when the LLM returns valid content on retry."""
+        mock_client = MagicMock()
+        empty_resp = MagicMock()
+        empty_resp.choices = [MagicMock()]
+        empty_resp.choices[0].message.content = ""
+
+        valid_resp = MagicMock()
+        valid_resp.choices = [MagicMock()]
+        valid_resp.choices[0].message.content = json.dumps([
+            {"query": "snake CT scans", "rationale": "Get data."},
+        ])
+
+        mock_client.chat.completions.create.side_effect = [empty_resp, valid_resp]
+        mock_openai.return_value = mock_client
+
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'}):
+            result = research_agent.decompose_topic("snake evolution")
+
+        assert len(result) == 1
+        assert result[0]["query"] == "snake CT scans"
+        assert mock_client.chat.completions.create.call_count == 2
+
+
+class TestParseDecomposeResponse:
+    """Test the _parse_decompose_response helper."""
+
+    def test_parses_plain_json_array(self):
+        text = '[{"query": "q1", "rationale": "r1"}]'
+        result = research_agent._parse_decompose_response(text)
+        assert len(result) == 1
+        assert result[0]["query"] == "q1"
+
+    def test_parses_markdown_fenced_json(self):
+        text = '```json\n[{"query": "q1", "rationale": "r1"}]\n```'
+        result = research_agent._parse_decompose_response(text)
+        assert len(result) == 1
+
+    def test_returns_none_for_empty_string(self):
+        assert research_agent._parse_decompose_response("") is None
+
+    def test_returns_none_for_none(self):
+        assert research_agent._parse_decompose_response(None) is None
+
+    def test_returns_none_for_empty_fenced_block(self):
+        assert research_agent._parse_decompose_response('```json\n```') is None
+
+    def test_returns_none_for_empty_array(self):
+        assert research_agent._parse_decompose_response('[]') is None
+
 
 class TestHeuristicDecompose:
     """Test the heuristic fallback decomposition."""
@@ -346,6 +437,47 @@ class TestSynthesizeReport:
 
         assert result["status"] == "fallback"
         assert "OPENAI_API_KEY" in result["report"]
+
+    @patch('research_agent.time.sleep')
+    @patch('research_agent.OpenAI')
+    def test_synthesize_retries_on_empty_content(self, mock_openai, mock_sleep):
+        """Retries when the LLM returns empty content, then falls back."""
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = ""
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai.return_value = mock_client
+
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'}):
+            result = research_agent.synthesize_report("topic", [])
+
+        assert mock_client.chat.completions.create.call_count == research_agent._LLM_RETRIES
+        assert result["status"] == "fallback"
+        assert "LLM returned empty response" in result["report"]
+
+    @patch('research_agent.time.sleep')
+    @patch('research_agent.OpenAI')
+    def test_synthesize_succeeds_on_second_attempt(self, mock_openai, mock_sleep):
+        """Succeeds when the LLM returns valid content on retry."""
+        mock_client = MagicMock()
+        empty_resp = MagicMock()
+        empty_resp.choices = [MagicMock()]
+        empty_resp.choices[0].message.content = ""
+
+        valid_resp = MagicMock()
+        valid_resp.choices = [MagicMock()]
+        valid_resp.choices[0].message.content = "## Report\nRetried successfully."
+
+        mock_client.chat.completions.create.side_effect = [empty_resp, valid_resp]
+        mock_openai.return_value = mock_client
+
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'}):
+            result = research_agent.synthesize_report("topic", [])
+
+        assert result["status"] == "success"
+        assert "Retried successfully" in result["report"]
+        assert mock_client.chat.completions.create.call_count == 2
 
 
 class TestFallbackReport:
