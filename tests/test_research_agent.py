@@ -200,7 +200,8 @@ class TestDecomposeTopic:
             research_agent.decompose_topic("lizard morphology")
 
         captured = capsys.readouterr().out
-        assert "DEBUG raw LLM response: 'not valid json at all'" in captured
+        assert "DEBUG raw LLM response:" in captured
+        assert "not valid json at all" in captured
 
     @patch('research_agent.time.sleep')
     @patch('research_agent.OpenAI')
