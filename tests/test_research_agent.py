@@ -220,6 +220,27 @@ class TestParseDecomposeResponse:
     def test_returns_none_for_empty_array(self):
         assert research_agent._parse_decompose_response('[]') is None
 
+    def test_returns_none_for_invalid_json(self):
+        """Invalid JSON returns None instead of raising."""
+        assert research_agent._parse_decompose_response('not json at all') is None
+
+    def test_parses_json_with_surrounding_text(self):
+        """Extracts a JSON array embedded in prose."""
+        text = 'Here are the queries:\n[{"query": "q1", "rationale": "r1"}]\nDone.'
+        result = research_agent._parse_decompose_response(text)
+        assert len(result) == 1
+        assert result[0]["query"] == "q1"
+
+    def test_parses_fenced_json_with_preamble(self):
+        """Handles markdown fences that are not at the start of the text."""
+        text = (
+            'Sure! Here are the queries:\n'
+            '```json\n[{"query": "q1", "rationale": "r1"}]\n```'
+        )
+        result = research_agent._parse_decompose_response(text)
+        assert len(result) == 1
+        assert result[0]["query"] == "q1"
+
 
 class TestHeuristicDecompose:
     """Test the heuristic fallback decomposition."""
