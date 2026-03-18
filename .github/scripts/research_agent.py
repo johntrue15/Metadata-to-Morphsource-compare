@@ -124,32 +124,59 @@ def _heuristic_decompose(topic):
 
 
 MAX_QUERIES = 5
-_LLM_RETRIES = 2
+_LLM_RETRIES = 3
 
 
 def _parse_decompose_response(text):
     """Parse an LLM decomposition response into a list of query dicts.
 
-    Handles markdown-fenced JSON and plain JSON arrays.  Returns ``None``
-    when the text cannot be parsed into a non-empty list.
+    Handles markdown-fenced JSON (even when preceded by other text),
+    JSON arrays embedded in surrounding prose, and plain JSON arrays.
+    Returns ``None`` when the text cannot be parsed into a non-empty list.
     """
     if not text:
         return None
 
-    # Strip markdown fences if present
-    if text.startswith('```'):
-        text = text.split('```')[1]
-        if text.startswith('json'):
-            text = text[4:]
-        text = text.strip()
+    # Try markdown-fenced blocks anywhere in the text
+    if '```' in text:
+        parts = text.split('```')
+        for part in parts[1::2]:  # odd-indexed parts are inside fences
+            candidate = part
+            if candidate.startswith('json'):
+                candidate = candidate[4:]
+            candidate = candidate.strip()
+            if candidate:
+                try:
+                    queries = json.loads(candidate)
+                    if isinstance(queries, list) and queries:
+                        return queries
+                except (json.JSONDecodeError, ValueError):
+                    continue
 
-    if not text:
+    # Try to parse the whole (stripped) text as JSON
+    stripped = text.strip()
+    if not stripped:
         return None
 
-    queries = json.loads(text)
-    if not isinstance(queries, list) or not queries:
-        return None
-    return queries
+    try:
+        queries = json.loads(stripped)
+        if isinstance(queries, list) and queries:
+            return queries
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+    # Try to extract a JSON array embedded in surrounding text
+    start = stripped.find('[')
+    end = stripped.rfind(']')
+    if start != -1 and end > start:
+        try:
+            queries = json.loads(stripped[start:end + 1])
+            if isinstance(queries, list) and queries:
+                return queries
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    return None
 
 
 def decompose_topic(topic):
@@ -180,13 +207,16 @@ def decompose_topic(topic):
             if queries is not None:
                 return queries[:MAX_QUERIES]
             # Empty / unparseable — retry if attempts remain
-            print(f"⚠ Decomposition attempt {attempt}: LLM returned empty/unparseable response, retrying …")
+            if attempt < _LLM_RETRIES:
+                print(f"⚠ Decomposition attempt {attempt}: LLM returned empty/unparseable response, retrying …")
+            else:
+                print(f"⚠ Decomposition attempt {attempt}: LLM returned empty/unparseable response")
         except Exception as exc:
             last_exc = exc
             print(f"⚠ Decomposition attempt {attempt} failed: {exc}")
 
         if attempt < _LLM_RETRIES:
-            time.sleep(1)
+            time.sleep(min(2 ** (attempt - 1), 4))
 
     if last_exc:
         print(f"⚠ Decomposition failed after {_LLM_RETRIES} attempts, using heuristic fallback")
@@ -372,13 +402,16 @@ def synthesize_report(topic, search_results):
             report = (content or "").strip()
             if report:
                 return {"status": "success", "report": report}
-            print(f"⚠ Synthesis attempt {attempt}: LLM returned empty report, retrying …")
+            if attempt < _LLM_RETRIES:
+                print(f"⚠ Synthesis attempt {attempt}: LLM returned empty report, retrying …")
+            else:
+                print(f"⚠ Synthesis attempt {attempt}: LLM returned empty report")
         except Exception as exc:
             last_exc = exc
             print(f"⚠ Synthesis attempt {attempt} failed: {exc}")
 
         if attempt < _LLM_RETRIES:
-            time.sleep(1)
+            time.sleep(min(2 ** (attempt - 1), 4))
 
     reason = str(last_exc) if last_exc else "LLM returned empty response"
     print(f"⚠ Synthesis failed after {_LLM_RETRIES} attempts, using fallback")
