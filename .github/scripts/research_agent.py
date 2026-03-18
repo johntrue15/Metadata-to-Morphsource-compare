@@ -206,11 +206,10 @@ def decompose_topic(topic):
             queries = _parse_decompose_response(text)
             if queries is not None:
                 return queries[:MAX_QUERIES]
-            # Empty / unparseable — retry if attempts remain
-            if attempt < _LLM_RETRIES:
-                print(f"⚠ Decomposition attempt {attempt}: LLM returned empty/unparseable response, retrying …")
-            else:
-                print(f"⚠ Decomposition attempt {attempt}: LLM returned empty/unparseable response")
+            # Empty / unparseable — log raw response for debugging, then retry
+            print(f"⚠ Decomposition attempt {attempt}: LLM returned empty/unparseable response"
+                  f"{', retrying …' if attempt < _LLM_RETRIES else ''}")
+            print(f"  DEBUG raw LLM response: {text!r}")
         except Exception as exc:
             last_exc = exc
             print(f"⚠ Decomposition attempt {attempt} failed: {exc}")
@@ -402,10 +401,9 @@ def synthesize_report(topic, search_results):
             report = (content or "").strip()
             if report:
                 return {"status": "success", "report": report}
-            if attempt < _LLM_RETRIES:
-                print(f"⚠ Synthesis attempt {attempt}: LLM returned empty report, retrying …")
-            else:
-                print(f"⚠ Synthesis attempt {attempt}: LLM returned empty report")
+            print(f"⚠ Synthesis attempt {attempt}: LLM returned empty report"
+                  f"{', retrying …' if attempt < _LLM_RETRIES else ''}")
+            print(f"  DEBUG raw LLM response: {content!r}")
         except Exception as exc:
             last_exc = exc
             print(f"⚠ Synthesis attempt {attempt} failed: {exc}")
