@@ -2,40 +2,40 @@
 """
 AutoResearchClaw — autonomous iterative MorphoSource research agent.
 
-Inspired by Karpathy's auto-research paradigm: give the agent a research
-topic, a program.md strategy file, and a number of iterations.  It
-autonomously decomposes, searches MorphoSource, evaluates what it found,
-decides what to try next, and repeats — building up memory across
-iterations.  Each iteration creates a GitHub issue with its findings.
-After N iterations you wake up to a full research log.
+Two-loop architecture:
+  - Inner loop (research_depth): fast autonomous cycles that decompose,
+    search MorphoSource, evaluate, and build memory.  Logged locally as
+    JSONL for the dashboard.
+  - Outer loop (github_issues): creates GitHub issues at regular intervals
+    aggregating the inner cycles for human review.
 
 Usage:
-    python research_agent.py "topic" --iterations 5 --media-id 000038412
+    python research_agent.py "topic" --research-depth 10 --github-issues 3
 """
 
 import json
 import logging
 import os
+import re
 import sys
 import time
 import traceback
 import importlib.util
 import urllib.request
 import urllib.error
+from datetime import datetime, timezone
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
-# Load .env for local development (no-op when file is absent or in CI)
+# Load .env for local development
 # ---------------------------------------------------------------------------
 
 
 def _load_dotenv():
-    """Walk up from this script's directory to find a .env file and load it."""
     try:
         from dotenv import load_dotenv  # type: ignore
     except ImportError:
         load_dotenv = None
-
     search = Path(__file__).resolve().parent
     for _ in range(5):
         env_file = search / ".env"
@@ -55,10 +55,10 @@ def _load_dotenv():
     return None
 
 
-_env_path = _load_dotenv()
+_load_dotenv()
 
 # ---------------------------------------------------------------------------
-# Logging
+# Console logging
 # ---------------------------------------------------------------------------
 
 LOG_FORMAT = "%(asctime)s [%(levelname)s] %(message)s"
@@ -100,36 +100,85 @@ MAX_QUERIES = 5
 _LLM_RETRIES = 3
 MAX_REFINEMENT_ROUNDS = 2
 MORPHOSOURCE_API_BASE = "https://www.morphosource.org/api"
-
 SCRIPT_DIR = Path(__file__).resolve().parent
+LOG_DIR = Path.home() / ".autoresearchclaw" / "logs"
 
 log.info("Model: %s | Debug: %s", OPENAI_MODEL, _debug)
 
 
 # ---------------------------------------------------------------------------
-# GitHub Issue Reporter — can comment AND create new issues
+# Structured JSONL logging for the dashboard
+# ---------------------------------------------------------------------------
+
+
+class RunLogger:
+    """Writes structured JSONL logs and run metadata for the local dashboard."""
+
+    def __init__(self, topic, research_depth, github_issues, media_id=None):
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
+        slug = re.sub(r"[^a-z0-9]+", "_", topic.lower())[:40].strip("_")
+        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        self.run_id = f"{ts}_{slug}"
+        self.jsonl_path = LOG_DIR / f"{self.run_id}.jsonl"
+        self.meta_path = LOG_DIR / f"{self.run_id}_meta.json"
+        self.start_time = datetime.now(timezone.utc).isoformat()
+
+        meta = {
+            "run_id": self.run_id,
+            "topic": topic,
+            "research_depth": research_depth,
+            "github_issues": github_issues,
+            "media_id": media_id,
+            "model": OPENAI_MODEL,
+            "start_time": self.start_time,
+            "status": "running",
+            "issue_links": [],
+        }
+        self.meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+        log.info("Run log: %s", self.jsonl_path)
+
+    def event(self, cycle, stage, **kwargs):
+        entry = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "cycle": cycle,
+            "stage": stage,
+            **kwargs,
+        }
+        with open(self.jsonl_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, default=str) + "\n")
+
+    def update_meta(self, **kwargs):
+        meta = json.loads(self.meta_path.read_text(encoding="utf-8"))
+        meta.update(kwargs)
+        self.meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+
+    def finish(self, status="completed", issue_links=None):
+        self.update_meta(
+            status=status,
+            end_time=datetime.now(timezone.utc).isoformat(),
+            issue_links=issue_links or [],
+        )
+
+
+_run_logger: RunLogger | None = None
+
+
+# ---------------------------------------------------------------------------
+# GitHub Issue Reporter
 # ---------------------------------------------------------------------------
 
 
 class GitHubIssueReporter:
-    """Manages GitHub issue interactions: create issues, post comments, update labels."""
-
     def __init__(self):
         self.token = os.environ.get("GITHUB_TOKEN")
         self.repo = os.environ.get("GITHUB_REPOSITORY")
         self.issue_number = os.environ.get("ISSUE_NUMBER")
         self.enabled = bool(self.token and self.repo)
         if self.enabled:
-            log.info(
-                "GitHub reporting enabled (repo=%s, parent_issue=#%s)",
-                self.repo,
-                self.issue_number or "none",
-            )
-        else:
-            log.info("GitHub reporting disabled (missing GITHUB_TOKEN or GITHUB_REPOSITORY)")
+            log.info("GitHub reporting enabled (repo=%s, parent=#%s)",
+                     self.repo, self.issue_number or "none")
 
     def _api(self, method, path, payload=None):
-        """Make a GitHub API request. Returns (status_code, response_dict)."""
         url = f"https://api.github.com/repos/{self.repo}/{path}"
         data = json.dumps(payload).encode("utf-8") if payload else None
         req = urllib.request.Request(url, data=data, method=method)
@@ -142,15 +191,13 @@ class GitHubIssueReporter:
                 body = json.loads(resp.read().decode("utf-8"))
                 return resp.getcode(), body
         except urllib.error.HTTPError as exc:
-            body_text = exc.read().decode("utf-8", errors="replace")[:500]
-            log.warning("GitHub API %s %s → HTTP %d: %s", method, path, exc.code, body_text)
+            log.warning("GitHub API %s %s -> %d", method, path, exc.code)
             return exc.code, {}
         except Exception as exc:
             log.warning("GitHub API %s %s failed: %s", method, path, exc)
             return 0, {}
 
     def create_issue(self, title, body, labels=None):
-        """Create a new issue. Returns the issue number or None."""
         if not self.enabled:
             return None
         payload = {"title": title, "body": body}
@@ -159,23 +206,18 @@ class GitHubIssueReporter:
         status, data = self._api("POST", "issues", payload)
         if status == 201:
             num = data.get("number")
-            log.info("Created issue #%s: %s", num, title)
+            log.info("Created issue #%s", num)
             return num
         return None
 
     def post_comment(self, body, issue_number=None):
-        """Post a comment on an issue."""
         issue_number = issue_number or self.issue_number
         if not self.enabled or not issue_number:
             return False
         status, _ = self._api("POST", f"issues/{issue_number}/comments", {"body": body})
-        if status == 201:
-            log.info("Posted comment to issue #%s", issue_number)
-            return True
-        return False
+        return status == 201
 
     def update_labels(self, labels, issue_number=None):
-        """Replace labels on an issue."""
         issue_number = issue_number or self.issue_number
         if not self.enabled or not issue_number:
             return False
@@ -187,7 +229,6 @@ _reporter: GitHubIssueReporter | None = None
 
 
 def _post_to_issue(body, issue_number=None):
-    """Post a comment to a GitHub issue if reporting is active."""
     if _reporter:
         _reporter.post_comment(body, issue_number=issue_number)
 
@@ -198,16 +239,11 @@ def _post_to_issue(body, issue_number=None):
 
 
 def _load_program(path=None):
-    """Load the research program definition from a Markdown file."""
-    if path:
-        p = Path(path)
-    else:
-        p = SCRIPT_DIR / "program.md"
+    p = Path(path) if path else SCRIPT_DIR / "program.md"
     if p.is_file():
         text = p.read_text(encoding="utf-8")
-        log.info("Loaded program.md (%d chars) from %s", len(text), p)
+        log.info("Loaded program.md (%d chars)", len(text))
         return text
-    log.info("No program.md found at %s", p)
     return ""
 
 
@@ -217,18 +253,11 @@ def _load_program(path=None):
 
 
 def _is_reasoning_model(model_name):
-    """Detect reasoning-family models that need max_completion_tokens
-    and don't support temperature/response_format."""
     m = model_name.lower()
-    if m.startswith(("o1", "o3", "o4")):
-        return True
-    if m.startswith("gpt-5"):
-        return True
-    return False
+    return m.startswith(("o1", "o3", "o4", "gpt-5"))
 
 
 def _call_llm(messages, max_tokens=2000, json_mode=False, label="LLM"):
-    """Call OpenAI chat completions with logging and auto parameter adaptation."""
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         log.warning("[%s] OPENAI_API_KEY not set", label)
@@ -239,7 +268,6 @@ def _call_llm(messages, max_tokens=2000, json_mode=False, label="LLM"):
 
     client = OpenAI(api_key=api_key)
     reasoning = _is_reasoning_model(OPENAI_MODEL)
-
     kwargs = {"model": OPENAI_MODEL, "messages": messages}
 
     if reasoning:
@@ -255,13 +283,13 @@ def _call_llm(messages, max_tokens=2000, json_mode=False, label="LLM"):
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
 
-    log.debug("[%s] model=%s, reasoning=%s, tokens=%d, json=%s", label, OPENAI_MODEL, reasoning, max_tokens, json_mode)
+    log.debug("[%s] model=%s reasoning=%s tokens=%d", label, OPENAI_MODEL, reasoning, max_tokens)
 
     try:
         response = client.chat.completions.create(**kwargs)
     except Exception as first_err:
         err_str = str(first_err).lower()
-        if not reasoning and ("max_tokens" in err_str or "not supported" in err_str or "unsupported" in err_str):
+        if not reasoning and ("max_tokens" in err_str or "unsupported" in err_str):
             log.info("[%s] Retrying as reasoning model", label)
             kwargs.pop("max_tokens", None)
             kwargs.pop("temperature", None)
@@ -279,33 +307,23 @@ def _call_llm(messages, max_tokens=2000, json_mode=False, label="LLM"):
     choice = response.choices[0] if response.choices else None
     content = choice.message.content if choice else None
     usage = response.usage
-
-    log.info(
-        "[%s] finish=%s | len=%s | usage=%s",
-        label,
-        choice.finish_reason if choice else "none",
-        len(content) if content else 0,
-        f"{usage.prompt_tokens}/{usage.completion_tokens}" if usage else "N/A",
-    )
-
-    if not content:
-        log.warning("[%s] Empty content (finish=%s)", label, choice.finish_reason if choice else "?")
-
+    log.info("[%s] finish=%s len=%s usage=%s", label,
+             choice.finish_reason if choice else "none",
+             len(content) if content else 0,
+             f"{usage.prompt_tokens}/{usage.completion_tokens}" if usage else "N/A")
     return (content or "").strip()
 
 
 # ---------------------------------------------------------------------------
-# Stage 0: Fetch seed media
+# Seed media
 # ---------------------------------------------------------------------------
 
 
 def fetch_seed_media(media_id):
-    """Fetch a single media record from MorphoSource."""
     media_id = media_id.strip().lstrip("0") or "0"
     padded_id = media_id.zfill(9)
     url = f"{MORPHOSOURCE_API_BASE}/media/{padded_id}"
     log.info("Fetching seed media: %s", url)
-
     headers = {"Accept": "application/json"}
     api_key = os.environ.get("MORPHOSOURCE_API_KEY")
     if api_key:
@@ -321,12 +339,11 @@ def fetch_seed_media(media_id):
                 if resp.getcode() == 200:
                     return json.loads(resp.read().decode("utf-8"))
     except Exception as exc:
-        log.error("Failed to fetch seed media: %s", exc)
+        log.error("Seed media fetch failed: %s", exc)
     return None
 
 
 def _summarize_seed(seed_data):
-    """Extract a human-readable summary from a MorphoSource media record."""
     if not seed_data:
         return ""
     record = seed_data
@@ -339,8 +356,8 @@ def _summarize_seed(seed_data):
 
     parts = []
     for label, key in [
-        ("Title", "title"), ("Type/Modality", "media_type"),
-        ("Modality", "modality"), ("Taxonomy", "physical_object_taxonomy_name"),
+        ("Title", "title"), ("Type", "media_type"), ("Modality", "modality"),
+        ("Taxonomy", "physical_object_taxonomy_name"),
         ("Organization", "physical_object_organization"),
         ("Specimen", "physical_object_title"), ("Device", "device"),
         ("Description", "short_description"),
@@ -352,7 +369,7 @@ def _summarize_seed(seed_data):
 
 
 # ---------------------------------------------------------------------------
-# Decompose topic into search queries
+# Decompose
 # ---------------------------------------------------------------------------
 
 _DECOMPOSE_SYSTEM = (
@@ -363,29 +380,26 @@ _DECOMPOSE_SYSTEM = (
     "Return ONLY the JSON object."
 )
 
-_DECOMPOSE_STOPWORDS = {
+_STOPWORDS = {
     "a", "an", "the", "and", "or", "of", "to", "in", "for", "on", "by",
     "is", "are", "was", "were", "be", "been", "with", "at", "from", "as",
-    "it", "its", "that", "this", "these", "those", "how", "what", "which",
-    "identify", "analyze", "analyse", "find", "show", "most", "promising",
-    "research", "pathways", "opportunities", "ecosystem", "let", "lets", "about",
+    "it", "its", "that", "this", "how", "what", "which", "identify",
+    "analyze", "find", "show", "most", "promising", "research", "pathways",
+    "ecosystem", "let", "lets", "about", "develop", "follow", "paper",
+    "titled", "new", "twist", "evolution", "uncovers", "extremely",
+    "specialized", "morphology",
 }
 
 _CONCEPT_QUERIES = {
     "specimen": {"query": "specimen", "rationale": "Browse physical specimen records."},
-    "specimens": {"query": "specimen", "rationale": "Browse physical specimen records."},
     "ct": {"query": "CT scan", "rationale": "Browse CT scan media records."},
-    "x-ray": {"query": "CT scan", "rationale": "Browse X-ray / CT media records."},
     "scan": {"query": "CT scan", "rationale": "Browse 3-D scan media."},
-    "scans": {"query": "CT scan", "rationale": "Browse 3-D scan media."},
     "metadata": {"query": "metadata", "rationale": "Search records by metadata fields."},
-    "3d": {"query": "3D mesh", "rationale": "Browse 3-D mesh and surface models."},
     "mesh": {"query": "3D mesh", "rationale": "Browse 3-D mesh and surface models."},
 }
 
 
 def _heuristic_decompose(topic):
-    import re as _re
     queries, seen = [], set()
     lower = topic.lower()
     for kw, entry in _CONCEPT_QUERIES.items():
@@ -393,17 +407,19 @@ def _heuristic_decompose(topic):
             queries.append(dict(entry))
             seen.add(entry["query"])
     stop = {"Analyze", "Analysis", "Identify", "Data", "Database", "MorphoSource",
-            "Research", "Pathways", "Promising", "Ecosystem", "Show", "Find", "Browse"}
-    for tok in _re.findall(r"\b([A-Z][a-z]{3,})\b", topic):
+            "Research", "Pathways", "Promising", "Ecosystem", "Show", "Find", "Browse",
+            "Develop", "Follow", "Paper", "Titled", "Evolution", "Uncovers", "Extremely",
+            "Specialized", "Morphology", "Twist", "New"}
+    for tok in re.findall(r"\b([A-Z][a-z]{3,})\b", topic):
         if tok not in stop:
             qt = f"{tok} specimens"
             if qt not in seen:
                 queries.append({"query": qt, "rationale": f"Search for {tok} records."})
                 seen.add(qt)
     if not queries:
-        words = _re.findall(r"[A-Za-z][A-Za-z'-]+", topic)
-        kws = [w for w in words if w.lower() not in _DECOMPOSE_STOPWORDS and len(w) > 2]
-        queries.append({"query": " ".join(kws[:3]) or topic, "rationale": "Broad search."})
+        words = re.findall(r"[A-Za-z][A-Za-z'-]+", topic)
+        kws = [w for w in words if w.lower() not in _STOPWORDS and len(w) > 2]
+        queries.append({"query": " ".join(kws[:4]) or topic, "rationale": "Broad search."})
     return queries[:MAX_QUERIES]
 
 
@@ -441,16 +457,13 @@ def _parse_decompose(text):
 
 
 def decompose_topic(topic, seed_context=None, memory_context=None):
-    """Decompose a research topic into MorphoSource search queries."""
     user_parts = [topic]
     if seed_context:
-        user_parts.append(
-            f"\nSeed media record to anchor queries:\n{seed_context}"
-        )
+        user_parts.append(f"\nSeed media record:\n{seed_context}")
     if memory_context:
         user_parts.append(
-            f"\nPrevious research memory — avoid repeating failed queries "
-            f"and build on successful leads:\n{memory_context}"
+            f"\nPrevious research memory — avoid repeating failed queries, "
+            f"build on successful leads:\n{memory_context}"
         )
     user_content = "\n".join(user_parts)
 
@@ -465,7 +478,6 @@ def decompose_topic(topic, seed_context=None, memory_context=None):
         queries = _parse_decompose(content)
         if queries:
             return queries[:MAX_QUERIES]
-        log.warning("Decompose attempt %d: unparseable", attempt)
         if attempt < _LLM_RETRIES:
             time.sleep(min(2 ** (attempt - 1), 4))
 
@@ -473,7 +485,7 @@ def decompose_topic(topic, seed_context=None, memory_context=None):
 
 
 # ---------------------------------------------------------------------------
-# Execute MorphoSource searches
+# Search
 # ---------------------------------------------------------------------------
 
 
@@ -486,12 +498,10 @@ def execute_searches(queries):
             fmt = query_formatter.format_query(qt)
             params = fmt.get("api_params", {"q": qt, "per_page": 10})
             sr = morphosource_api.search_morphosource(
-                params, fmt.get("formatted_query", qt), query_info=fmt,
-            )
+                params, fmt.get("formatted_query", qt), query_info=fmt)
             cnt = sr.get("summary", {}).get("count", 0)
             results.append({
-                "query": qt,
-                "rationale": item.get("rationale", ""),
+                "query": qt, "rationale": item.get("rationale", ""),
                 "formatted_query": fmt.get("formatted_query") or qt,
                 "api_endpoint": fmt.get("api_endpoint") or "media",
                 "result_count": cnt,
@@ -509,25 +519,23 @@ def execute_searches(queries):
 
 
 def refine_searches(search_results):
-    import re as _re
     refined, seen = [], set()
     for r in search_results:
         if r["result_count"] > 0:
             continue
-        words = [w for w in _re.findall(r"[A-Za-z][A-Za-z'-]+", r["query"])
-                 if w.lower() not in _DECOMPOSE_STOPWORDS and len(w) > 2]
+        words = [w for w in re.findall(r"[A-Za-z][A-Za-z'-]+", r["query"])
+                 if w.lower() not in _STOPWORDS and len(w) > 2]
         for w in words:
             if w.lower() not in seen:
                 refined.append({"query": w, "rationale": f"Simplified retry of '{r['query']}'."})
                 seen.add(w.lower())
     if not refined:
         return [], False
-    log.info("Refining %d zero-result queries", len(refined))
     return execute_searches(refined[:MAX_QUERIES]), True
 
 
 # ---------------------------------------------------------------------------
-# Synthesize report
+# Synthesize
 # ---------------------------------------------------------------------------
 
 _SYNTHESIS_SYSTEM = (
@@ -577,13 +585,13 @@ def synthesize_report(topic, search_results, seed_context=None, memory_context=N
 
     lines = [f"## Research Topic\n\n{topic}\n\n## Available Data\n"]
     for r in search_results:
-        lines.append(f"- **{r['query']}** — {r['result_count']} result(s)")
-    lines.append("\n## Conclusion\n\nSee data above. Set OPENAI_API_KEY for AI synthesis.")
+        lines.append(f"- **{r['query']}** -- {r['result_count']} result(s)")
+    lines.append("\n## Conclusion\n\nSee data above.")
     return {"status": "fallback", "report": "\n".join(lines)}
 
 
 # ---------------------------------------------------------------------------
-# Evaluation step — the Karpathy "did it improve?" check
+# Evaluate
 # ---------------------------------------------------------------------------
 
 _EVALUATE_SYSTEM = (
@@ -591,44 +599,35 @@ _EVALUATE_SYSTEM = (
     "Given the research topic, the iteration's search results, and accumulated memory "
     "from prior iterations, produce a JSON evaluation.\n\n"
     "Return a JSON object with these keys:\n"
-    '  "score": integer 1-10 (how productive was this iteration),\n'
-    '  "discoveries": list of strings (key new findings),\n'
-    '  "dead_ends": list of strings (queries/approaches to avoid),\n'
-    '  "next_directions": list of 3-5 strings (specific queries or angles for next iteration),\n'
-    '  "summary": string (2-3 paragraph running summary of ALL findings so far)\n\n'
+    '  "score": integer 1-10,\n'
+    '  "discoveries": list of strings,\n'
+    '  "dead_ends": list of strings,\n'
+    '  "next_directions": list of 3-5 strings,\n'
+    '  "summary": string (2-3 paragraph running summary)\n\n'
     "Return ONLY the JSON object."
 )
 
 
 def evaluate_iteration(topic, search_results, memory, program=""):
-    """LLM evaluates the iteration and decides what to explore next."""
     context_parts = [f"Research topic: {topic}"]
     if program:
         context_parts.append(f"Research program strategy:\n{program[:2000]}")
-
-    results_summary = []
-    for r in search_results:
-        results_summary.append({
-            "query": r["query"], "result_count": r["result_count"],
-            "status": r["result_status"],
-        })
-    context_parts.append(f"This iteration's results:\n{json.dumps(results_summary, indent=2)}")
-
+    results_summary = [{"query": r["query"], "result_count": r["result_count"],
+                        "status": r["result_status"]} for r in search_results]
+    context_parts.append(f"This cycle's results:\n{json.dumps(results_summary, indent=2)}")
     if memory:
         prev = memory.get("summary", "")
         tried = memory.get("queries_tried", [])
-        context_parts.append(f"Previous summary:\n{prev}")
+        if prev:
+            context_parts.append(f"Previous summary:\n{prev}")
         if tried:
-            context_parts.append(f"Previously tried queries: {json.dumps(tried)}")
-
-    user_msg = "\n\n".join(context_parts)
+            context_parts.append(f"Previously tried queries: {json.dumps(tried[-20:])}")
 
     content = _call_llm(
         [{"role": "system", "content": _EVALUATE_SYSTEM},
-         {"role": "user", "content": user_msg}],
+         {"role": "user", "content": "\n\n".join(context_parts)}],
         max_tokens=2000, json_mode=True, label="Evaluate",
     )
-
     if content:
         try:
             parsed = json.loads(content)
@@ -636,37 +635,30 @@ def evaluate_iteration(topic, search_results, memory, program=""):
                 log.info("Evaluation score: %s/10", parsed.get("score", "?"))
                 return parsed
         except (json.JSONDecodeError, ValueError):
-            log.warning("Could not parse evaluation JSON")
-
+            pass
     return {
-        "score": 5,
-        "discoveries": [],
+        "score": 5, "discoveries": [],
         "dead_ends": [r["query"] for r in search_results if r["result_count"] == 0],
         "next_directions": ["Try broader taxonomy searches", "Explore different modalities"],
-        "summary": "Evaluation unavailable — continuing with heuristic directions.",
+        "summary": "Evaluation unavailable.",
     }
 
 
 # ---------------------------------------------------------------------------
-# Memory management
+# Memory
 # ---------------------------------------------------------------------------
 
 
-def _build_memory(iteration, search_results, evaluation, prev_memory):
-    """Build the accumulated memory object for the next iteration."""
+def _build_memory(cycle, search_results, evaluation, prev_memory):
     prev_tried = prev_memory.get("queries_tried", []) if prev_memory else []
     prev_dead = prev_memory.get("dead_ends", []) if prev_memory else []
-    prev_discoveries = prev_memory.get("all_discoveries", []) if prev_memory else []
-
-    new_tried = [{"query": r["query"], "count": r["result_count"]} for r in search_results]
-    new_discoveries = evaluation.get("discoveries", [])
-    new_dead = evaluation.get("dead_ends", [])
-
+    prev_disc = prev_memory.get("all_discoveries", []) if prev_memory else []
     return {
-        "iteration": iteration,
-        "queries_tried": prev_tried + new_tried,
-        "dead_ends": list(set(prev_dead + new_dead)),
-        "all_discoveries": prev_discoveries + new_discoveries,
+        "iteration": cycle,
+        "queries_tried": prev_tried + [{"query": r["query"], "count": r["result_count"]}
+                                        for r in search_results],
+        "dead_ends": list(set(prev_dead + evaluation.get("dead_ends", []))),
+        "all_discoveries": prev_disc + evaluation.get("discoveries", []),
         "next_directions": evaluation.get("next_directions", []),
         "summary": evaluation.get("summary", ""),
         "score": evaluation.get("score", 5),
@@ -674,66 +666,52 @@ def _build_memory(iteration, search_results, evaluation, prev_memory):
 
 
 def _format_memory_for_llm(memory):
-    """Format memory into a concise string for LLM context."""
     if not memory:
         return ""
-    parts = [f"Iterations completed: {memory.get('iteration', 0)}"]
-    parts.append(f"Overall score so far: {memory.get('score', '?')}/10")
-
+    parts = [f"Cycles completed: {memory.get('iteration', 0)}",
+             f"Score: {memory.get('score', '?')}/10"]
     tried = memory.get("queries_tried", [])
     if tried:
-        tried_lines = [f"  - \"{t['query']}\" → {t['count']} results" for t in tried[-15:]]
-        parts.append("Queries tried:\n" + "\n".join(tried_lines))
-
+        parts.append("Queries tried:\n" + "\n".join(
+            f'  - "{t["query"]}" -> {t["count"]} results' for t in tried[-15:]))
     dead = memory.get("dead_ends", [])
     if dead:
         parts.append(f"Dead ends (DO NOT retry): {', '.join(dead[-10:])}")
-
-    discoveries = memory.get("all_discoveries", [])
-    if discoveries:
-        parts.append("Key discoveries:\n" + "\n".join(f"  - {d}" for d in discoveries[-10:]))
-
+    disc = memory.get("all_discoveries", [])
+    if disc:
+        parts.append("Discoveries:\n" + "\n".join(f"  - {d}" for d in disc[-10:]))
     nexts = memory.get("next_directions", [])
     if nexts:
-        parts.append("Suggested next directions:\n" + "\n".join(f"  - {n}" for n in nexts))
-
+        parts.append("Next directions:\n" + "\n".join(f"  - {n}" for n in nexts))
     summary = memory.get("summary", "")
     if summary:
         parts.append(f"Running summary:\n{summary}")
-
     return "\n\n".join(parts)
 
 
 # ---------------------------------------------------------------------------
-# Single iteration pipeline
+# Single research cycle (inner loop unit)
 # ---------------------------------------------------------------------------
 
 
-def run_single_iteration(topic, iteration, total, memory, seed_context=None, program=""):
-    """Execute one iteration of the research loop.
-
-    Returns (iteration_result_dict, updated_memory).
-    """
-    log.info("=" * 60)
-    log.info("ITERATION %d/%d", iteration, total)
-    log.info("=" * 60)
+def run_single_cycle(topic, cycle, total_depth, memory, seed_context=None, program=""):
+    """One fast cycle: decompose -> search -> refine -> evaluate -> memory."""
+    t0 = time.time()
+    log.info("--- Cycle %d/%d ---", cycle, total_depth)
 
     memory_context = _format_memory_for_llm(memory) if memory else None
 
-    # Decompose
     queries = decompose_topic(
         topic,
-        seed_context=seed_context if iteration == 1 else None,
+        seed_context=seed_context if cycle == 1 else None,
         memory_context=memory_context,
     )
+    if _run_logger:
+        _run_logger.event(cycle, "decompose", queries=[q["query"] for q in queries])
 
-    # Search
     search_results = execute_searches(queries)
-
-    # Refine zero-result queries
     for _ in range(MAX_REFINEMENT_ROUNDS):
-        zeros = sum(1 for r in search_results if r["result_count"] == 0)
-        if zeros == 0:
+        if not any(r["result_count"] == 0 for r in search_results):
             break
         new, had = refine_searches(search_results)
         if not had:
@@ -745,56 +723,96 @@ def run_single_iteration(topic, iteration, total, memory, seed_context=None, pro
             break
 
     total_hits = sum(r["result_count"] for r in search_results)
-    log.info("Iteration %d: %d results across %d queries", iteration, total_hits, len(search_results))
+    if _run_logger:
+        _run_logger.event(cycle, "search", total_hits=total_hits,
+                          queries_run=len(search_results))
 
-    # Evaluate
     evaluation = evaluate_iteration(topic, search_results, memory, program)
+    new_memory = _build_memory(cycle, search_results, evaluation, memory)
 
-    # Synthesize report for this iteration
-    report = synthesize_report(topic, search_results, seed_context=seed_context, memory_context=memory_context)
+    duration_ms = int((time.time() - t0) * 1000)
+    if _run_logger:
+        _run_logger.event(cycle, "evaluate",
+                          score=evaluation.get("score", 0),
+                          discoveries=evaluation.get("discoveries", []),
+                          duration_ms=duration_ms,
+                          total_hits=total_hits,
+                          memory_summary=evaluation.get("summary", "")[:300])
 
-    # Build memory for next iteration
-    new_memory = _build_memory(iteration, search_results, evaluation, memory)
+    log.info("Cycle %d: score=%s/10, hits=%d, %dms",
+             cycle, evaluation.get("score", "?"), total_hits, duration_ms)
 
     result = {
-        "iteration": iteration,
-        "total_iterations": total,
+        "cycle": cycle,
         "queries": queries,
-        "search_results": [
-            {k: v for k, v in r.items() if k != "result_data"}
-            for r in search_results
-        ],
+        "search_results": [{k: v for k, v in r.items() if k != "result_data"}
+                           for r in search_results],
         "total_hits": total_hits,
         "evaluation": evaluation,
-        "report": report,
     }
-
-    return result, new_memory
+    return result, new_memory, search_results
 
 
 # ---------------------------------------------------------------------------
-# Orchestrator — the Karpathy-style iteration loop
+# Build a GitHub issue from aggregated cycles
 # ---------------------------------------------------------------------------
 
 
-def run_research_program(topic, iterations=1, media_id=None, program=""):
-    """Run the full iterative research program.
+def _build_issue_report(topic, cycle_results, memory, seed_context, issue_num, total_issues):
+    """Synthesize a report from multiple cycles and post as a GitHub issue."""
+    all_search_results = []
+    for cr in cycle_results:
+        all_search_results.extend(cr.get("search_results", []))
 
-    Each iteration:
-      1. Decomposes the topic (informed by memory from prior iterations)
-      2. Searches MorphoSource
-      3. Evaluates what was found (score, discoveries, dead ends)
-      4. Decides what to explore next
-      5. Creates a GitHub issue with the iteration's findings
-      6. Passes memory forward to the next iteration
+    memory_context = _format_memory_for_llm(memory)
+    report = synthesize_report(topic, all_search_results,
+                               seed_context=seed_context, memory_context=memory_context)
 
-    After all iterations, posts a final synthesis to the parent issue.
+    cycles_covered = [cr["cycle"] for cr in cycle_results]
+    total_hits = sum(cr["total_hits"] for cr in cycle_results)
+    latest_score = memory.get("score", "?") if memory else "?"
+    discoveries = memory.get("all_discoveries", [])[-10:] if memory else []
+    next_dirs = memory.get("next_directions", []) if memory else []
+
+    disc_lines = "\n".join(f"- {d}" for d in discoveries) if discoveries else "_None yet_"
+    next_lines = "\n".join(f"- {n}" for n in next_dirs) if next_dirs else "_Continuing..._"
+    report_text = report.get("report", "_No report._")
+
+    issue_body = (
+        f"## Research Issue {issue_num}/{total_issues}\n\n"
+        f"**Topic:** {topic}\n"
+        f"**Cycles covered:** {cycles_covered[0]}-{cycles_covered[-1]}\n"
+        f"**Total hits this batch:** {total_hits}\n"
+        f"**Current score:** {latest_score}/10\n\n"
+        f"### Key Discoveries\n{disc_lines}\n\n"
+        f"### Next Directions\n{next_lines}\n\n"
+        f"---\n\n### Full Report\n\n{report_text}\n\n"
+        f"---\n_AutoResearchClaw issue {issue_num}/{total_issues}_"
+    )
+
+    if _run_logger:
+        _run_logger.event(cycles_covered[-1], "github_issue",
+                          issue_num=issue_num, total_issues=total_issues)
+
+    return issue_body, report
+
+
+# ---------------------------------------------------------------------------
+# Orchestrator — two-loop architecture
+# ---------------------------------------------------------------------------
+
+
+def run_research_program(topic, research_depth=10, github_issues=3,
+                         media_id=None, program=""):
+    """Two-loop research program.
+
+    Inner loop (research_depth): fast cycles building memory.
+    Outer loop (github_issues): periodic GitHub issue creation.
     """
-    log.info("Starting research program: %d iteration(s)", iterations)
+    log.info("Starting: %d cycles, %d GitHub issues", research_depth, github_issues)
 
     seed_context = None
     if media_id:
-        log.info("Fetching seed media: %s", media_id)
         seed_data = fetch_seed_media(media_id)
         if seed_data:
             seed_context = _summarize_seed(seed_data)
@@ -803,178 +821,175 @@ def run_research_program(topic, iterations=1, media_id=None, program=""):
                 f"### Seed Media Record\n\n"
                 f"Fetched **[media {padded}]"
                 f"(https://www.morphosource.org/concern/media/{padded})** "
-                f"as research seed:\n\n{seed_context}"
-            )
+                f"as research seed:\n\n{seed_context}")
+
+    _post_to_issue(
+        f"### Research Program Started\n\n"
+        f"**Depth:** {research_depth} cycles | "
+        f"**Issues:** {github_issues} reports\n\n"
+        f"Dashboard: `http://localhost:5001`")
+
+    github_issues = min(github_issues, research_depth)
+    issue_interval = max(1, research_depth // github_issues)
 
     memory = None
-    all_results = []
+    all_cycle_results = []
+    pending_cycles = []
     iteration_issues = []
+    issue_counter = 0
 
-    for i in range(1, iterations + 1):
-        result, memory = run_single_iteration(
-            topic, i, iterations, memory,
+    for cycle in range(1, research_depth + 1):
+        result, memory, _raw = run_single_cycle(
+            topic, cycle, research_depth, memory,
             seed_context=seed_context, program=program,
         )
-        all_results.append(result)
+        all_cycle_results.append(result)
+        pending_cycles.append(result)
 
-        # --- Create a GitHub issue for this iteration ---
-        score = result["evaluation"].get("score", "?")
-        hits = result["total_hits"]
-        issue_title = f"Research [{i}/{iterations}]: {topic[:80]}"
-        discoveries = result["evaluation"].get("discoveries", [])
-        next_dirs = result["evaluation"].get("next_directions", [])
+        at_issue_boundary = (cycle % issue_interval == 0) or (cycle == research_depth)
+        issues_remaining = github_issues - issue_counter
 
-        disc_lines = "\n".join(f"- {d}" for d in discoveries) if discoveries else "_None_"
-        next_lines = "\n".join(f"- {n}" for n in next_dirs) if next_dirs else "_None_"
-        report_text = result["report"].get("report", "_No report._")
+        if at_issue_boundary and issues_remaining > 0:
+            issue_counter += 1
+            issue_title = f"Research [{issue_counter}/{github_issues}]: {topic[:80]}"
 
-        issue_body = (
-            f"## Iteration {i}/{iterations} — Score: {score}/10\n\n"
-            f"**Topic:** {topic}\n"
-            f"**Results:** {hits} total hits\n\n"
-            f"### Key Discoveries\n{disc_lines}\n\n"
-            f"### Next Directions\n{next_lines}\n\n"
-            f"---\n\n"
-            f"### Full Report\n\n{report_text}\n\n"
-            f"---\n"
-            f"_AutoResearchClaw iteration {i}/{iterations} • "
-            f"Score: {score}/10 • {hits} results_"
-        )
-
-        if _reporter:
-            issue_num = _reporter.create_issue(
-                issue_title, issue_body,
-                labels=["research-agent", f"iteration-{i}"],
+            issue_body, _ = _build_issue_report(
+                topic, pending_cycles, memory, seed_context,
+                issue_counter, github_issues,
             )
-            if issue_num:
-                iteration_issues.append(issue_num)
-                _reporter.update_labels(
-                    ["research-agent", f"iteration-{i}", "completed"],
-                    issue_number=issue_num,
+
+            gh_num = None
+            if _reporter:
+                gh_num = _reporter.create_issue(
+                    issue_title, issue_body,
+                    labels=["research-agent", f"issue-{issue_counter}"],
                 )
+                if gh_num:
+                    iteration_issues.append(gh_num)
+                    _reporter.update_labels(
+                        ["research-agent", f"issue-{issue_counter}", "completed"],
+                        issue_number=gh_num,
+                    )
 
-        # Post progress summary to parent issue
-        issue_link = f"#{iteration_issues[-1]}" if iteration_issues else f"Iteration {i}"
-        _post_to_issue(
-            f"### Iteration {i}/{iterations} complete\n\n"
-            f"**Score:** {score}/10 | **Results:** {hits}\n\n"
-            f"**Discoveries:** {', '.join(discoveries[:3]) if discoveries else 'none'}\n\n"
-            f"**Next:** {', '.join(next_dirs[:3]) if next_dirs else 'continuing...'}\n\n"
-            f"Full report: {issue_link}"
-        )
+            issue_link = f"#{gh_num}" if gh_num else f"Issue {issue_counter}"
+            score = memory.get("score", "?") if memory else "?"
+            hits = sum(c["total_hits"] for c in pending_cycles)
+            _post_to_issue(
+                f"### Issue {issue_counter}/{github_issues} posted\n\n"
+                f"**Cycles:** {pending_cycles[0]['cycle']}-{pending_cycles[-1]['cycle']} | "
+                f"**Score:** {score}/10 | **Hits:** {hits}\n\n"
+                f"Report: {issue_link}")
 
-        log.info(
-            "Iteration %d/%d complete — score=%s, hits=%d",
-            i, iterations, score, hits,
-        )
+            log.info("GitHub issue %d/%d posted (cycles %d-%d)",
+                     issue_counter, github_issues,
+                     pending_cycles[0]["cycle"], pending_cycles[-1]["cycle"])
 
-    # --- Final synthesis across all iterations ---
+            if _run_logger:
+                _run_logger.update_meta(issue_links=[f"#{n}" for n in iteration_issues])
+
+            pending_cycles = []
+
+    # --- Final synthesis ---
     log.info("=" * 60)
-    log.info("FINAL SYNTHESIS across %d iterations", iterations)
+    log.info("FINAL SYNTHESIS across %d cycles", research_depth)
     log.info("=" * 60)
 
-    if iterations > 1 and memory:
-        final_summary = memory.get("summary", "")
-        all_discoveries = memory.get("all_discoveries", [])
+    if memory:
+        all_disc = memory.get("all_discoveries", [])
         total_queries = len(memory.get("queries_tried", []))
-
-        disc_text = "\n".join(f"- {d}" for d in all_discoveries) if all_discoveries else "_None_"
         issue_links = " ".join(f"#{n}" for n in iteration_issues) if iteration_issues else "N/A"
 
+        disc_text = "\n".join(f"- {d}" for d in all_disc) if all_disc else "_None_"
         final_body = (
             f"## Final Research Summary\n\n"
             f"**Topic:** {topic}\n"
-            f"**Iterations:** {iterations}\n"
-            f"**Total queries executed:** {total_queries}\n"
-            f"**Iteration issues:** {issue_links}\n\n"
+            f"**Cycles:** {research_depth} | **Issues:** {len(iteration_issues)}\n"
+            f"**Total queries:** {total_queries}\n"
+            f"**Issue links:** {issue_links}\n\n"
             f"### All Discoveries\n{disc_text}\n\n"
-            f"### Summary\n{final_summary}\n\n"
-            f"---\n\n"
-            f"_To continue this research, comment on this issue with new "
-            f"directions or questions. The issue-comment-reply workflow "
-            f"will process follow-ups._"
+            f"### Summary\n{memory.get('summary', '')}\n\n"
+            f"---\n\n_Comment on this issue to continue the research._"
         )
         _post_to_issue(final_body)
 
+    if _run_logger:
+        _run_logger.finish(status="completed", issue_links=[f"#{n}" for n in iteration_issues])
+
     return {
         "topic": topic,
-        "iterations_completed": iterations,
+        "research_depth": research_depth,
+        "github_issues_created": len(iteration_issues),
         "iteration_issues": iteration_issues,
         "final_memory": memory,
-        "all_results": all_results,
+        "all_results": all_cycle_results,
     }
 
 
 # ---------------------------------------------------------------------------
-# CLI entry point
+# CLI
 # ---------------------------------------------------------------------------
 
 
 def main():
-    global _reporter
-
+    global _reporter, _run_logger
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="AutoResearchClaw — autonomous iterative MorphoSource research agent",
-    )
-    parser.add_argument("topic", help="Research topic or goal to investigate")
-    parser.add_argument(
-        "--media-id", default=None,
-        help="MorphoSource media ID to seed the research",
-    )
-    parser.add_argument(
-        "--iterations", type=int, default=1,
-        help="Number of autonomous research iterations (default: 1)",
-    )
-    parser.add_argument(
-        "--program", default=None,
-        help="Path to program.md strategy file (default: auto-detect)",
-    )
+        description="AutoResearchClaw — autonomous MorphoSource research agent")
+    parser.add_argument("topic", help="Research topic or goal")
+    parser.add_argument("--media-id", default=None, help="Seed media ID")
+    parser.add_argument("--research-depth", type=int, default=10,
+                        help="Internal research cycles (default: 10)")
+    parser.add_argument("--github-issues", type=int, default=3,
+                        help="GitHub issues to create (default: 3)")
+    parser.add_argument("--program", default=None, help="Path to program.md")
     args = parser.parse_args()
 
     _reporter = GitHubIssueReporter()
+    _run_logger = RunLogger(args.topic, args.research_depth, args.github_issues, args.media_id)
     program = _load_program(args.program)
 
     log.info("=" * 60)
     log.info("AutoResearchClaw starting")
     log.info("Topic: %s", args.topic)
-    log.info("Iterations: %d", args.iterations)
+    log.info("Research depth: %d cycles", args.research_depth)
+    log.info("GitHub issues: %d", args.github_issues)
     log.info("Seed media: %s", args.media_id or "none")
     log.info("Model: %s", OPENAI_MODEL)
-    log.info("Program: %d chars loaded", len(program))
-    log.info("OpenAI key: %s", "set" if os.environ.get("OPENAI_API_KEY") else "NOT SET")
-    log.info("GitHub: %s", "enabled" if _reporter.enabled else "disabled")
+    log.info("Run ID: %s", _run_logger.run_id)
+    log.info("Log file: %s", _run_logger.jsonl_path)
     log.info("=" * 60)
 
     try:
         result = run_research_program(
             args.topic,
-            iterations=args.iterations,
+            research_depth=args.research_depth,
+            github_issues=args.github_issues,
             media_id=args.media_id,
             program=program,
         )
     except Exception:
         log.error("Research program failed:\n%s", traceback.format_exc())
-        _post_to_issue(
-            f"### AutoResearchClaw Error\n\n```\n{traceback.format_exc()}\n```"
-        )
+        _post_to_issue(f"### Error\n\n```\n{traceback.format_exc()}\n```")
         if _reporter:
             _reporter.update_labels(["research-agent", "error"])
+        if _run_logger:
+            _run_logger.finish(status="error")
         sys.exit(1)
 
-    # Write output files
     output = {
         "topic": result["topic"],
-        "iterations_completed": result["iterations_completed"],
+        "research_depth": result["research_depth"],
+        "github_issues_created": result["github_issues_created"],
         "iteration_issues": result["iteration_issues"],
         "final_memory": result["final_memory"],
+        "run_id": _run_logger.run_id if _run_logger else None,
     }
     with open("research_report.json", "w") as f:
         json.dump(output, f, indent=2)
 
-    last_result = result["all_results"][-1] if result["all_results"] else {}
-    report_text = last_result.get("report", {}).get("report", "")
+    last = result["all_results"][-1] if result["all_results"] else {}
+    report_text = last.get("report", {}).get("report", "") if isinstance(last.get("report"), dict) else ""
     if report_text:
         with open("research_report.md", "w") as f:
             f.write(report_text)
@@ -982,13 +997,13 @@ def main():
     github_output = os.environ.get("GITHUB_OUTPUT")
     if github_output:
         with open(github_output, "a") as f:
-            f.write(f"iterations_completed={result['iterations_completed']}\n")
-            f.write(f"report_status={last_result.get('report', {}).get('status', 'unknown')}\n")
+            f.write(f"research_depth={result['research_depth']}\n")
+            f.write(f"github_issues_created={result['github_issues_created']}\n")
 
     if _reporter:
         _reporter.update_labels(["research-agent", "completed"])
 
-    log.info("Research program complete — %d iterations", result["iterations_completed"])
+    log.info("Complete: %d cycles, %d issues", result["research_depth"], result["github_issues_created"])
 
 
 if __name__ == "__main__":

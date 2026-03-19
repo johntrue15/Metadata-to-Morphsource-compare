@@ -7,11 +7,16 @@ on:
         description: 'Research topic or goal to investigate'
         required: true
         type: string
-      iterations:
-        description: 'Number of autonomous research iterations (1-10)'
+      research_depth:
+        description: 'Internal research cycles on Mac mini (default: 10)'
         required: false
         type: number
-        default: 1
+        default: 10
+      github_issues:
+        description: 'Number of GitHub issues to create for user review (default: 3)'
+        required: false
+        type: number
+        default: 3
       media_id:
         description: 'MorphoSource media ID to seed the research (e.g. 000038412)'
         required: false
@@ -40,7 +45,8 @@ jobs:
         with:
           script: |
             const topic = `${{ inputs.research_topic }}`;
-            const iterations = ${{ inputs.iterations || 1 }};
+            const depth = ${{ inputs.research_depth || 10 }};
+            const issues = ${{ inputs.github_issues || 3 }};
             const mediaId = `${{ inputs.media_id }}`.trim();
             const model = `${{ inputs.openai_model }}` || 'gpt-5.4';
 
@@ -49,39 +55,40 @@ jobs:
               : '**Seed Media ID:** _none (topic-only)_';
 
             const body = [
-              '### 🧪 AutoResearchClaw Research Program',
+              '### AutoResearchClaw Research Program',
               '',
               '**Research Topic:**',
               topic,
               '',
-              `**Iterations:** ${iterations}`,
+              `**Research Depth:** ${depth} internal cycles`,
+              `**GitHub Issues:** ${issues} reports`,
               seedLine,
               `**Model:** \`${model}\``,
               '',
               '---',
               '',
-              '🔄 **Status:** Running…',
+              'Status: Running...',
               '',
-              `This issue tracks an autonomous ${iterations}-iteration research program. `,
-              'Each iteration creates a separate issue with its findings, and progress ',
-              'is posted here as comments. After all iterations complete, a final ',
-              'synthesis will be posted.',
+              `The agent will run ${depth} autonomous research cycles on the Mac mini, `,
+              `posting ${issues} GitHub issue(s) at regular intervals with findings. `,
+              'Logs are available on the Mac mini dashboard at http://localhost:5001',
               '',
               'The agent will autonomously:',
               '1. Decompose the topic into MorphoSource queries',
               '2. Search for relevant specimen data',
               '3. Evaluate findings and decide what to explore next',
-              '4. Repeat with accumulated memory',
+              `4. Repeat ${depth} times, building memory across cycles`,
+              `5. Surface findings in ${issues} GitHub issue(s)`,
               '',
               '---',
               '',
-              '_Post a follow-up comment to continue the research after iterations complete._',
+              '_Post a follow-up comment to continue the research after all cycles complete._',
             ].join('\n');
 
             const issue = await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `Research Program [${iterations}x]: ${topic}`,
+              title: `Research [${depth}x/${issues} issues]: ${topic}`,
               body: body,
               labels: ['research-agent', 'research-program'],
             });
@@ -105,7 +112,7 @@ jobs:
         run: |
           export PATH="/opt/anaconda3/bin:$PATH"
           python3 --version
-          python3 -m pip install --quiet openai requests python-dotenv
+          python3 -m pip install --quiet openai requests python-dotenv flask
 
       - name: Run research agent
         id: research
@@ -126,7 +133,8 @@ jobs:
           fi
           python3 research_agent.py \
             "${{ inputs.research_topic }}" \
-            --iterations ${{ inputs.iterations || 1 }} \
+            --research-depth ${{ inputs.research_depth || 10 }} \
+            --github-issues ${{ inputs.github_issues || 3 }} \
             $MEDIA_ARG
 
       - name: Upload research artifacts
@@ -159,8 +167,8 @@ jobs:
               `**[View workflow run](${runUrl})**`,
               '',
               status === 'success'
-                ? '_All iterations completed. Post a comment to continue the research._'
-                : '_Some iterations may have failed. Check the workflow run for details._',
+                ? '_All cycles completed. Post a comment to continue the research._'
+                : '_Some cycles may have failed. Check the workflow run for details._',
             ].join('\n');
 
             await github.rest.issues.createComment({
