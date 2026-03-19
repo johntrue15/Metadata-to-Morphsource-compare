@@ -1,5 +1,9 @@
 name: AutoResearchClaw Agent
 
+concurrency:
+  group: autoresearch-${{ github.run_id }}
+  cancel-in-progress: false
+
 on:
   workflow_dispatch:
     inputs:
