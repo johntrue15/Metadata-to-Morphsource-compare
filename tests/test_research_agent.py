@@ -170,6 +170,41 @@ class TestDecomposeTopic:
 
     @patch('research_agent.time.sleep')
     @patch('research_agent.OpenAI')
+    def test_decompose_logs_raw_response_on_empty(self, mock_openai, mock_sleep, capsys):
+        """Prints DEBUG raw LLM response when content is empty."""
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = ""
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai.return_value = mock_client
+
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'}):
+            research_agent.decompose_topic("lizard morphology")
+
+        captured = capsys.readouterr().out
+        assert "DEBUG raw LLM response:" in captured
+
+    @patch('research_agent.time.sleep')
+    @patch('research_agent.OpenAI')
+    def test_decompose_logs_raw_response_on_unparseable(self, mock_openai, mock_sleep, capsys):
+        """Prints DEBUG raw LLM response with actual content when unparseable."""
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "not valid json at all"
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai.return_value = mock_client
+
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'}):
+            research_agent.decompose_topic("lizard morphology")
+
+        captured = capsys.readouterr().out
+        assert "DEBUG raw LLM response:" in captured
+        assert "not valid json at all" in captured
+
+    @patch('research_agent.time.sleep')
+    @patch('research_agent.OpenAI')
     def test_decompose_succeeds_on_second_attempt(self, mock_openai, mock_sleep):
         """Succeeds when the LLM returns valid content on retry."""
         mock_client = MagicMock()
@@ -476,6 +511,23 @@ class TestSynthesizeReport:
         assert mock_client.chat.completions.create.call_count == research_agent._LLM_RETRIES
         assert result["status"] == "fallback"
         assert "LLM returned empty response" in result["report"]
+
+    @patch('research_agent.time.sleep')
+    @patch('research_agent.OpenAI')
+    def test_synthesize_logs_raw_response_on_empty(self, mock_openai, mock_sleep, capsys):
+        """Prints DEBUG raw LLM response when synthesis content is empty."""
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = ""
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai.return_value = mock_client
+
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'}):
+            research_agent.synthesize_report("topic", [])
+
+        captured = capsys.readouterr().out
+        assert "DEBUG raw LLM response:" in captured
 
     @patch('research_agent.time.sleep')
     @patch('research_agent.OpenAI')
