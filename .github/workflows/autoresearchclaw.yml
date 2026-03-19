@@ -18,10 +18,10 @@ on:
         type: string
         default: ''
       openai_model:
-        description: 'OpenAI model to use (default: gpt-4o)'
+        description: 'OpenAI model to use (default: gpt-5.4-pro)'
         required: false
         type: string
-        default: 'gpt-4o'
+        default: 'gpt-5.4-pro'
 
 jobs:
   create-research-issue:
@@ -42,7 +42,7 @@ jobs:
             const topic = `${{ inputs.research_topic }}`;
             const iterations = ${{ inputs.iterations || 1 }};
             const mediaId = `${{ inputs.media_id }}`.trim();
-            const model = `${{ inputs.openai_model }}` || 'gpt-4o';
+            const model = `${{ inputs.openai_model }}` || 'gpt-5.4-pro';
 
             const seedLine = mediaId
               ? `**Seed Media ID:** [\`${mediaId}\`](https://www.morphosource.org/concern/media/${mediaId})`
@@ -91,7 +91,7 @@ jobs:
 
   research-pipeline:
     name: Run Iterative Research Pipeline
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: create-research-issue
     permissions:
       issues: write
@@ -102,20 +102,17 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install openai requests
+          export PATH="/opt/anaconda3/bin:$PATH"
+          python3 --version
+          python3 -m pip install --quiet openai requests python-dotenv
 
       - name: Run research agent
         id: research
         env:
+          PATH: /opt/anaconda3/bin:/usr/local/bin:/usr/bin:/bin
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_MODEL: ${{ inputs.openai_model || 'gpt-4o' }}
+          OPENAI_MODEL: ${{ inputs.openai_model || 'gpt-5.4-pro' }}
           MORPHOSOURCE_API_KEY: ${{ secrets.MORPHOSOURCE_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -127,7 +124,7 @@ jobs:
           if [ -n "${{ inputs.media_id }}" ]; then
             MEDIA_ARG="--media-id ${{ inputs.media_id }}"
           fi
-          python research_agent.py \
+          python3 research_agent.py \
             "${{ inputs.research_topic }}" \
             --iterations ${{ inputs.iterations || 1 }} \
             $MEDIA_ARG

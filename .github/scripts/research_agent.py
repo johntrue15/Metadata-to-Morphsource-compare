@@ -95,7 +95,7 @@ except ImportError:
 # Configuration
 # ---------------------------------------------------------------------------
 
-OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o")
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.4-pro")
 MAX_QUERIES = 5
 _LLM_RETRIES = 3
 MAX_REFINEMENT_ROUNDS = 2

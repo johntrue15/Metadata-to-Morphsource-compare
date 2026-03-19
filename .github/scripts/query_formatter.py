@@ -435,7 +435,7 @@ https://www.morphosource.org/api/physical-objects?f%5Btaxonomy_gbif%5D%5B%5D=Ser
             }
         ]
         
-        model = os.environ.get("OPENAI_MODEL", "gpt-4o")
+        model = os.environ.get("OPENAI_MODEL", "gpt-5.4-pro")
         response = client.chat.completions.create(
             model=model,
             messages=messages,
