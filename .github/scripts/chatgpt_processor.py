@@ -70,12 +70,14 @@ def process_with_chatgpt(query, morphosource_data, formatted_query_info):
             }
         ]
         
-        model = os.environ.get("OPENAI_MODEL", "gpt-5.4-pro")
-        response = client.chat.completions.create(
-            model=model,
-            messages=messages,
-            max_tokens=4096,
-        )
+        model = os.environ.get("OPENAI_MODEL", "gpt-5.4")
+        is_reasoning = model.lower().startswith(("o1", "o3", "o4", "gpt-5"))
+        llm_kwargs = {"model": model, "messages": messages}
+        if is_reasoning:
+            llm_kwargs["max_completion_tokens"] = 4096
+        else:
+            llm_kwargs["max_tokens"] = 4096
+        response = client.chat.completions.create(**llm_kwargs)
         
         answer = response.choices[0].message.content
         print(f"✓ ChatGPT Response:\n{answer}")

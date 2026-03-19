@@ -18,10 +18,10 @@ on:
         type: string
         default: ''
       openai_model:
-        description: 'OpenAI model to use (default: gpt-5.4-pro)'
+        description: 'OpenAI model to use (default: gpt-5.4)'
         required: false
         type: string
-        default: 'gpt-5.4-pro'
+        default: 'gpt-5.4'
 
 jobs:
   create-research-issue:
@@ -42,7 +42,7 @@ jobs:
             const topic = `${{ inputs.research_topic }}`;
             const iterations = ${{ inputs.iterations || 1 }};
             const mediaId = `${{ inputs.media_id }}`.trim();
-            const model = `${{ inputs.openai_model }}` || 'gpt-5.4-pro';
+            const model = `${{ inputs.openai_model }}` || 'gpt-5.4';
 
             const seedLine = mediaId
               ? `**Seed Media ID:** [\`${mediaId}\`](https://www.morphosource.org/concern/media/${mediaId})`
@@ -112,7 +112,7 @@ jobs:
         env:
           PATH: /opt/anaconda3/bin:/usr/local/bin:/usr/bin:/bin
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_MODEL: ${{ inputs.openai_model || 'gpt-5.4-pro' }}
+          OPENAI_MODEL: ${{ inputs.openai_model || 'gpt-5.4' }}
           MORPHOSOURCE_API_KEY: ${{ secrets.MORPHOSOURCE_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}

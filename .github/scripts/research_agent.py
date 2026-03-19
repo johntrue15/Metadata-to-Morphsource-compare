@@ -95,7 +95,7 @@ except ImportError:
 # Configuration
 # ---------------------------------------------------------------------------
 
-OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.4-pro")
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.4")
 MAX_QUERIES = 5
 _LLM_RETRIES = 3
 MAX_REFINEMENT_ROUNDS = 2
@@ -216,6 +216,17 @@ def _load_program(path=None):
 # ---------------------------------------------------------------------------
 
 
+def _is_reasoning_model(model_name):
+    """Detect reasoning-family models that need max_completion_tokens
+    and don't support temperature/response_format."""
+    m = model_name.lower()
+    if m.startswith(("o1", "o3", "o4")):
+        return True
+    if m.startswith("gpt-5"):
+        return True
+    return False
+
+
 def _call_llm(messages, max_tokens=2000, json_mode=False, label="LLM"):
     """Call OpenAI chat completions with logging and auto parameter adaptation."""
     api_key = os.environ.get("OPENAI_API_KEY")
@@ -227,27 +238,35 @@ def _call_llm(messages, max_tokens=2000, json_mode=False, label="LLM"):
         return None
 
     client = OpenAI(api_key=api_key)
-    kwargs = {
-        "model": OPENAI_MODEL,
-        "messages": messages,
-        "temperature": 0.7,
-    }
-    if json_mode:
-        kwargs["response_format"] = {"type": "json_object"}
-    kwargs["max_tokens"] = max_tokens
+    reasoning = _is_reasoning_model(OPENAI_MODEL)
 
-    log.debug("[%s] model=%s, max_tokens=%d, json=%s", label, OPENAI_MODEL, max_tokens, json_mode)
+    kwargs = {"model": OPENAI_MODEL, "messages": messages}
+
+    if reasoning:
+        kwargs["max_completion_tokens"] = max_tokens
+        if json_mode:
+            msgs = list(messages)
+            if msgs and msgs[0]["role"] == "system":
+                msgs[0] = {**msgs[0], "content": msgs[0]["content"] + "\nRespond with valid JSON only."}
+            kwargs["messages"] = msgs
+    else:
+        kwargs["max_tokens"] = max_tokens
+        kwargs["temperature"] = 0.7
+        if json_mode:
+            kwargs["response_format"] = {"type": "json_object"}
+
+    log.debug("[%s] model=%s, reasoning=%s, tokens=%d, json=%s", label, OPENAI_MODEL, reasoning, max_tokens, json_mode)
 
     try:
         response = client.chat.completions.create(**kwargs)
     except Exception as first_err:
         err_str = str(first_err).lower()
-        if "max_tokens" in err_str or "not supported" in err_str:
-            log.info("[%s] Retrying with max_completion_tokens", label)
-            del kwargs["max_tokens"]
-            kwargs["max_completion_tokens"] = max_tokens
+        if not reasoning and ("max_tokens" in err_str or "not supported" in err_str or "unsupported" in err_str):
+            log.info("[%s] Retrying as reasoning model", label)
+            kwargs.pop("max_tokens", None)
             kwargs.pop("temperature", None)
             kwargs.pop("response_format", None)
+            kwargs["max_completion_tokens"] = max_tokens
             try:
                 response = client.chat.completions.create(**kwargs)
             except Exception as retry_err:

@@ -435,12 +435,14 @@ https://www.morphosource.org/api/physical-objects?f%5Btaxonomy_gbif%5D%5B%5D=Ser
             }
         ]
         
-        model = os.environ.get("OPENAI_MODEL", "gpt-5.4-pro")
-        response = client.chat.completions.create(
-            model=model,
-            messages=messages,
-            max_tokens=2000,
-        )
+        model = os.environ.get("OPENAI_MODEL", "gpt-5.4")
+        is_reasoning = model.lower().startswith(("o1", "o3", "o4", "gpt-5"))
+        llm_kwargs = {"model": model, "messages": messages}
+        if is_reasoning:
+            llm_kwargs["max_completion_tokens"] = 2000
+        else:
+            llm_kwargs["max_tokens"] = 2000
+        response = client.chat.completions.create(**llm_kwargs)
         
         result_text = response.choices[0].message.content.strip()
         print(f"ChatGPT response: {result_text}")
