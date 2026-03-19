@@ -9,8 +9,37 @@ import json
 import sys
 import re
 from collections import Counter
+from pathlib import Path
 from urllib.parse import urlencode
 import importlib.util
+
+
+def _load_dotenv():
+    """Walk up from this script to find a .env file and load it."""
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        load_dotenv = None
+    search = Path(__file__).resolve().parent
+    for _ in range(5):
+        env_file = search / ".env"
+        if env_file.is_file():
+            if load_dotenv:
+                load_dotenv(env_file, override=False)
+            else:
+                with open(env_file) as fh:
+                    for line in fh:
+                        line = line.strip()
+                        if not line or line.startswith("#") or "=" not in line:
+                            continue
+                        key, _, value = line.partition("=")
+                        os.environ.setdefault(key.strip(), value.strip())
+            return
+        search = search.parent
+
+
+_load_dotenv()
+
 
 if 'openai' in sys.modules:
     OpenAI = getattr(sys.modules['openai'], 'OpenAI', None)  # type: ignore
@@ -406,10 +435,11 @@ https://www.morphosource.org/api/physical-objects?f%5Btaxonomy_gbif%5D%5B%5D=Ser
             }
         ]
         
+        model = os.environ.get("OPENAI_MODEL", "gpt-4o")
         response = client.chat.completions.create(
-            model="gpt-5",
+            model=model,
             messages=messages,
-            max_completion_tokens=2000
+            max_tokens=2000,
         )
         
         result_text = response.choices[0].message.content.strip()

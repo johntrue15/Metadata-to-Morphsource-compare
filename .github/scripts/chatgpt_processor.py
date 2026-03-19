@@ -70,10 +70,11 @@ def process_with_chatgpt(query, morphosource_data, formatted_query_info):
             }
         ]
         
+        model = os.environ.get("OPENAI_MODEL", "gpt-4o")
         response = client.chat.completions.create(
-            model="gpt-5",
+            model=model,
             messages=messages,
-            max_completion_tokens=100000
+            max_tokens=4096,
         )
         
         answer = response.choices[0].message.content

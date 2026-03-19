@@ -7,6 +7,11 @@ on:
         description: 'Research topic or goal to investigate'
         required: true
         type: string
+      openai_model:
+        description: 'OpenAI model to use (default: gpt-4o)'
+        required: false
+        type: string
+        default: 'gpt-4o'
 
 jobs:
   create-research-issue:
@@ -25,12 +30,15 @@ jobs:
         with:
           script: |
             const topic = `${{ inputs.research_topic }}`;
+            const model = `${{ inputs.openai_model }}` || 'gpt-4o';
 
             const body = [
               '### 🧪 AutoResearchClaw Research Session',
               '',
               '**Research Topic:**',
               topic,
+              '',
+              `**Model:** \`${model}\``,
               '',
               '---',
               '',
@@ -72,7 +80,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: '3.10'
+          python-version: '3.11'
 
       - name: Install dependencies
         run: |
@@ -83,20 +91,28 @@ jobs:
         id: research
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ inputs.openai_model || 'gpt-4o' }}
           MORPHOSOURCE_API_KEY: ${{ secrets.MORPHOSOURCE_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ needs.create-research-issue.outputs.issue_number }}
+          DEBUG: 'true'
         working-directory: .github/scripts
         run: |
           python research_agent.py "${{ inputs.research_topic }}"
 
       - name: Upload research artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: research-report
           path: |
             .github/scripts/research_report.json
             .github/scripts/research_report.md
+          if-no-files-found: warn
 
-      - name: Post report to issue
+      - name: Post final report to issue (fallback)
+        if: always()
         env:
           ISSUE_NUMBER: ${{ needs.create-research-issue.outputs.issue_number }}
         uses: actions/github-script@v8
@@ -110,10 +126,9 @@ jobs:
             }
 
             let reportBody = '';
-            const reportJsonPath = '.github/scripts/research_report.json';
             const reportMdPath = '.github/scripts/research_report.md';
+            const reportJsonPath = '.github/scripts/research_report.json';
 
-            // Prefer the Markdown report file
             if (fs.existsSync(reportMdPath)) {
               reportBody = fs.readFileSync(reportMdPath, 'utf8');
             } else if (fs.existsSync(reportJsonPath)) {
@@ -121,15 +136,21 @@ jobs:
               reportBody = (data.report && data.report.report) || JSON.stringify(data, null, 2);
             }
 
-            // Build comment
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const jobStatus = '${{ job.status }}';
+
             const comment = [
-              '## 📊 AutoResearchClaw Report',
+              '## 📊 AutoResearchClaw — Final Summary',
               '',
-              reportBody || '_No report was generated._',
+              `**Workflow status:** ${jobStatus}`,
+              '',
+              reportBody
+                ? reportBody
+                : '_No report file was generated. Check the [workflow run](' + runUrl + ') for details._',
               '',
               '---',
               '',
-              `**[View workflow run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})**`,
+              `**[View workflow run](${runUrl})**`,
               '',
               '_Post a follow-up comment on this issue to refine the research or ask additional questions._',
             ].join('\n');
@@ -141,12 +162,15 @@ jobs:
               body: comment,
             });
 
-            // Update labels to show completion
+            const finalLabels = jobStatus === 'success'
+              ? ['research-agent', 'completed']
+              : ['research-agent', 'needs-review'];
+
             await github.rest.issues.setLabels({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issueNumber,
-              labels: ['research-agent', 'completed'],
+              labels: finalLabels,
             });
 
-            console.log(`Posted report to issue #${issueNumber}`);
+            console.log(`Posted final summary to issue #${issueNumber} (status: ${jobStatus})`);

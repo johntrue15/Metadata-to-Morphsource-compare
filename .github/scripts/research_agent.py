@@ -5,16 +5,72 @@ AutoResearchClaw research agent for MorphoSource.
 Decomposes a research topic into targeted MorphoSource queries, iteratively
 searches for relevant specimen data, and synthesizes findings into a
 research report with actionable recommendations.
+
+All progress is posted as comments on the associated GitHub issue for
+full visibility.
 """
 
 import json
+import logging
 import os
 import sys
 import time
+import traceback
 import importlib.util
+import urllib.request
+import urllib.error
+from pathlib import Path
 
-if 'openai' in sys.modules:
-    OpenAI = getattr(sys.modules['openai'], 'OpenAI', None)  # type: ignore
+# ---------------------------------------------------------------------------
+# Load .env for local development (no-op when file is absent or in CI)
+# ---------------------------------------------------------------------------
+
+def _load_dotenv():
+    """Walk up from this script's directory to find a .env file and load it."""
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        load_dotenv = None
+
+    search = Path(__file__).resolve().parent
+    for _ in range(5):
+        env_file = search / ".env"
+        if env_file.is_file():
+            if load_dotenv:
+                load_dotenv(env_file, override=False)
+            else:
+                with open(env_file) as fh:
+                    for line in fh:
+                        line = line.strip()
+                        if not line or line.startswith("#") or "=" not in line:
+                            continue
+                        key, _, value = line.partition("=")
+                        os.environ.setdefault(key.strip(), value.strip())
+            return str(env_file)
+        search = search.parent
+    return None
+
+_env_path = _load_dotenv()
+
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+
+LOG_FORMAT = "%(asctime)s [%(levelname)s] %(message)s"
+_debug = os.environ.get("DEBUG", "").lower() in ("1", "true", "yes")
+logging.basicConfig(
+    level=logging.DEBUG if _debug else logging.INFO,
+    format=LOG_FORMAT,
+    stream=sys.stdout,
+)
+log = logging.getLogger("AutoResearchClaw")
+
+# ---------------------------------------------------------------------------
+# OpenAI client setup
+# ---------------------------------------------------------------------------
+
+if "openai" in sys.modules:
+    OpenAI = getattr(sys.modules["openai"], "OpenAI", None)  # type: ignore
 else:
     _openai_spec = importlib.util.find_spec("openai")
     if _openai_spec:
@@ -24,6 +80,203 @@ else:
 
 import query_formatter
 import morphosource_api
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o")
+MAX_QUERIES = 5
+_LLM_RETRIES = 3
+MAX_REFINEMENT_ROUNDS = 2
+
+log.info("Model: %s | Debug: %s", OPENAI_MODEL, _debug)
+
+
+# ---------------------------------------------------------------------------
+# GitHub Issue Reporter
+# ---------------------------------------------------------------------------
+
+
+class GitHubIssueReporter:
+    """Posts progress updates as comments on a GitHub issue."""
+
+    def __init__(self):
+        self.token = os.environ.get("GITHUB_TOKEN")
+        self.repo = os.environ.get("GITHUB_REPOSITORY")
+        self.issue_number = os.environ.get("ISSUE_NUMBER")
+        self.enabled = bool(self.token and self.repo and self.issue_number)
+        if self.enabled:
+            log.info(
+                "GitHub Issue reporting enabled → #%s in %s",
+                self.issue_number,
+                self.repo,
+            )
+        else:
+            missing = []
+            if not self.token:
+                missing.append("GITHUB_TOKEN")
+            if not self.repo:
+                missing.append("GITHUB_REPOSITORY")
+            if not self.issue_number:
+                missing.append("ISSUE_NUMBER")
+            log.info(
+                "GitHub Issue reporting disabled (missing: %s)", ", ".join(missing)
+            )
+
+    def post_comment(self, body):
+        """Post a comment on the tracked GitHub issue."""
+        if not self.enabled:
+            return False
+        url = (
+            f"https://api.github.com/repos/{self.repo}"
+            f"/issues/{self.issue_number}/comments"
+        )
+        payload = json.dumps({"body": body}).encode("utf-8")
+        req = urllib.request.Request(url, data=payload, method="POST")
+        req.add_header("Authorization", f"token {self.token}")
+        req.add_header("Accept", "application/vnd.github.v3+json")
+        req.add_header("Content-Type", "application/json")
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                if resp.getcode() == 201:
+                    log.info("Posted comment to issue #%s", self.issue_number)
+                    return True
+                log.warning("Unexpected status %d posting comment", resp.getcode())
+        except urllib.error.HTTPError as exc:
+            body_text = exc.read().decode("utf-8", errors="replace")[:300]
+            log.warning("Failed to post comment: HTTP %d — %s", exc.code, body_text)
+        except Exception as exc:
+            log.warning("Failed to post comment: %s", exc)
+        return False
+
+    def update_labels(self, labels):
+        """Replace labels on the tracked issue."""
+        if not self.enabled:
+            return False
+        url = (
+            f"https://api.github.com/repos/{self.repo}"
+            f"/issues/{self.issue_number}/labels"
+        )
+        payload = json.dumps({"labels": labels}).encode("utf-8")
+        req = urllib.request.Request(url, data=payload, method="PUT")
+        req.add_header("Authorization", f"token {self.token}")
+        req.add_header("Accept", "application/vnd.github.v3+json")
+        req.add_header("Content-Type", "application/json")
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                return resp.getcode() == 200
+        except Exception as exc:
+            log.warning("Failed to update labels: %s", exc)
+            return False
+
+
+_reporter: GitHubIssueReporter | None = None
+
+
+def _post_to_issue(body):
+    """Post a comment to the tracked GitHub issue if reporting is active."""
+    if _reporter:
+        _reporter.post_comment(body)
+
+
+# ---------------------------------------------------------------------------
+# LLM helper with robust error handling
+# ---------------------------------------------------------------------------
+
+
+def _call_llm(messages, max_tokens=2000, json_mode=False, label="LLM"):
+    """Call OpenAI chat completions with detailed logging and automatic
+    parameter adaptation for different model families.
+
+    Returns the content string (may be empty) or None on hard failure.
+    """
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        log.warning("[%s] OPENAI_API_KEY not set", label)
+        return None
+    if OpenAI is None:
+        log.warning("[%s] openai package not installed", label)
+        return None
+
+    client = OpenAI(api_key=api_key)
+
+    kwargs = {
+        "model": OPENAI_MODEL,
+        "messages": messages,
+        "temperature": 0.7,
+    }
+    if json_mode:
+        kwargs["response_format"] = {"type": "json_object"}
+
+    kwargs["max_tokens"] = max_tokens
+
+    log.debug(
+        "[%s] Calling model=%s, max_tokens=%d, json_mode=%s, messages=%d",
+        label,
+        OPENAI_MODEL,
+        max_tokens,
+        json_mode,
+        len(messages),
+    )
+
+    try:
+        response = client.chat.completions.create(**kwargs)
+    except Exception as first_err:
+        err_str = str(first_err).lower()
+        # Some models (o-series, gpt-5 reasoning) need max_completion_tokens
+        if "max_tokens" in err_str or "not supported" in err_str:
+            log.info(
+                "[%s] max_tokens not supported, retrying with max_completion_tokens",
+                label,
+            )
+            del kwargs["max_tokens"]
+            kwargs["max_completion_tokens"] = max_tokens
+            kwargs.pop("temperature", None)
+            if json_mode:
+                kwargs.pop("response_format", None)
+                log.debug("[%s] Removed json_mode for compatibility", label)
+            try:
+                response = client.chat.completions.create(**kwargs)
+            except Exception as retry_err:
+                log.error("[%s] Retry also failed: %s", label, retry_err)
+                return None
+        else:
+            log.error("[%s] API call failed: %s", label, first_err)
+            return None
+
+    choice = response.choices[0] if response.choices else None
+    finish_reason = choice.finish_reason if choice else "no_choices"
+    content = choice.message.content if choice else None
+    usage = response.usage
+
+    log.info(
+        "[%s] finish_reason=%s | content_length=%s | model=%s | usage=%s",
+        label,
+        finish_reason,
+        len(content) if content else "None",
+        getattr(response, "model", OPENAI_MODEL),
+        (
+            f"prompt={usage.prompt_tokens}/completion={usage.completion_tokens}"
+            if usage
+            else "N/A"
+        ),
+    )
+
+    if not content:
+        log.warning(
+            "[%s] Empty content returned. finish_reason=%s | "
+            "This may indicate the model refused, hit a filter, "
+            "or the prompt needs adjustment.",
+            label,
+            finish_reason,
+        )
+        if hasattr(choice, "message") and hasattr(choice.message, "refusal"):
+            refusal = choice.message.refusal
+            if refusal:
+                log.warning("[%s] Model refusal: %s", label, refusal)
+
+    return (content or "").strip()
 
 
 # ---------------------------------------------------------------------------
@@ -35,68 +288,61 @@ _DECOMPOSE_SYSTEM_PROMPT = (
     "The user will provide a high-level research goal. Your job is to decompose it "
     "into 3-5 specific search queries that should be run against MorphoSource "
     "(a database of 3-D specimen scans, media and physical objects).\n\n"
-    "Return ONLY a JSON array of objects, each with:\n"
+    "Return a JSON object with a single key \"queries\" whose value is an array "
+    "of objects, each with:\n"
     '  "query": a concise natural-language search phrase,\n'
     '  "rationale": one sentence explaining why this query helps the research.\n\n'
     "Example output:\n"
-    '[{"query": "CT scans of Anolis lizards", '
-    '"rationale": "Retrieve available micro-CT data for the focal genus."}]\n'
-    "Do NOT include any text outside the JSON array."
+    '{"queries": [{"query": "CT scans of Anolis lizards", '
+    '"rationale": "Retrieve available micro-CT data for the focal genus."}]}\n'
+    "Return ONLY the JSON object, no other text."
 )
 
-# Words to skip when extracting subject terms from a research topic
 _DECOMPOSE_STOPWORDS = {
-    'a', 'an', 'the', 'and', 'or', 'of', 'to', 'in', 'for', 'on', 'by',
-    'is', 'are', 'was', 'were', 'be', 'been', 'with', 'at', 'from', 'as',
-    'it', 'its', 'that', 'this', 'these', 'those', 'how', 'what', 'which',
-    'identify', 'analyze', 'analyse', 'find', 'show', 'most', 'promising',
-    'research', 'pathways', 'opportunities', 'wedges', 'commercialization',
-    'ecosystem', 'starting', 'let', 'lets', 'rethink', 'about',
+    "a", "an", "the", "and", "or", "of", "to", "in", "for", "on", "by",
+    "is", "are", "was", "were", "be", "been", "with", "at", "from", "as",
+    "it", "its", "that", "this", "these", "those", "how", "what", "which",
+    "identify", "analyze", "analyse", "find", "show", "most", "promising",
+    "research", "pathways", "opportunities", "wedges", "commercialization",
+    "ecosystem", "starting", "let", "lets", "rethink", "about",
 }
 
-# Known MorphoSource-relevant concepts to look for in research topics
 _CONCEPT_QUERIES = {
-    'specimen': {"query": "specimen", "rationale": "Browse physical specimen records."},
-    'specimens': {"query": "specimen", "rationale": "Browse physical specimen records."},
-    'ct': {"query": "CT scan", "rationale": "Browse CT scan media records."},
-    'x-ray': {"query": "CT scan", "rationale": "Browse X-ray / CT media records."},
-    'xray': {"query": "CT scan", "rationale": "Browse X-ray / CT media records."},
-    'micro-ct': {"query": "CT scan", "rationale": "Browse microCT scan records."},
-    'scan': {"query": "CT scan", "rationale": "Browse 3-D scan media."},
-    'scans': {"query": "CT scan", "rationale": "Browse 3-D scan media."},
-    'metadata': {"query": "metadata", "rationale": "Search records by metadata fields."},
-    '3d': {"query": "3D mesh", "rationale": "Browse 3-D mesh and surface models."},
-    '3-d': {"query": "3D mesh", "rationale": "Browse 3-D mesh and surface models."},
-    'mesh': {"query": "3D mesh", "rationale": "Browse 3-D mesh and surface models."},
+    "specimen": {"query": "specimen", "rationale": "Browse physical specimen records."},
+    "specimens": {"query": "specimen", "rationale": "Browse physical specimen records."},
+    "ct": {"query": "CT scan", "rationale": "Browse CT scan media records."},
+    "x-ray": {"query": "CT scan", "rationale": "Browse X-ray / CT media records."},
+    "xray": {"query": "CT scan", "rationale": "Browse X-ray / CT media records."},
+    "micro-ct": {"query": "CT scan", "rationale": "Browse microCT scan records."},
+    "scan": {"query": "CT scan", "rationale": "Browse 3-D scan media."},
+    "scans": {"query": "CT scan", "rationale": "Browse 3-D scan media."},
+    "metadata": {"query": "metadata", "rationale": "Search records by metadata fields."},
+    "3d": {"query": "3D mesh", "rationale": "Browse 3-D mesh and surface models."},
+    "3-d": {"query": "3D mesh", "rationale": "Browse 3-D mesh and surface models."},
+    "mesh": {"query": "3D mesh", "rationale": "Browse 3-D mesh and surface models."},
 }
 
 
 def _heuristic_decompose(topic):
-    """Extract concrete, searchable sub-queries from a research topic.
-
-    Used when the LLM is unavailable or returns an unparseable response.
-    Scans the topic for known MorphoSource-relevant concepts and generates
-    up to MAX_QUERIES targeted queries.
-    """
+    """Extract concrete, searchable sub-queries from a research topic when
+    the LLM is unavailable or returns an unparseable response."""
     import re as _re
 
     queries = []
     seen_query_texts = set()
     lower_topic = topic.lower()
 
-    # 1. Detect known concepts (CT, specimen, metadata, etc.)
     for keyword, entry in _CONCEPT_QUERIES.items():
         if keyword in lower_topic and entry["query"] not in seen_query_texts:
             queries.append(dict(entry))
             seen_query_texts.add(entry["query"])
 
-    # 2. Extract biological / taxonomic terms (capitalized, Latin-looking)
     tokens = _re.findall(r"\b([A-Z][a-z]{3,})\b", topic)
     taxon_stopwords = {
-        'Analyze', 'Analysis', 'Identify', 'Data', 'Database',
-        'MorphoSource', 'Morphosource', 'Research', 'Pathways',
-        'Opportunities', 'Wedges', 'Commercialization', 'Promising',
-        'Ecosystem', 'Starting', 'Show', 'Find', 'List', 'Browse',
+        "Analyze", "Analysis", "Identify", "Data", "Database",
+        "MorphoSource", "Morphosource", "Research", "Pathways",
+        "Opportunities", "Wedges", "Commercialization", "Promising",
+        "Ecosystem", "Starting", "Show", "Find", "List", "Browse",
     }
     for token in tokens:
         if token in taxon_stopwords:
@@ -109,12 +355,13 @@ def _heuristic_decompose(topic):
             })
             seen_query_texts.add(query_text)
 
-    # 3. If still nothing, fall back to a broad browse query
     if not queries:
-        # Extract a few non-stop keywords from the topic
         words = _re.findall(r"[A-Za-z][A-Za-z'-]+", topic)
-        keywords = [w for w in words if w.lower() not in _DECOMPOSE_STOPWORDS and len(w) > 2]
-        q_text = ' '.join(keywords[:3]) if keywords else topic
+        keywords = [
+            w for w in words
+            if w.lower() not in _DECOMPOSE_STOPWORDS and len(w) > 2
+        ]
+        q_text = " ".join(keywords[:3]) if keywords else topic
         queries.append({
             "query": q_text,
             "rationale": "Broad keyword search (heuristic fallback).",
@@ -123,139 +370,171 @@ def _heuristic_decompose(topic):
     return queries[:MAX_QUERIES]
 
 
-MAX_QUERIES = 5
-_LLM_RETRIES = 3
-
-
 def _parse_decompose_response(text):
     """Parse an LLM decomposition response into a list of query dicts.
 
-    Handles markdown-fenced JSON (even when preceded by other text),
-    JSON arrays embedded in surrounding prose, and plain JSON arrays.
-    Returns ``None`` when the text cannot be parsed into a non-empty list.
+    Handles JSON objects with a 'queries' key, bare JSON arrays,
+    markdown-fenced JSON, and JSON embedded in surrounding prose.
     """
     if not text:
         return None
 
-    # Try markdown-fenced blocks anywhere in the text
-    if '```' in text:
-        parts = text.split('```')
-        for part in parts[1::2]:  # odd-indexed parts are inside fences
+    def _try_parse(candidate):
+        """Try parsing a candidate string as our expected JSON format."""
+        try:
+            parsed = json.loads(candidate)
+        except (json.JSONDecodeError, ValueError):
+            return None
+        if isinstance(parsed, dict) and "queries" in parsed:
+            queries = parsed["queries"]
+            if isinstance(queries, list) and queries:
+                return queries
+        if isinstance(parsed, list) and parsed:
+            return parsed
+        return None
+
+    # Try markdown-fenced blocks
+    if "```" in text:
+        parts = text.split("```")
+        for part in parts[1::2]:
             candidate = part
-            if candidate.startswith('json'):
+            if candidate.startswith("json"):
                 candidate = candidate[4:]
             candidate = candidate.strip()
             if candidate:
-                try:
-                    queries = json.loads(candidate)
-                    if isinstance(queries, list) and queries:
-                        return queries
-                except (json.JSONDecodeError, ValueError):
-                    continue
+                result = _try_parse(candidate)
+                if result:
+                    return result
 
-    # Try to parse the whole (stripped) text as JSON
     stripped = text.strip()
     if not stripped:
         return None
 
-    try:
-        queries = json.loads(stripped)
-        if isinstance(queries, list) and queries:
-            return queries
-    except (json.JSONDecodeError, ValueError):
-        pass
+    result = _try_parse(stripped)
+    if result:
+        return result
 
-    # Try to extract a JSON array embedded in surrounding text
-    start = stripped.find('[')
-    end = stripped.rfind(']')
-    if start != -1 and end > start:
-        try:
-            queries = json.loads(stripped[start:end + 1])
-            if isinstance(queries, list) and queries:
-                return queries
-        except (json.JSONDecodeError, ValueError):
-            pass
+    # Try extracting JSON object or array from surrounding text
+    for open_char, close_char in [("{", "}"), ("[", "]")]:
+        start = stripped.find(open_char)
+        end = stripped.rfind(close_char)
+        if start != -1 and end > start:
+            result = _try_parse(stripped[start:end + 1])
+            if result:
+                return result
 
     return None
 
 
 def decompose_topic(topic):
-    """Break a research topic into specific MorphoSource search queries.
-
-    Returns a list of dicts with ``query`` and ``rationale`` keys, or a
-    heuristic decomposition when the LLM is unavailable.
-    """
-    api_key = os.environ.get('OPENAI_API_KEY')
-    if not api_key or OpenAI is None:
-        return _heuristic_decompose(topic)
+    """Break a research topic into specific MorphoSource search queries."""
+    log.info("Decomposing topic: %s", topic)
 
     last_exc = None
     for attempt in range(1, _LLM_RETRIES + 1):
+        log.info("Decomposition attempt %d/%d", attempt, _LLM_RETRIES)
         try:
-            client = OpenAI(api_key=api_key)
-            response = client.chat.completions.create(
-                model="gpt-5",
+            content = _call_llm(
                 messages=[
                     {"role": "system", "content": _DECOMPOSE_SYSTEM_PROMPT},
                     {"role": "user", "content": topic},
                 ],
-                max_completion_tokens=2000,
+                max_tokens=2000,
+                json_mode=True,
+                label=f"Decompose-{attempt}",
             )
-            content = response.choices[0].message.content
-            text = (content or "").strip()
-            queries = _parse_decompose_response(text)
+
+            if content is None:
+                log.warning("Attempt %d: _call_llm returned None (hard failure)", attempt)
+                break
+
+            queries = _parse_decompose_response(content)
             if queries is not None:
+                log.info("Decomposed into %d queries via LLM", len(queries))
                 return queries[:MAX_QUERIES]
-            # Empty / unparseable — log raw response for debugging, then retry
-            print(f"⚠ Decomposition attempt {attempt}: LLM returned empty/unparseable response"
-                  f"{', retrying …' if attempt < _LLM_RETRIES else ''}")
-            print(f"  DEBUG raw LLM response: {text!r}")
+
+            log.warning(
+                "Attempt %d: LLM response could not be parsed as queries. "
+                "Raw content (first 500 chars): %.500r",
+                attempt,
+                content,
+            )
         except Exception as exc:
             last_exc = exc
-            print(f"⚠ Decomposition attempt {attempt} failed: {exc}")
+            log.error("Attempt %d failed with exception: %s", attempt, exc)
+            log.debug(traceback.format_exc())
 
         if attempt < _LLM_RETRIES:
-            time.sleep(min(2 ** (attempt - 1), 4))
+            sleep_time = min(2 ** (attempt - 1), 4)
+            log.info("Sleeping %ds before retry", sleep_time)
+            time.sleep(sleep_time)
 
     if last_exc:
-        print(f"⚠ Decomposition failed after {_LLM_RETRIES} attempts, using heuristic fallback")
+        log.warning(
+            "Decomposition failed after %d attempts (last error: %s), "
+            "using heuristic fallback",
+            _LLM_RETRIES,
+            last_exc,
+        )
     else:
-        print("⚠ LLM returned empty content, using heuristic fallback")
-    return _heuristic_decompose(topic)
+        log.warning("LLM returned empty/unparseable content, using heuristic fallback")
+
+    queries = _heuristic_decompose(topic)
+    log.info("Heuristic fallback generated %d queries", len(queries))
+    return queries
 
 
 # ---------------------------------------------------------------------------
 # Stage 2: Execute MorphoSource searches for each sub-query
 # ---------------------------------------------------------------------------
 
+
 def execute_searches(queries):
-    """Run each sub-query through the existing query pipeline.
-
-    Returns a list of result dicts, one per query.
-    """
+    """Run each sub-query through the existing query pipeline."""
     results = []
-    for item in queries:
+    for i, item in enumerate(queries, 1):
         query_text = item["query"]
-        print(f"\n🔍 Searching MorphoSource: {query_text}")
+        log.info("Search %d/%d: %s", i, len(queries), query_text)
 
-        formatted = query_formatter.format_query(query_text)
-        api_params = formatted.get("api_params", {"q": query_text, "per_page": 10})
+        try:
+            formatted = query_formatter.format_query(query_text)
+            api_params = formatted.get(
+                "api_params", {"q": query_text, "per_page": 10}
+            )
 
-        search_result = morphosource_api.search_morphosource(
-            api_params,
-            formatted.get("formatted_query", query_text),
-            query_info=formatted,
-        )
+            search_result = morphosource_api.search_morphosource(
+                api_params,
+                formatted.get("formatted_query", query_text),
+                query_info=formatted,
+            )
 
-        results.append({
-            "query": query_text,
-            "rationale": item.get("rationale", ""),
-            "formatted_query": formatted.get("formatted_query", query_text),
-            "api_endpoint": formatted.get("api_endpoint", "media"),
-            "result_count": search_result.get("summary", {}).get("count", 0),
-            "result_status": search_result.get("summary", {}).get("status", "unknown"),
-            "result_data": search_result.get("full_data", {}),
-        })
+            result_count = search_result.get("summary", {}).get("count", 0)
+            result_status = search_result.get("summary", {}).get("status", "unknown")
+            log.info(
+                "Search '%s' → %d results (%s)", query_text, result_count, result_status
+            )
+
+            results.append({
+                "query": query_text,
+                "rationale": item.get("rationale", ""),
+                "formatted_query": formatted.get("formatted_query") or query_text,
+                "api_endpoint": formatted.get("api_endpoint") or "media",
+                "result_count": result_count,
+                "result_status": result_status,
+                "result_data": search_result.get("full_data", {}),
+            })
+        except Exception as exc:
+            log.error("Search '%s' failed: %s", query_text, exc)
+            log.debug(traceback.format_exc())
+            results.append({
+                "query": query_text,
+                "rationale": item.get("rationale", ""),
+                "formatted_query": query_text,
+                "api_endpoint": "unknown",
+                "result_count": 0,
+                "result_status": f"error: {exc}",
+                "result_data": {},
+            })
 
     return results
 
@@ -264,14 +543,9 @@ def execute_searches(queries):
 # Stage 2b: Iterative refinement for zero-result queries
 # ---------------------------------------------------------------------------
 
-MAX_REFINEMENT_ROUNDS = 2
-
 
 def _refine_zero_result_queries(search_results):
-    """Generate simplified queries for searches that returned zero results.
-
-    Returns a list of new query dicts to retry.
-    """
+    """Generate simplified queries for searches that returned zero results."""
     import re as _re
 
     refined = []
@@ -287,7 +561,6 @@ def _refine_zero_result_queries(search_results):
             if w.lower() not in _DECOMPOSE_STOPWORDS and len(w) > 2
         ]
 
-        # Strategy 1: try individual significant words
         for word in meaningful:
             if word.lower() not in seen:
                 refined.append({
@@ -296,9 +569,8 @@ def _refine_zero_result_queries(search_results):
                 })
                 seen.add(word.lower())
 
-        # Strategy 2: if multi-word, try shorter combinations
         if len(meaningful) >= 2:
-            shorter = ' '.join(meaningful[:2])
+            shorter = " ".join(meaningful[:2])
             if shorter.lower() not in seen:
                 refined.append({
                     "query": shorter,
@@ -310,16 +582,12 @@ def _refine_zero_result_queries(search_results):
 
 
 def refine_searches(search_results):
-    """Run a refinement pass: re-query zero-result searches with simplified terms.
-
-    Returns (new_results, had_refinements) where new_results is a list of
-    results from the refined queries and had_refinements is a boolean.
-    """
+    """Re-query zero-result searches with simplified terms."""
     refined_queries = _refine_zero_result_queries(search_results)
     if not refined_queries:
         return [], False
 
-    print(f"\n🔄 Refining {len(refined_queries)} zero-result queries …")
+    log.info("Refining %d zero-result queries", len(refined_queries))
     new_results = execute_searches(refined_queries)
     return new_results, True
 
@@ -350,15 +618,9 @@ _SYNTHESIS_SYSTEM_PROMPT = (
 
 
 def synthesize_report(topic, search_results):
-    """Generate a Markdown research report from collected search results.
+    """Generate a Markdown research report from collected search results."""
+    log.info("Synthesizing report for %d search results", len(search_results))
 
-    Returns a dict with ``status`` and ``report`` keys.
-    """
-    api_key = os.environ.get('OPENAI_API_KEY')
-    if not api_key or OpenAI is None:
-        return _fallback_report(topic, search_results, reason="no_api_key")
-
-    # Build a compact context payload for the LLM
     context_items = []
     for r in search_results:
         entry = {
@@ -369,7 +631,6 @@ def synthesize_report(topic, search_results):
             "result_count": r["result_count"],
             "status": r["result_status"],
         }
-        # Include a slice of actual data so the LLM can see specimen names
         data = r.get("result_data", {})
         for key in ("media", "physical_objects"):
             items = data.get(key, [])
@@ -387,49 +648,44 @@ def synthesize_report(topic, search_results):
 
     last_exc = None
     for attempt in range(1, _LLM_RETRIES + 1):
+        log.info("Synthesis attempt %d/%d", attempt, _LLM_RETRIES)
         try:
-            client = OpenAI(api_key=api_key)
-            response = client.chat.completions.create(
-                model="gpt-5",
+            report = _call_llm(
                 messages=[
                     {"role": "system", "content": _SYNTHESIS_SYSTEM_PROMPT},
                     {"role": "user", "content": user_message},
                 ],
-                max_completion_tokens=4000,
+                max_tokens=4000,
+                json_mode=False,
+                label=f"Synthesize-{attempt}",
             )
-            content = response.choices[0].message.content
-            report = (content or "").strip()
+
+            if report is None:
+                log.warning("Synthesis attempt %d: _call_llm returned None", attempt)
+                break
+
             if report:
+                log.info("Synthesis successful (%d chars)", len(report))
                 return {"status": "success", "report": report}
-            print(f"⚠ Synthesis attempt {attempt}: LLM returned empty report"
-                  f"{', retrying …' if attempt < _LLM_RETRIES else ''}")
-            print(f"  DEBUG raw LLM response: {content!r}")
+
+            log.warning("Synthesis attempt %d returned empty report", attempt)
         except Exception as exc:
             last_exc = exc
-            print(f"⚠ Synthesis attempt {attempt} failed: {exc}")
+            log.error("Synthesis attempt %d failed: %s", attempt, exc)
+            log.debug(traceback.format_exc())
 
         if attempt < _LLM_RETRIES:
-            time.sleep(min(2 ** (attempt - 1), 4))
+            sleep_time = min(2 ** (attempt - 1), 4)
+            log.info("Sleeping %ds before retry", sleep_time)
+            time.sleep(sleep_time)
 
     reason = str(last_exc) if last_exc else "LLM returned empty response"
-    print(f"⚠ Synthesis failed after {_LLM_RETRIES} attempts, using fallback")
+    log.warning("Synthesis failed, using fallback report (reason: %s)", reason)
     return _fallback_report(topic, search_results, reason=reason)
 
 
 def _fallback_report(topic, search_results, reason=None):
-    """Build a plain-text report when the LLM is unavailable.
-
-    Parameters
-    ----------
-    topic : str
-        The original research topic.
-    search_results : list
-        Collected search results from MorphoSource.
-    reason : str or None
-        Why AI synthesis was not used.  ``"no_api_key"`` when the key is
-        missing, any other non-empty string for an error description, or
-        ``None`` which defaults to the same behaviour as ``"no_api_key"``.
-    """
+    """Build a plain-text report when the LLM is unavailable."""
     lines = [
         "## Research Topic",
         "",
@@ -439,12 +695,11 @@ def _fallback_report(topic, search_results, reason=None):
         "",
     ]
     for r in search_results:
-        status = "✅" if r["result_count"] > 0 else "⚠️"
+        status = "+" if r["result_count"] > 0 else "!"
         lines.append(
             f"- {status} **{r['query']}** — {r['result_count']} result(s) "
             f"via `{r['api_endpoint']}` endpoint ({r['result_status']})"
         )
-        # Include sample records when available
         data = r.get("result_data", {})
         for key in ("media", "physical_objects"):
             items = data.get(key, [])
@@ -460,7 +715,11 @@ def _fallback_report(topic, search_results, reason=None):
                 else:
                     name = str(item)
                 if name:
-                    lines.append(f"  - {name}")
+                    # Flatten lists (MorphoSource wraps values in arrays)
+                    if isinstance(name, list):
+                        name = name[0] if name else ""
+                    if name:
+                        lines.append(f"  - {name}")
     lines += [
         "",
         "## Recommendations",
@@ -490,52 +749,101 @@ def _fallback_report(topic, search_results, reason=None):
 # Orchestrator
 # ---------------------------------------------------------------------------
 
+
 def run_research(topic):
-    """End-to-end research pipeline: decompose → search → refine → synthesize.
+    """End-to-end research pipeline: decompose -> search -> refine -> synthesize.
 
-    Returns a dict with ``topic``, ``queries``, ``search_results``, and
-    ``report`` keys.
+    Posts progress updates to the GitHub issue at each stage.
     """
-    print(f"🧪 AutoResearchClaw — starting research on: {topic}")
+    log.info("AutoResearchClaw — starting research on: %s", topic)
 
-    # Stage 1
-    print("\n📋 Stage 1: Decomposing research topic …")
+    # ------------------------------------------------------------------
+    # Stage 1: Decompose
+    # ------------------------------------------------------------------
+    log.info("=" * 60)
+    log.info("STAGE 1: Decomposing research topic")
+    log.info("=" * 60)
     queries = decompose_topic(topic)
-    print(f"   → {len(queries)} sub-queries generated")
+    log.info("Generated %d sub-queries", len(queries))
 
-    # Stage 2
-    print("\n🔎 Stage 2: Executing MorphoSource searches …")
+    query_lines = "\n".join(
+        f"  {i}. **{q['query']}** — {q.get('rationale', '')}"
+        for i, q in enumerate(queries, 1)
+    )
+    _post_to_issue(
+        f"### Stage 1: Topic Decomposition\n\n"
+        f"Decomposed research topic into **{len(queries)}** sub-queries:\n\n"
+        f"{query_lines}\n\n"
+        f"_Proceeding to MorphoSource searches…_"
+    )
+
+    # ------------------------------------------------------------------
+    # Stage 2: Execute searches
+    # ------------------------------------------------------------------
+    log.info("=" * 60)
+    log.info("STAGE 2: Executing MorphoSource searches")
+    log.info("=" * 60)
     search_results = execute_searches(queries)
     total_hits = sum(r["result_count"] for r in search_results)
-    print(f"   → {total_hits} total results across {len(search_results)} queries")
+    log.info("Total: %d results across %d queries", total_hits, len(search_results))
 
-    # Stage 2b: Iterative refinement for zero-result queries
+    # ------------------------------------------------------------------
+    # Stage 2b: Iterative refinement
+    # ------------------------------------------------------------------
     for iteration in range(1, MAX_REFINEMENT_ROUNDS + 1):
         zero_count = sum(1 for r in search_results if r["result_count"] == 0)
         if zero_count == 0:
             break
-        print(f"\n🔄 Refinement round {iteration}: "
-              f"{zero_count} zero-result queries to retry …")
+        log.info(
+            "Refinement round %d: %d zero-result queries to retry",
+            iteration,
+            zero_count,
+        )
         new_results, had_refinements = refine_searches(search_results)
         if not had_refinements:
             break
-        # Keep only new results that improved on zero-result originals
         improved = [r for r in new_results if r["result_count"] > 0]
         if improved:
             search_results.extend(improved)
-            print(f"   → {len(improved)} refined queries returned results")
+            log.info("%d refined queries returned results", len(improved))
         else:
-            print("   → No improvement from refinement")
+            log.info("No improvement from refinement round %d", iteration)
             break
 
     total_hits = sum(r["result_count"] for r in search_results)
-    print(f"   → Final: {total_hits} total results across "
-          f"{len(search_results)} queries")
+    log.info(
+        "Final: %d total results across %d queries", total_hits, len(search_results)
+    )
 
-    # Stage 3
-    print("\n📝 Stage 3: Synthesizing research report …")
+    search_summary_lines = []
+    for r in search_results:
+        icon = "+" if r["result_count"] > 0 else "0"
+        search_summary_lines.append(
+            f"  - [{icon}] **{r['query']}** → "
+            f"{r['result_count']} result(s) via `{r['api_endpoint']}`"
+        )
+    _post_to_issue(
+        f"### Stage 2: MorphoSource Search Results\n\n"
+        f"**{total_hits}** total results across **{len(search_results)}** queries:\n\n"
+        + "\n".join(search_summary_lines)
+        + "\n\n_Proceeding to synthesis…_"
+    )
+
+    # ------------------------------------------------------------------
+    # Stage 3: Synthesize report
+    # ------------------------------------------------------------------
+    log.info("=" * 60)
+    log.info("STAGE 3: Synthesizing research report")
+    log.info("=" * 60)
     report = synthesize_report(topic, search_results)
-    print(f"   → Report generated (status: {report['status']})")
+    log.info("Report generated (status: %s)", report["status"])
+
+    _post_to_issue(
+        f"### Stage 3: Research Report\n\n"
+        f"**Status:** {report['status']}\n\n"
+        f"---\n\n"
+        f"{report.get('report', '_No report generated._')}"
+    )
 
     return {
         "topic": topic,
@@ -552,24 +860,53 @@ def run_research(topic):
 # CLI entry point
 # ---------------------------------------------------------------------------
 
+
 def main():
     """CLI entry point for the research agent."""
+    global _reporter
+
     if len(sys.argv) < 2:
         print("Usage: research_agent.py '<research_topic>'")
         sys.exit(1)
 
     topic = sys.argv[1]
-    result = run_research(topic)
 
+    # Initialize GitHub Issue reporter
+    _reporter = GitHubIssueReporter()
+
+    log.info("=" * 60)
+    log.info("AutoResearchClaw starting")
+    log.info("Topic: %s", topic)
+    log.info("Model: %s", OPENAI_MODEL)
+    log.info("OpenAI key: %s", "set" if os.environ.get("OPENAI_API_KEY") else "NOT SET")
+    log.info("GitHub reporting: %s", "enabled" if _reporter.enabled else "disabled")
+    log.info("=" * 60)
+
+    try:
+        result = run_research(topic)
+    except Exception as exc:
+        log.error("Research pipeline failed: %s", exc)
+        log.error(traceback.format_exc())
+        _post_to_issue(
+            f"### AutoResearchClaw Error\n\n"
+            f"The research pipeline encountered a fatal error:\n\n"
+            f"```\n{traceback.format_exc()}\n```\n\n"
+            f"Please check the workflow logs for details."
+        )
+        if _reporter:
+            _reporter.update_labels(["research-agent", "error"])
+        sys.exit(1)
+
+    # Write output files
     with open("research_report.json", "w") as f:
         json.dump(result, f, indent=2)
 
-    # Write the Markdown report for easy reading
     report_text = result["report"].get("report", "")
     if report_text:
         with open("research_report.md", "w") as f:
             f.write(report_text)
 
+    # Set GitHub Actions outputs
     github_output = os.environ.get("GITHUB_OUTPUT")
     if github_output:
         with open(github_output, "a") as f:
@@ -578,7 +915,10 @@ def main():
             total = sum(r["result_count"] for r in result["search_results"])
             f.write(f"total_results={total}\n")
 
-    print("\n✅ Research complete — see research_report.json / research_report.md")
+    if _reporter:
+        _reporter.update_labels(["research-agent", "completed"])
+
+    log.info("Research complete — see research_report.json / research_report.md")
 
 
 if __name__ == "__main__":

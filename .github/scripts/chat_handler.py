@@ -198,10 +198,11 @@ def process_chat(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
     conversation: List[Dict[str, Any]] = list(messages)
 
     try:
+        _model = os.environ.get("OPENAI_MODEL", "gpt-4o")
         response = _call_openai(
             client,
             conversation,
-            model="gpt-5",
+            model=_model,
             tools=TOOLS,
             tool_choice="auto",
         )
@@ -241,7 +242,7 @@ def process_chat(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
         second_response = _call_openai(
             client,
             conversation,
-            model="gpt-5",
+            model=_model,
         )
 
         return {
