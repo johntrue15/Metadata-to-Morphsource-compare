@@ -7,8 +7,13 @@ on:
         description: 'Research topic or goal to investigate'
         required: true
         type: string
+      iterations:
+        description: 'Number of autonomous research iterations (1-10)'
+        required: false
+        type: number
+        default: 1
       media_id:
-        description: 'MorphoSource media ID to use as seed (e.g. 000038412). Leave blank for topic-only research.'
+        description: 'MorphoSource media ID to seed the research (e.g. 000038412)'
         required: false
         type: string
         default: ''
@@ -20,7 +25,7 @@ on:
 
 jobs:
   create-research-issue:
-    name: Create Research Issue
+    name: Create Research Tracking Issue
     runs-on: ubuntu-latest
     permissions:
       issues: write
@@ -35,49 +40,57 @@ jobs:
         with:
           script: |
             const topic = `${{ inputs.research_topic }}`;
+            const iterations = ${{ inputs.iterations || 1 }};
             const mediaId = `${{ inputs.media_id }}`.trim();
             const model = `${{ inputs.openai_model }}` || 'gpt-4o';
 
             const seedLine = mediaId
               ? `**Seed Media ID:** [\`${mediaId}\`](https://www.morphosource.org/concern/media/${mediaId})`
-              : '**Seed Media ID:** _none (topic-only research)_';
+              : '**Seed Media ID:** _none (topic-only)_';
 
             const body = [
-              '### 🧪 AutoResearchClaw Research Session',
+              '### 🧪 AutoResearchClaw Research Program',
               '',
               '**Research Topic:**',
               topic,
               '',
+              `**Iterations:** ${iterations}`,
               seedLine,
               `**Model:** \`${model}\``,
               '',
               '---',
               '',
-              '🔄 **Status:** Researching…',
+              '🔄 **Status:** Running…',
               '',
-              'This issue was created by the AutoResearchClaw agent. ',
-              'The agent will decompose the research topic into targeted MorphoSource queries, ',
-              'search for relevant specimen data, and post a synthesis report below.',
+              `This issue tracks an autonomous ${iterations}-iteration research program. `,
+              'Each iteration creates a separate issue with its findings, and progress ',
+              'is posted here as comments. After all iterations complete, a final ',
+              'synthesis will be posted.',
               '',
-              'Feel free to add comments to refine the research direction — the ',
-              '[issue-comment-reply](' +
-              `https://github.com/${context.repo.owner}/${context.repo.repo}` +
-              '/actions/workflows/issue-comment-reply.yml) workflow will pick up follow-up questions.',
+              'The agent will autonomously:',
+              '1. Decompose the topic into MorphoSource queries',
+              '2. Search for relevant specimen data',
+              '3. Evaluate findings and decide what to explore next',
+              '4. Repeat with accumulated memory',
+              '',
+              '---',
+              '',
+              '_Post a follow-up comment to continue the research after iterations complete._',
             ].join('\n');
 
             const issue = await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `Research: ${topic}`,
+              title: `Research Program [${iterations}x]: ${topic}`,
               body: body,
-              labels: ['research-agent'],
+              labels: ['research-agent', 'research-program'],
             });
 
             core.setOutput('issue_number', issue.data.number.toString());
-            console.log(`Created research issue #${issue.data.number}`);
+            console.log(`Created tracking issue #${issue.data.number}`);
 
   research-pipeline:
-    name: Run Research Pipeline
+    name: Run Iterative Research Pipeline
     runs-on: ubuntu-latest
     needs: create-research-issue
     permissions:
@@ -114,7 +127,10 @@ jobs:
           if [ -n "${{ inputs.media_id }}" ]; then
             MEDIA_ARG="--media-id ${{ inputs.media_id }}"
           fi
-          python research_agent.py "${{ inputs.research_topic }}" $MEDIA_ARG
+          python research_agent.py \
+            "${{ inputs.research_topic }}" \
+            --iterations ${{ inputs.iterations || 1 }} \
+            $MEDIA_ARG
 
       - name: Upload research artifacts
         if: always()
@@ -126,48 +142,28 @@ jobs:
             .github/scripts/research_report.md
           if-no-files-found: warn
 
-      - name: Post final report to issue (fallback)
+      - name: Post final status to tracking issue
         if: always()
         env:
           ISSUE_NUMBER: ${{ needs.create-research-issue.outputs.issue_number }}
         uses: actions/github-script@v8
         with:
           script: |
-            const fs = require('fs');
             const issueNumber = parseInt(process.env.ISSUE_NUMBER || '0');
-            if (!issueNumber) {
-              console.log('No issue number, skipping');
-              return;
-            }
-
-            let reportBody = '';
-            const reportMdPath = '.github/scripts/research_report.md';
-            const reportJsonPath = '.github/scripts/research_report.json';
-
-            if (fs.existsSync(reportMdPath)) {
-              reportBody = fs.readFileSync(reportMdPath, 'utf8');
-            } else if (fs.existsSync(reportJsonPath)) {
-              const data = JSON.parse(fs.readFileSync(reportJsonPath, 'utf8'));
-              reportBody = (data.report && data.report.report) || JSON.stringify(data, null, 2);
-            }
+            if (!issueNumber) return;
 
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const jobStatus = '${{ job.status }}';
+            const status = '${{ job.status }}';
 
             const comment = [
-              '## 📊 AutoResearchClaw — Final Summary',
+              `### Research Program ${status === 'success' ? 'Complete' : 'Finished'}`,
               '',
-              `**Workflow status:** ${jobStatus}`,
-              '',
-              reportBody
-                ? reportBody
-                : '_No report file was generated. Check the [workflow run](' + runUrl + ') for details._',
-              '',
-              '---',
-              '',
+              `**Workflow status:** ${status}`,
               `**[View workflow run](${runUrl})**`,
               '',
-              '_Post a follow-up comment on this issue to refine the research or ask additional questions._',
+              status === 'success'
+                ? '_All iterations completed. Post a comment to continue the research._'
+                : '_Some iterations may have failed. Check the workflow run for details._',
             ].join('\n');
 
             await github.rest.issues.createComment({
@@ -177,15 +173,13 @@ jobs:
               body: comment,
             });
 
-            const finalLabels = jobStatus === 'success'
-              ? ['research-agent', 'completed']
-              : ['research-agent', 'needs-review'];
+            const labels = status === 'success'
+              ? ['research-agent', 'research-program', 'completed']
+              : ['research-agent', 'research-program', 'needs-review'];
 
             await github.rest.issues.setLabels({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issueNumber,
-              labels: finalLabels,
+              labels: labels,
             });
-
-            console.log(`Posted final summary to issue #${issueNumber} (status: ${jobStatus})`);
