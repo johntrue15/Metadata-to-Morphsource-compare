@@ -7,6 +7,11 @@ on:
         description: 'Research topic or goal to investigate'
         required: true
         type: string
+      media_id:
+        description: 'MorphoSource media ID to use as seed (e.g. 000038412). Leave blank for topic-only research.'
+        required: false
+        type: string
+        default: ''
       openai_model:
         description: 'OpenAI model to use (default: gpt-4o)'
         required: false
@@ -30,7 +35,12 @@ jobs:
         with:
           script: |
             const topic = `${{ inputs.research_topic }}`;
+            const mediaId = `${{ inputs.media_id }}`.trim();
             const model = `${{ inputs.openai_model }}` || 'gpt-4o';
+
+            const seedLine = mediaId
+              ? `**Seed Media ID:** [\`${mediaId}\`](https://www.morphosource.org/concern/media/${mediaId})`
+              : '**Seed Media ID:** _none (topic-only research)_';
 
             const body = [
               '### 🧪 AutoResearchClaw Research Session',
@@ -38,6 +48,7 @@ jobs:
               '**Research Topic:**',
               topic,
               '',
+              seedLine,
               `**Model:** \`${model}\``,
               '',
               '---',
@@ -99,7 +110,11 @@ jobs:
           DEBUG: 'true'
         working-directory: .github/scripts
         run: |
-          python research_agent.py "${{ inputs.research_topic }}"
+          MEDIA_ARG=""
+          if [ -n "${{ inputs.media_id }}" ]; then
+            MEDIA_ARG="--media-id ${{ inputs.media_id }}"
+          fi
+          python research_agent.py "${{ inputs.research_topic }}" $MEDIA_ARG
 
       - name: Upload research artifacts
         if: always()

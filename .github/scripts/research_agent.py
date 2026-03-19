@@ -81,6 +81,11 @@ else:
 import query_formatter
 import morphosource_api
 
+try:
+    import requests as _requests
+except ImportError:
+    _requests = None  # type: ignore
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -89,6 +94,7 @@ OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o")
 MAX_QUERIES = 5
 _LLM_RETRIES = 3
 MAX_REFINEMENT_ROUNDS = 2
+MORPHOSOURCE_API_BASE = "https://www.morphosource.org/api"
 
 log.info("Model: %s | Debug: %s", OPENAI_MODEL, _debug)
 
@@ -280,6 +286,97 @@ def _call_llm(messages, max_tokens=2000, json_mode=False, label="LLM"):
 
 
 # ---------------------------------------------------------------------------
+# Stage 0: Fetch seed media record from MorphoSource
+# ---------------------------------------------------------------------------
+
+
+def fetch_seed_media(media_id):
+    """Fetch a single media record from MorphoSource to seed the research.
+
+    Returns a dict with the API response, or None on failure.
+    """
+    media_id = media_id.strip().lstrip("0") or "0"
+    padded_id = media_id.zfill(9)
+    url = f"{MORPHOSOURCE_API_BASE}/media/{padded_id}"
+    log.info("Fetching seed media: %s → %s", padded_id, url)
+
+    headers = {"Accept": "application/json"}
+    api_key = os.environ.get("MORPHOSOURCE_API_KEY")
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    try:
+        if _requests:
+            resp = _requests.get(url, headers=headers, timeout=30)
+            if resp.status_code == 200:
+                data = resp.json()
+                log.info("Seed media fetched successfully")
+                return data
+            log.warning("Seed media fetch returned HTTP %d", resp.status_code)
+            return None
+        else:
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                if resp.getcode() == 200:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    log.info("Seed media fetched successfully")
+                    return data
+            log.warning("Seed media fetch returned HTTP %d", resp.getcode())
+            return None
+    except Exception as exc:
+        log.error("Failed to fetch seed media %s: %s", padded_id, exc)
+        return None
+
+
+def _summarize_seed(seed_data):
+    """Extract a human-readable summary from a MorphoSource media record."""
+    if not seed_data:
+        return ""
+
+    record = seed_data
+    if "response" in seed_data and isinstance(seed_data["response"], dict):
+        record = seed_data["response"]
+
+    def _val(d, key):
+        v = d.get(key)
+        if isinstance(v, list):
+            return v[0] if v else None
+        return v
+
+    lines = []
+    title = _val(record, "title") or _val(record, "name")
+    if title:
+        lines.append(f"**Title:** {title}")
+
+    media_type = _val(record, "media_type")
+    modality = _val(record, "modality")
+    if media_type or modality:
+        lines.append(f"**Type/Modality:** {media_type or ''} / {modality or ''}")
+
+    taxonomy = _val(record, "physical_object_taxonomy_name")
+    if taxonomy:
+        lines.append(f"**Taxonomy:** {taxonomy}")
+
+    org = _val(record, "physical_object_organization")
+    if org:
+        lines.append(f"**Organization:** {org}")
+
+    obj_title = _val(record, "physical_object_title")
+    if obj_title:
+        lines.append(f"**Specimen:** {obj_title}")
+
+    device = _val(record, "device")
+    if device:
+        lines.append(f"**Device:** {device}")
+
+    description = _val(record, "short_description") or _val(record, "description")
+    if description:
+        lines.append(f"**Description:** {description}")
+
+    return "\n".join(lines) if lines else json.dumps(record, indent=2)[:1000]
+
+
+# ---------------------------------------------------------------------------
 # Stage 1: Decompose research topic into MorphoSource search queries
 # ---------------------------------------------------------------------------
 
@@ -426,9 +523,29 @@ def _parse_decompose_response(text):
     return None
 
 
-def decompose_topic(topic):
-    """Break a research topic into specific MorphoSource search queries."""
+def decompose_topic(topic, seed_context=None):
+    """Break a research topic into specific MorphoSource search queries.
+
+    Parameters
+    ----------
+    topic : str
+        The research topic.
+    seed_context : str or None
+        Optional context from a seed media record to ground the queries.
+    """
     log.info("Decomposing topic: %s", topic)
+    if seed_context:
+        log.info("Seed context provided (%d chars)", len(seed_context))
+
+    user_content = topic
+    if seed_context:
+        user_content = (
+            f"{topic}\n\n"
+            f"Use the following MorphoSource media record as a starting point. "
+            f"Design queries that explore related specimens, similar scan types, "
+            f"the same taxonomic group, and complementary datasets:\n\n"
+            f"{seed_context}"
+        )
 
     last_exc = None
     for attempt in range(1, _LLM_RETRIES + 1):
@@ -437,7 +554,7 @@ def decompose_topic(topic):
             content = _call_llm(
                 messages=[
                     {"role": "system", "content": _DECOMPOSE_SYSTEM_PROMPT},
-                    {"role": "user", "content": topic},
+                    {"role": "user", "content": user_content},
                 ],
                 max_tokens=2000,
                 json_mode=True,
@@ -617,7 +734,7 @@ _SYNTHESIS_SYSTEM_PROMPT = (
 )
 
 
-def synthesize_report(topic, search_results):
+def synthesize_report(topic, search_results, seed_context=None):
     """Generate a Markdown research report from collected search results."""
     log.info("Synthesizing report for %d search results", len(search_results))
 
@@ -641,8 +758,15 @@ def synthesize_report(topic, search_results):
                 break
         context_items.append(entry)
 
+    seed_section = ""
+    if seed_context:
+        seed_section = (
+            f"\n\nSeed media record (starting point for this research):\n"
+            f"{seed_context}"
+        )
+
     user_message = (
-        f"Research topic: {topic}\n\n"
+        f"Research topic: {topic}{seed_section}\n\n"
         f"MorphoSource search results:\n{json.dumps(context_items, indent=2)}"
     )
 
@@ -750,12 +874,51 @@ def _fallback_report(topic, search_results, reason=None):
 # ---------------------------------------------------------------------------
 
 
-def run_research(topic):
-    """End-to-end research pipeline: decompose -> search -> refine -> synthesize.
+def run_research(topic, media_id=None):
+    """End-to-end research pipeline: seed -> decompose -> search -> refine -> synthesize.
 
     Posts progress updates to the GitHub issue at each stage.
+
+    Parameters
+    ----------
+    topic : str
+        The research topic or goal.
+    media_id : str or None
+        Optional MorphoSource media ID to seed the research.
     """
     log.info("AutoResearchClaw — starting research on: %s", topic)
+    if media_id:
+        log.info("Seed media ID: %s", media_id)
+
+    seed_data = None
+    seed_context = None
+
+    # ------------------------------------------------------------------
+    # Stage 0: Fetch seed media (if provided)
+    # ------------------------------------------------------------------
+    if media_id:
+        log.info("=" * 60)
+        log.info("STAGE 0: Fetching seed media record")
+        log.info("=" * 60)
+        seed_data = fetch_seed_media(media_id)
+        if seed_data:
+            seed_context = _summarize_seed(seed_data)
+            padded = media_id.strip().lstrip("0").zfill(9)
+            ms_url = f"https://www.morphosource.org/concern/media/{padded}"
+            _post_to_issue(
+                f"### Stage 0: Seed Media Record\n\n"
+                f"Fetched **[media {padded}]({ms_url})** as research seed:\n\n"
+                f"{seed_context}\n\n"
+                f"_Using this record to guide query decomposition…_"
+            )
+            log.info("Seed summary:\n%s", seed_context)
+        else:
+            _post_to_issue(
+                f"### Stage 0: Seed Media Record\n\n"
+                f"Could not fetch media `{media_id}` from MorphoSource. "
+                f"Proceeding with topic-only research."
+            )
+            log.warning("Seed media fetch failed, continuing without seed")
 
     # ------------------------------------------------------------------
     # Stage 1: Decompose
@@ -763,7 +926,7 @@ def run_research(topic):
     log.info("=" * 60)
     log.info("STAGE 1: Decomposing research topic")
     log.info("=" * 60)
-    queries = decompose_topic(topic)
+    queries = decompose_topic(topic, seed_context=seed_context)
     log.info("Generated %d sub-queries", len(queries))
 
     query_lines = "\n".join(
@@ -835,7 +998,7 @@ def run_research(topic):
     log.info("=" * 60)
     log.info("STAGE 3: Synthesizing research report")
     log.info("=" * 60)
-    report = synthesize_report(topic, search_results)
+    report = synthesize_report(topic, search_results, seed_context=seed_context)
     log.info("Report generated (status: %s)", report["status"])
 
     _post_to_issue(
@@ -845,7 +1008,7 @@ def run_research(topic):
         f"{report.get('report', '_No report generated._')}"
     )
 
-    return {
+    result = {
         "topic": topic,
         "queries": queries,
         "search_results": [
@@ -854,6 +1017,11 @@ def run_research(topic):
         ],
         "report": report,
     }
+    if media_id:
+        result["seed_media_id"] = media_id
+    if seed_context:
+        result["seed_summary"] = seed_context
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -865,11 +1033,21 @@ def main():
     """CLI entry point for the research agent."""
     global _reporter
 
-    if len(sys.argv) < 2:
-        print("Usage: research_agent.py '<research_topic>'")
-        sys.exit(1)
+    import argparse
 
-    topic = sys.argv[1]
+    parser = argparse.ArgumentParser(
+        description="AutoResearchClaw — autonomous MorphoSource research agent",
+    )
+    parser.add_argument("topic", help="Research topic or goal to investigate")
+    parser.add_argument(
+        "--media-id",
+        default=None,
+        help="MorphoSource media ID to use as seed (e.g. 000038412)",
+    )
+    args = parser.parse_args()
+
+    topic = args.topic
+    media_id = args.media_id
 
     # Initialize GitHub Issue reporter
     _reporter = GitHubIssueReporter()
@@ -877,13 +1055,14 @@ def main():
     log.info("=" * 60)
     log.info("AutoResearchClaw starting")
     log.info("Topic: %s", topic)
+    log.info("Seed media ID: %s", media_id or "none")
     log.info("Model: %s", OPENAI_MODEL)
     log.info("OpenAI key: %s", "set" if os.environ.get("OPENAI_API_KEY") else "NOT SET")
     log.info("GitHub reporting: %s", "enabled" if _reporter.enabled else "disabled")
     log.info("=" * 60)
 
     try:
-        result = run_research(topic)
+        result = run_research(topic, media_id=media_id)
     except Exception as exc:
         log.error("Research pipeline failed: %s", exc)
         log.error(traceback.format_exc())
