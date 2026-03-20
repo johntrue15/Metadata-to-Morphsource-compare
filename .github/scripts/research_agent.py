@@ -178,24 +178,46 @@ class GitHubIssueReporter:
             log.info("GitHub reporting enabled (repo=%s, parent=#%s)",
                      self.repo, self.issue_number or "none")
 
+    _MAX_RETRIES = 4
+    _RETRYABLE_STATUSES = {500, 502, 503, 504}
+
     def _api(self, method, path, payload=None):
         url = f"https://api.github.com/repos/{self.repo}/{path}"
-        data = json.dumps(payload).encode("utf-8") if payload else None
-        req = urllib.request.Request(url, data=data, method=method)
-        req.add_header("Authorization", f"token {self.token}")
-        req.add_header("Accept", "application/vnd.github.v3+json")
-        if data:
-            req.add_header("Content-Type", "application/json")
-        try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                body = json.loads(resp.read().decode("utf-8"))
-                return resp.getcode(), body
-        except urllib.error.HTTPError as exc:
-            log.warning("GitHub API %s %s -> %d", method, path, exc.code)
-            return exc.code, {}
-        except Exception as exc:
-            log.warning("GitHub API %s %s failed: %s", method, path, exc)
-            return 0, {}
+        for attempt in range(1, self._MAX_RETRIES + 1):
+            data = json.dumps(payload).encode("utf-8") if payload else None
+            req = urllib.request.Request(url, data=data, method=method)
+            req.add_header("Authorization", f"token {self.token}")
+            req.add_header("Accept", "application/vnd.github.v3+json")
+            if data:
+                req.add_header("Content-Type", "application/json")
+            try:
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    body = json.loads(resp.read().decode("utf-8"))
+                    return resp.getcode(), body
+            except urllib.error.HTTPError as exc:
+                if exc.code in self._RETRYABLE_STATUSES and attempt < self._MAX_RETRIES:
+                    delay = min(5 * (2 ** (attempt - 1)), 60)
+                    log.warning("GitHub API %s %s -> %d (attempt %d/%d, retry in %ds)",
+                                method, path, exc.code, attempt, self._MAX_RETRIES, delay)
+                    time.sleep(delay)
+                    continue
+                log.warning("GitHub API %s %s -> %d", method, path, exc.code)
+                return exc.code, {}
+            except Exception as exc:
+                err_lower = str(exc).lower()
+                transient_signals = ("fetch failed", "urlopen", "timed out",
+                                     "connection reset", "connection refused",
+                                     "temporary failure", "eof occurred")
+                is_transient = any(sig in err_lower for sig in transient_signals)
+                if is_transient and attempt < self._MAX_RETRIES:
+                    delay = min(5 * (2 ** (attempt - 1)), 60)
+                    log.warning("GitHub API %s %s failed: %s (attempt %d/%d, retry in %ds)",
+                                method, path, exc, attempt, self._MAX_RETRIES, delay)
+                    time.sleep(delay)
+                    continue
+                log.warning("GitHub API %s %s failed: %s", method, path, exc)
+                return 0, {}
+        return 0, {}
 
     def create_issue(self, title, body, labels=None):
         if not self.enabled:

@@ -9,6 +9,7 @@ Run:  python3 dashboard.py
 """
 
 import json
+import os
 import time
 from pathlib import Path
 
@@ -61,6 +62,36 @@ def _read_meta(run_id):
     return None
 
 
+def _extract_detail_data(events):
+    """Extract score trend, queries, and discoveries from raw events."""
+    scores = []
+    queries = []
+    discoveries = []
+    for e in events:
+        stage = e.get("stage", "")
+        cycle = e.get("cycle", 0)
+        if stage == "evaluate" and "score" in e:
+            scores.append({"cycle": cycle, "score": e["score"]})
+            for d in e.get("discoveries", []):
+                discoveries.append({"cycle": cycle, "text": d})
+        if stage == "decompose" and "queries" in e:
+            for q in e["queries"]:
+                queries.append({"cycle": cycle, "query": q, "hits": None})
+        if stage == "search":
+            hits = e.get("total_hits", 0)
+            n_queries = e.get("queries_run", 0)
+            if queries:
+                last_decompose = [q for q in queries if q["hits"] is None]
+                if last_decompose and n_queries > 0:
+                    per_q = hits // max(n_queries, 1)
+                    for q in last_decompose:
+                        q["hits"] = per_q
+    for q in queries:
+        if q["hits"] is None:
+            q["hits"] = 0
+    return scores, queries, discoveries
+
+
 # ---------------------------------------------------------------------------
 # HTML template
 # ---------------------------------------------------------------------------
@@ -103,6 +134,31 @@ INDEX_HTML = """<!DOCTYPE html>
           border-radius: 8px; padding: 12px 20px; min-width: 120px; }
   .stat-value { font-size: 1.8em; font-weight: 700; color: var(--accent); }
   .stat-label { color: #8b949e; font-size: 0.85em; }
+  .section { margin-bottom: 24px; }
+  .section h2 { margin-bottom: 12px; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+  @media (max-width: 800px) { .two-col { grid-template-columns: 1fr; } }
+  .chart-box { background: var(--card); border: 1px solid var(--border);
+               border-radius: 8px; padding: 16px; }
+  .chart-box h3 { color: var(--accent); font-size: 1em; margin-bottom: 10px; }
+  svg.trend { width: 100%; height: 120px; }
+  .trend-line { fill: none; stroke: var(--accent); stroke-width: 2; }
+  .trend-dot { fill: var(--accent); }
+  .trend-area { fill: var(--accent); opacity: 0.08; }
+  .trend-grid { stroke: var(--border); stroke-width: 0.5; }
+  .trend-label { fill: #8b949e; font-size: 10px; font-family: inherit; }
+  .query-table { width: 100%; border-collapse: collapse; font-size: 0.85em; }
+  .query-table th { text-align: left; padding: 8px 10px; border-bottom: 2px solid var(--border);
+                    color: #8b949e; font-weight: 600; }
+  .query-table td { padding: 6px 10px; border-bottom: 1px solid var(--border); }
+  .query-table tr:last-child td { border-bottom: none; }
+  .disc-item { padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 0.9em; }
+  .disc-item:last-child { border-bottom: none; }
+  .disc-cycle { color: var(--yellow); font-weight: 600; margin-right: 8px; }
+  .issue-link { display: inline-block; background: #1a2a1a; color: var(--green);
+                padding: 4px 12px; border-radius: 14px; margin: 4px 4px 4px 0;
+                font-size: 0.9em; font-weight: 600; }
+  .issue-link:hover { background: #243a24; text-decoration: none; }
   .events { font-family: 'SF Mono', Monaco, monospace; font-size: 0.85em;
             background: var(--card); border: 1px solid var(--border);
             border-radius: 8px; padding: 16px; max-height: 600px;
@@ -151,6 +207,82 @@ INDEX_HTML = """<!DOCTYPE html>
     </div>
     {% endif %}
   </div>
+
+  {% if issue_links %}
+  <div class="section">
+    <h2>GitHub Issues</h2>
+    <div>
+    {% for link in issue_links %}
+      {% if repo %}
+      <a class="issue-link" href="https://github.com/{{ repo }}/issues/{{ link[1:] }}" target="_blank">{{ link }}</a>
+      {% else %}
+      <span class="issue-link">{{ link }}</span>
+      {% endif %}
+    {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="two-col">
+    <div class="chart-box">
+      <h3>Score Trend</h3>
+      <div id="score-chart">
+      {% if scores|length > 1 %}
+        <svg class="trend" viewBox="0 0 400 120" preserveAspectRatio="none">
+          <line x1="0" y1="0" x2="0" y2="120" class="trend-grid"/>
+          {% for i in range(11) %}<line x1="0" y1="{{ i * 12 }}" x2="400" y2="{{ i * 12 }}" class="trend-grid"/>{% endfor %}
+          {% set ns = namespace(points='', area='') %}
+          {% for s in scores %}
+            {% set x = (loop.index0 / (scores|length - 1)) * 380 + 10 %}
+            {% set y = 114 - (s.score / 10) * 108 %}
+            {% set ns.points = ns.points ~ x|string ~ ',' ~ y|string ~ ' ' %}
+          {% endfor %}
+          <polyline points="10,114 {{ ns.points }} {{ 380 * ((scores|length - 1) / (scores|length - 1)) + 10 }},114" class="trend-area"/>
+          <polyline points="{{ ns.points }}" class="trend-line"/>
+          {% for s in scores %}
+            {% set x = (loop.index0 / (scores|length - 1)) * 380 + 10 %}
+            {% set y = 114 - (s.score / 10) * 108 %}
+            <circle cx="{{ x }}" cy="{{ y }}" r="3.5" class="trend-dot"/>
+            <text x="{{ x }}" y="{{ y - 8 }}" text-anchor="middle" class="trend-label">{{ s.score }}</text>
+          {% endfor %}
+        </svg>
+      {% elif scores|length == 1 %}
+        <div style="text-align:center;padding:20px;color:var(--accent);font-size:2em;font-weight:700;">{{ scores[0].score }}/10</div>
+      {% else %}
+        <div style="padding:20px;color:#8b949e;text-align:center;">No scores yet</div>
+      {% endif %}
+      </div>
+    </div>
+    <div class="chart-box">
+      <h3>Discoveries Over Time</h3>
+      <div id="disc-list" style="max-height:200px;overflow-y:auto;">
+      {% if discoveries %}
+        {% for d in discoveries %}
+        <div class="disc-item"><span class="disc-cycle">C{{ d.cycle }}</span>{{ d.text }}</div>
+        {% endfor %}
+      {% else %}
+        <div style="padding:20px;color:#8b949e;text-align:center;">No discoveries yet</div>
+      {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {% if queries %}
+  <div class="section">
+    <h2>Queries Tried</h2>
+    <div class="chart-box">
+      <table class="query-table" id="query-table">
+        <thead><tr><th>Cycle</th><th>Query</th><th>Hits</th></tr></thead>
+        <tbody>
+        {% for q in queries %}
+          <tr><td>C{{ q.cycle }}</td><td>{{ q.query }}</td><td>{{ q.hits }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
   <h2>Live Event Log</h2>
   <div class="events" id="events">
     {% for e in events %}
@@ -173,12 +305,72 @@ INDEX_HTML = """<!DOCTYPE html>
     const runId = "{{ run.run_id }}";
     const eventsDiv = document.getElementById("events");
     let lastCount = {{ events|length }};
+    let allEvents = {{ events|tojson }};
+
+    function rebuildExtras() {
+      const scores = [], queries = [], discs = [];
+      for (const e of allEvents) {
+        if (e.stage === "evaluate" && e.score !== undefined) {
+          scores.push({cycle: e.cycle, score: e.score});
+          for (const d of (e.discoveries || [])) discs.push({cycle: e.cycle, text: d});
+        }
+        if (e.stage === "decompose" && e.queries)
+          for (const q of e.queries) queries.push({cycle: e.cycle, query: q, hits: null});
+        if (e.stage === "search") {
+          const h = e.total_hits || 0, n = e.queries_run || 0;
+          const pending = queries.filter(q => q.hits === null);
+          const perQ = n > 0 ? Math.floor(h / n) : 0;
+          pending.forEach(q => q.hits = perQ);
+        }
+      }
+      queries.forEach(q => { if (q.hits === null) q.hits = 0; });
+
+      const chart = document.getElementById("score-chart");
+      if (chart && scores.length > 1) {
+        const W = 400, H = 120;
+        let pts = scores.map((s, i) => {
+          const x = (i / (scores.length - 1)) * 380 + 10;
+          const y = 114 - (s.score / 10) * 108;
+          return {x, y, score: s.score};
+        });
+        let svg = `<svg class="trend" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">`;
+        for (let i = 0; i <= 10; i++) svg += `<line x1="0" y1="${i*12}" x2="${W}" y2="${i*12}" class="trend-grid"/>`;
+        const areaP = "10,114 " + pts.map(p => p.x+","+p.y).join(" ") + ` ${pts[pts.length-1].x},114`;
+        svg += `<polyline points="${areaP}" class="trend-area"/>`;
+        svg += `<polyline points="${pts.map(p=>p.x+","+p.y).join(" ")}" class="trend-line"/>`;
+        pts.forEach(p => {
+          svg += `<circle cx="${p.x}" cy="${p.y}" r="3.5" class="trend-dot"/>`;
+          svg += `<text x="${p.x}" y="${p.y-8}" text-anchor="middle" class="trend-label">${p.score}</text>`;
+        });
+        svg += `</svg>`;
+        chart.innerHTML = svg;
+      } else if (chart && scores.length === 1) {
+        chart.innerHTML = `<div style="text-align:center;padding:20px;color:var(--accent);font-size:2em;font-weight:700;">${scores[0].score}/10</div>`;
+      }
+
+      const discList = document.getElementById("disc-list");
+      if (discList && discs.length) {
+        discList.innerHTML = discs.map(d =>
+          `<div class="disc-item"><span class="disc-cycle">C${d.cycle}</span>${d.text}</div>`
+        ).join("");
+      }
+
+      const qt = document.getElementById("query-table");
+      if (qt && queries.length) {
+        const tbody = qt.querySelector("tbody");
+        if (tbody) tbody.innerHTML = queries.map(q =>
+          `<tr><td>C${q.cycle}</td><td>${q.query}</td><td>${q.hits}</td></tr>`
+        ).join("");
+      }
+    }
+
     async function poll() {
       try {
         const resp = await fetch(`/api/run/${runId}/events`);
         const data = await resp.json();
         if (data.length > lastCount) {
           const newEvents = data.slice(lastCount);
+          allEvents = data;
           for (const e of newEvents) {
             const div = document.createElement("div");
             div.className = "event";
@@ -198,6 +390,7 @@ INDEX_HTML = """<!DOCTYPE html>
           lastCount = data.length;
           document.getElementById("cycle-count").textContent = lastCount;
           eventsDiv.scrollTop = eventsDiv.scrollHeight;
+          rebuildExtras();
         }
       } catch(err) {}
       setTimeout(poll, 3000);
@@ -257,13 +450,15 @@ def run_detail(run_id):
     if not meta:
         return "Run not found", 404
     events = _read_events(run_id)
-    latest_score = None
-    for e in reversed(events):
-        if "score" in e:
-            latest_score = e["score"]
-            break
-    return render_template_string(INDEX_HTML, run=meta, events=events,
-                                  runs=None, latest_score=latest_score)
+    scores, queries, discoveries = _extract_detail_data(events)
+    latest_score = scores[-1]["score"] if scores else None
+    issue_links = meta.get("issue_links", [])
+    repo = os.environ.get("GITHUB_REPOSITORY", "")
+    return render_template_string(
+        INDEX_HTML, run=meta, events=events, runs=None,
+        latest_score=latest_score, scores=scores, queries=queries,
+        discoveries=discoveries, issue_links=issue_links, repo=repo,
+    )
 
 
 @app.route("/api/runs")

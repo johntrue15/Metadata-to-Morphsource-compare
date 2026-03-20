@@ -47,7 +47,22 @@ jobs:
         id: create-issue
         uses: actions/github-script@v8
         with:
+          retries: 3
           script: |
+            async function retry(fn, label, maxAttempts = 3) {
+              for (let i = 1; i <= maxAttempts; i++) {
+                try { return await fn(); }
+                catch (err) {
+                  const retryable = err.status >= 500 || err.message?.includes('fetch failed');
+                  console.log(`[${label}] attempt ${i}/${maxAttempts} failed: ${err.message} (status=${err.status})`);
+                  if (!retryable || i === maxAttempts) throw err;
+                  const delay = Math.min(5000 * Math.pow(2, i - 1), 30000);
+                  console.log(`  retrying in ${delay}ms...`);
+                  await new Promise(r => setTimeout(r, delay));
+                }
+              }
+            }
+
             const topic = `${{ inputs.research_topic }}`;
             const depth = ${{ inputs.research_depth || 10 }};
             const issues = ${{ inputs.github_issues || 3 }};
@@ -89,13 +104,13 @@ jobs:
               '_Post a follow-up comment to continue the research after all cycles complete._',
             ].join('\n');
 
-            const issue = await github.rest.issues.create({
+            const issue = await retry(() => github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
               title: `Research [${depth}x/${issues} issues]: ${topic}`,
               body: body,
               labels: ['research-agent', 'research-program'],
-            });
+            }), 'create-issue');
 
             core.setOutput('issue_number', issue.data.number.toString());
             console.log(`Created tracking issue #${issue.data.number}`);
@@ -157,7 +172,22 @@ jobs:
           ISSUE_NUMBER: ${{ needs.create-research-issue.outputs.issue_number }}
         uses: actions/github-script@v8
         with:
+          retries: 3
           script: |
+            async function retry(fn, label, maxAttempts = 4) {
+              for (let i = 1; i <= maxAttempts; i++) {
+                try { return await fn(); }
+                catch (err) {
+                  const retryable = err.status >= 500 || err.message?.includes('fetch failed');
+                  console.log(`[${label}] attempt ${i}/${maxAttempts} failed: ${err.message} (status=${err.status})`);
+                  if (!retryable || i === maxAttempts) throw err;
+                  const delay = Math.min(5000 * Math.pow(2, i - 1), 60000);
+                  console.log(`  retrying in ${delay}ms...`);
+                  await new Promise(r => setTimeout(r, delay));
+                }
+              }
+            }
+
             const issueNumber = parseInt(process.env.ISSUE_NUMBER || '0');
             if (!issueNumber) return;
 
@@ -175,20 +205,20 @@ jobs:
                 : '_Some cycles may have failed. Check the workflow run for details._',
             ].join('\n');
 
-            await github.rest.issues.createComment({
+            await retry(() => github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issueNumber,
               body: comment,
-            });
+            }), 'post-comment');
 
             const labels = status === 'success'
               ? ['research-agent', 'research-program', 'completed']
               : ['research-agent', 'research-program', 'needs-review'];
 
-            await github.rest.issues.setLabels({
+            await retry(() => github.rest.issues.setLabels({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issueNumber,
               labels: labels,
-            });
+            }), 'set-labels');
