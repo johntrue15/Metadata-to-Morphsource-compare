@@ -938,9 +938,9 @@ def main():
         description="AutoResearchClaw — autonomous MorphoSource research agent")
     parser.add_argument("topic", help="Research topic or goal")
     parser.add_argument("--media-id", default=None, help="Seed media ID")
-    parser.add_argument("--research-depth", type=int, default=10,
+    parser.add_argument("--research-depth", type=lambda v: int(float(v)), default=10,
                         help="Internal research cycles (default: 10)")
-    parser.add_argument("--github-issues", type=int, default=3,
+    parser.add_argument("--github-issues", type=lambda v: int(float(v)), default=3,
                         help="GitHub issues to create (default: 3)")
     parser.add_argument("--program", default=None, help="Path to program.md")
     args = parser.parse_args()

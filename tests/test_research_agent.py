@@ -868,6 +868,36 @@ class TestRunResearch:
         assert len(result["search_results"]) == 1
 
 
+class TestArgparseFloatIntegers:
+    """Ensure argparse accepts float-like integers (e.g. '200.0' from mobile dispatch)."""
+
+    def test_research_depth_accepts_float_string(self):
+        """--research-depth should accept '200.0' and convert to 200."""
+        import argparse
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--research-depth", type=lambda v: int(float(v)), default=10)
+        args = parser.parse_args(["--research-depth", "200.0"])
+        assert args.research_depth == 200
+
+    def test_github_issues_accepts_float_string(self):
+        """--github-issues should accept '3.0' and convert to 3."""
+        import argparse
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--github-issues", type=lambda v: int(float(v)), default=3)
+        args = parser.parse_args(["--github-issues", "3.0"])
+        assert args.github_issues == 3
+
+    def test_plain_integers_still_work(self):
+        """Plain integer strings like '200' should still work."""
+        import argparse
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--research-depth", type=lambda v: int(float(v)), default=10)
+        parser.add_argument("--github-issues", type=lambda v: int(float(v)), default=3)
+        args = parser.parse_args(["--research-depth", "200", "--github-issues", "3"])
+        assert args.research_depth == 200
+        assert args.github_issues == 3
+
+
 class TestScriptStructure:
     """Ensure the script has the expected public interface."""
 
