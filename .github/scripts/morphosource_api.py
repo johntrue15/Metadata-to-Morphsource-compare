@@ -208,8 +208,7 @@ def search_morphosource(api_params, formatted_query, query_info=None, max_retrie
                 attempt_entry['result_count'] = result_count
                 attempt_history.append(attempt_entry)
 
-                print(f"✓ Received response (attempt {attempt})")
-                print(json.dumps(data, indent=2))
+                print(f"✓ Received response (attempt {attempt}), {result_count} results")
 
                 if result_count > 0 or attempt == max_retries + 1:
                     results_summary = {

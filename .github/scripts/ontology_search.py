@@ -80,7 +80,7 @@ def lookup_anatomy_term(term: str, ontology: str = "uberon") -> Optional[Ontolog
     result = OntologyTerm(
         term_id=best.get("obo_id", best.get("short_form", "")),
         label=best.get("label", term),
-        description=(best.get("description", [""])[0] if best.get("description") else ""),
+        description=((best.get("description") or [""])[0] if best.get("description") else ""),
         synonyms=best.get("synonym", [])[:10],
         ontology=ontology,
     )

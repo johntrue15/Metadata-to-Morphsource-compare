@@ -721,6 +721,13 @@ def _format_memory_for_llm(memory):
 # ---------------------------------------------------------------------------
 
 
+def _safe_first(value):
+    """Safely get the first element from a MorphoSource field value."""
+    if isinstance(value, list):
+        return str(value[0]) if value else ""
+    return str(value) if value is not None else ""
+
+
 def _find_downloadable_media_ids(search_results):
     """Extract media IDs of open-access mesh specimens from search results.
 
@@ -735,11 +742,11 @@ def _find_downloadable_media_ids(search_results):
         for key in ("media", "physical_objects"):
             items = response.get(key, [])
             for item in items:
-                mid = item.get("id", [""])[0] if isinstance(item.get("id"), list) else str(item.get("id", ""))
-                vis = item.get("visibility", [""])[0] if isinstance(item.get("visibility"), list) else str(item.get("visibility", ""))
-                mtype = item.get("media_type", [""])[0] if isinstance(item.get("media_type"), list) else ""
-                title = item.get("title", [""])[0] if isinstance(item.get("title"), list) else ""
-                taxonomy = item.get("physical_object_taxonomy_name", [""])[0] if isinstance(item.get("physical_object_taxonomy_name"), list) else ""
+                mid = _safe_first(item.get("id"))
+                vis = _safe_first(item.get("visibility"))
+                mtype = _safe_first(item.get("media_type"))
+                title = _safe_first(item.get("title"))
+                taxonomy = _safe_first(item.get("physical_object_taxonomy_name"))
 
                 if not mid or mid in seen:
                     continue
@@ -1317,8 +1324,15 @@ def main():
     with open("research_report.json", "w") as f:
         json.dump(output, f, indent=2)
 
-    last = result["all_results"][-1] if result["all_results"] else {}
-    report_text = last.get("report", {}).get("report", "") if isinstance(last.get("report"), dict) else ""
+    try:
+        last = result["all_results"][-1] if result.get("all_results") else {}
+    except (IndexError, KeyError):
+        last = {}
+    report_text = ""
+    if isinstance(last.get("report"), dict):
+        report_text = last["report"].get("report", "")
+    elif isinstance(last.get("report"), str):
+        report_text = last["report"]
     if report_text:
         with open("research_report.md", "w") as f:
             f.write(report_text)

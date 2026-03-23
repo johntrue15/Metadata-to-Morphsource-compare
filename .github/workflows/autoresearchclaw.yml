@@ -148,7 +148,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           ISSUE_NUMBER: ${{ needs.create-research-issue.outputs.issue_number }}
-          DEBUG: 'true'
+          DEBUG: 'false'
         working-directory: .github/scripts
         run: |
           MEDIA_ARG=""
@@ -163,7 +163,13 @@ jobs:
             "${{ inputs.research_topic }}" \
             --research-depth ${{ inputs.research_depth || 10 }} \
             --github-issues ${{ inputs.github_issues || 3 }} \
-            $MEDIA_ARG $LIST_ARG
+            $MEDIA_ARG $LIST_ARG \
+            > research_agent.log 2>&1
+          EXIT_CODE=$?
+          echo "Agent exited with code $EXIT_CODE"
+          echo "Log size: $(wc -l < research_agent.log) lines"
+          tail -20 research_agent.log
+          exit $EXIT_CODE
 
       - name: Upload research artifacts
         if: always()
@@ -173,6 +179,7 @@ jobs:
           path: |
             .github/scripts/research_report.json
             .github/scripts/research_report.md
+            .github/scripts/research_agent.log
           if-no-files-found: warn
 
       - name: Post final status to tracking issue

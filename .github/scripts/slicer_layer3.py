@@ -127,14 +127,17 @@ def find_comparison_specimens(layer2: dict, research_topic: str, max_specimens: 
             response = data.get("response", data)
             for key in ("media", "physical_objects"):
                 items = response.get(key, [])
+                def _sf(v):
+                    return str(v[0]) if isinstance(v, list) and v else (str(v) if v else "")
+
                 for item in items:
-                    mid = item.get("id", [""])[0] if isinstance(item.get("id"), list) else str(item.get("id", ""))
+                    mid = _sf(item.get("id"))
                     if mid and mid not in seen_ids:
                         seen_ids.add(mid)
-                        visibility = item.get("visibility", [""])[0] if isinstance(item.get("visibility"), list) else ""
-                        media_type = item.get("media_type", [""])[0] if isinstance(item.get("media_type"), list) else ""
-                        taxonomy = item.get("physical_object_taxonomy_name", [""])[0] if isinstance(item.get("physical_object_taxonomy_name"), list) else ""
-                        title = item.get("title", [""])[0] if isinstance(item.get("title"), list) else ""
+                        visibility = _sf(item.get("visibility"))
+                        media_type = _sf(item.get("media_type"))
+                        taxonomy = _sf(item.get("physical_object_taxonomy_name"))
+                        title = _sf(item.get("title"))
 
                         if "mesh" in media_type.lower() or "mesh" in title.lower():
                             all_results.append({

@@ -445,7 +445,7 @@ https://www.morphosource.org/api/physical-objects?f%5Btaxonomy_gbif%5D%5B%5D=Ser
         response = client.chat.completions.create(**llm_kwargs)
         
         result_text = response.choices[0].message.content.strip()
-        print(f"ChatGPT response: {result_text}")
+        print(f"ChatGPT response: {result_text[:200]}")
         
         # Parse the URL response - the new prompt outputs URLs, not JSON
         try:
