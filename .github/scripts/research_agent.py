@@ -395,9 +395,22 @@ def _summarize_seed(seed_data):
 # ---------------------------------------------------------------------------
 
 _DECOMPOSE_SYSTEM = (
-    "You are a research planning assistant for MorphoSource (a database of 3-D "
-    "specimen scans, media and physical objects). Decompose the user's research "
-    "goal into 3-5 specific search queries.\n\n"
+    "You are a research planning assistant for MorphoSource, a database of 3-D "
+    "specimen scans searchable via a REST API.\n\n"
+    "Generate 3-5 SHORT search queries (2-6 words each) that will be sent to "
+    "the MorphoSource API. Each query becomes a `q=` parameter in an API call.\n\n"
+    "GOOD queries (short, concrete, API-friendly):\n"
+    '  "Gorilla gorilla skull mesh"\n'
+    '  "Pan troglodytes femur CT"\n'
+    '  "primate cranium open download"\n'
+    '  "Pongo pygmaeus humerus"\n'
+    '  "lemur skull 3D scan"\n\n'
+    "BAD queries (too long, instructions, not searchable):\n"
+    '  "Build a deduplicated specimen-level census..." (this is an instruction, not a search)\n'
+    '  "site:morphosource.org ..." (this is a Google query, not an API query)\n'
+    '  "physical_object_taxonomy_name:..." (this is raw Solr syntax)\n\n'
+    "Use biological taxonomy names (genus, species, family) combined with "
+    "anatomy terms (skull, femur, tibia, mandible) and media types (mesh, CT, scan).\n\n"
     "Return a JSON object: {\"queries\": [{\"query\": \"...\", \"rationale\": \"...\"}]}\n"
     "Return ONLY the JSON object."
 )
@@ -767,11 +780,14 @@ def _find_downloadable_media_ids(search_results):
     return candidates
 
 
+MAX_DOWNLOADS_PER_RUN = 5
+
+
 def _should_analyze_specimen(cycle, total_depth, memory, candidates):
     """Decide whether to download and analyze a specimen this cycle.
 
     Strategy: analyze on cycle 3, then every 5 cycles, if we have candidates.
-    Also analyze if the LLM evaluation specifically recommends it.
+    Hard limit of MAX_DOWNLOADS_PER_RUN downloads per run.
     """
     if not candidates:
         return False, None
@@ -779,12 +795,13 @@ def _should_analyze_specimen(cycle, total_depth, memory, candidates):
     analyzed = memory.get("specimens_analyzed", []) if memory else []
     analyzed_ids = {s.get("media_id") for s in analyzed}
 
-    # Filter out already-analyzed specimens
+    if len(analyzed) >= MAX_DOWNLOADS_PER_RUN:
+        return False, None
+
     new_candidates = [c for c in candidates if c["media_id"] not in analyzed_ids]
     if not new_candidates:
         return False, None
 
-    # Analyze on cycle 3, then every 5 cycles
     if cycle == 3 or (cycle > 3 and cycle % 5 == 0):
         return True, new_candidates[0]
 
