@@ -1,0 +1,252 @@
+{
+  "topic": "Analyze chameleon optic nerve morphology using CT skull data from MorphoSource",
+  "research_depth": 5,
+  "github_issues_created": 0,
+  "iteration_issues": [],
+  "final_memory": {
+    "iteration": 5,
+    "queries_tried": [
+      {
+        "query": "physical_object_taxonomy_name:\"Chamaeleo calyptratus\" AND modality:\"MicroNanoXRayComputedTomography\" AND (media_type:\"Mesh\" OR media_type:\"Volumetric Image Stack\") AND (title:Skull OR title:Cranium OR media:*skull*)",
+        "count": 10
+      },
+      {
+        "query": "physical_object_taxonomy_name:Chamaeleonidae AND modality:\"MicroNanoXRayComputedTomography\" AND (title:Skull OR title:Cranium OR media:*skull*)",
+        "count": 0
+      },
+      {
+        "query": "physical_object_taxonomy_name:(Chamaeleo OR Furcifer OR Trioceros OR Bradypodion) AND modality:\"MicroNanoXRayComputedTomography\" AND (media_type:\"Volumetric Image Stack\" OR media_type:\"Mesh\") AND (title:Head OR title:Skull OR title:Cranium)",
+        "count": 10
+      },
+      {
+        "query": "physical_object_taxonomy_name:(Chamaeleonidae OR Iguania) AND modality:\"MicroNanoXRayComputedTomography\" AND anatomical_region:(orbit OR orbital OR neurocranium OR skull OR cranium)",
+        "count": 0
+      },
+      {
+        "query": "physical_object_taxonomy_name:\"Chamaeleo calyptratus\" AND physical_object_organization:\"FLMNH Division of Herpetology\" AND (media_parent_id:\"000408242\" OR physical_object_id:\"000408235\" OR physical_object_title:\"uf:herp:191369\")",
+        "count": 1
+      },
+      {
+        "query": "physical",
+        "count": 12
+      },
+      {
+        "query": "object",
+        "count": 12
+      },
+      {
+        "query": "taxonomy",
+        "count": 12
+      },
+      {
+        "query": "name",
+        "count": 12
+      },
+      {
+        "query": "Chamaeleonidae",
+        "count": 12
+      },
+      {
+        "query": "physical",
+        "count": 12
+      },
+      {
+        "query": "object",
+        "count": 12
+      },
+      {
+        "query": "taxonomy",
+        "count": 12
+      },
+      {
+        "query": "name",
+        "count": 12
+      },
+      {
+        "query": "Chamaeleonidae",
+        "count": 12
+      },
+      {
+        "query": "physical_object_taxonomy_name:\"Furcifer pardalis\" AND modality:\"MicroNanoXRayComputedTomography\" AND (media_type:\"Volumetric Image Stack\" OR media_type:\"Mesh\") AND (title:Skull OR title:Cranium OR title:Head)",
+        "count": 10
+      },
+      {
+        "query": "physical_object_taxonomy_name:\"Trioceros melleri\" AND modality:\"MicroNanoXRayComputedTomography\" AND (media_type:\"Volumetric Image Stack\" OR media_type:\"Mesh\") AND (title:Skull OR title:Cranium OR title:Head)",
+        "count": 3
+      },
+      {
+        "query": "physical_object_taxonomy_name:(Chamaeleo OR Furcifer OR Trioceros OR Bradypodion) AND modality:\"MicroNanoXRayComputedTomography\" AND (media_type:\"Volumetric Image Stack\" OR media_type:\"Mesh\") AND (title:orbit OR title:orbital OR title:braincase OR title:neurocranium OR title:foramen OR title:\"optic\")",
+        "count": 10
+      },
+      {
+        "query": "physical_object_taxonomy_name:\"Chamaeleo calyptratus\" AND modality:\"MicroNanoXRayComputedTomography\" AND (description:orbit OR description:orbital OR description:braincase OR description:foramen OR description:\"optic\" OR keyword:orbit OR keyword:foramen)",
+        "count": 10
+      },
+      {
+        "query": "physical_object_taxonomy_name:\"Chamaeleo calyptratus\" AND physical_object_organization:\"FLMNH Division of Herpetology\" AND modality:\"MicroNanoXRayComputedTomography\"",
+        "count": 10
+      },
+      {
+        "query": "physical_object_taxonomy_name:\"Furcifer pardalis\" AND modality:\"MicroNanoXRayComputedTomography\" AND physical_object_organization:\"FLMNH Division of Herpetology\" AND (media_type:\"Volumetric Image Stack\" OR media_type:\"Mesh\") AND (title:Skull OR title:Cranium OR title:Head)",
+        "count": 5
+      },
+      {
+        "query": "physical_object_taxonomy_name:\"Chamaeleo calyptratus\" AND modality:\"MicroNanoXRayComputedTomography\" AND physical_object_organization:\"FLMNH Division of Herpetology\" AND (media_type:\"Volumetric Image Stack\" OR media_type:\"Mesh\") AND (title:Skull OR title:Cranium OR title:Head OR description:braincase OR description:foramen OR keyword:optic)",
+        "count": 12
+      },
+      {
+        "query": "physical_object_taxonomy_name:\"Trioceros melleri\" AND modality:\"MicroNanoXRayComputedTomography\" AND (media_type:\"Volumetric Image Stack\" OR media_type:\"Mesh\") AND (title:Skull OR title:Cranium OR title:Head OR description:braincase OR description:foramen OR keyword:orbit OR keyword:optic)",
+        "count": 3
+      },
+      {
+        "query": "physical_object_taxonomy_name:(Bradypodion OR Furcifer OR Trioceros OR Chamaeleo) AND modality:\"MicroNanoXRayComputedTomography\" AND (media_type:\"Volumetric Image Stack\" OR media_type:\"Mesh\") AND (title:Skull OR title:Cranium OR title:Head) AND (description:\"optic foramen\" OR description:\"optic canal\" OR description:braincase OR description:orbitosphenoid OR description:laterosphenoid OR keyword:foramen OR keyword:optic)",
+        "count": 10
+      },
+      {
+        "query": "media_parent_id:\"000408242\" OR physical_object_id:\"000408235\" OR specimen_id:\"uf:herp:191369\"",
+        "count": 1
+      },
+      {
+        "query": "physical_object_taxonomy_name:\"Chamaeleo calyptratus\" AND physical_object_organization:\"FLMNH Division of Herpetology\" AND modality:\"MicroNanoXRayComputedTomography\" AND media_type:\"Volumetric Image Stack\" AND (title:Skull OR title:Cranium OR title:Head OR description:braincase OR description:foramen OR description:\"optic canal\" OR keyword:optic OR keyword:foramen)",
+        "count": 10
+      },
+      {
+        "query": "physical_object_taxonomy_name:\"Furcifer pardalis\" AND physical_object_organization:\"FLMNH Division of Herpetology\" AND modality:\"MicroNanoXRayComputedTomography\" AND media_type:\"Volumetric Image Stack\" AND (title:Skull OR title:Cranium OR title:Head OR description:braincase OR description:foramen OR description:\"optic canal\" OR keyword:optic OR keyword:foramen)",
+        "count": 5
+      },
+      {
+        "query": "physical_object_taxonomy_name:\"Trioceros melleri\" AND modality:\"MicroNanoXRayComputedTomography\" AND media_type:\"Volumetric Image Stack\" AND (title:Skull OR title:Cranium OR title:Head OR description:braincase OR description:foramen OR description:\"optic canal\" OR keyword:optic OR keyword:foramen)",
+        "count": 3
+      },
+      {
+        "query": "physical_object_taxonomy_name:(Bradypodion OR Furcifer OR Trioceros OR Chamaeleo) AND modality:\"MicroNanoXRayComputedTomography\" AND media_type:\"Volumetric Image Stack\" AND (title:Skull OR title:Cranium OR title:Head) AND (description:\"optic foramen\" OR description:\"optic canal\" OR description:orbitosphenoid OR description:laterosphenoid OR description:braincase OR keyword:optic OR keyword:foramen)",
+        "count": 0
+      },
+      {
+        "query": "physical_object_taxonomy_name:(\"Chamaeleo calyptratus\" OR \"Furcifer pardalis\" OR \"Trioceros melleri\") AND modality:\"MicroNanoXRayComputedTomography\" AND media_type:\"Volumetric Image Stack\" AND NOT physical_object_organization:\"FLMNH Division of Herpetology\" AND (title:Skull OR title:Cranium OR title:Head OR description:braincase OR description:foramen OR description:\"optic canal\" OR keyword:optic OR keyword:foramen)",
+        "count": 10
+      },
+      {
+        "query": "physical",
+        "count": 12
+      },
+      {
+        "query": "object",
+        "count": 12
+      },
+      {
+        "query": "taxonomy",
+        "count": 12
+      },
+      {
+        "query": "name",
+        "count": 12
+      },
+      {
+        "query": "Bradypodion",
+        "count": 12
+      },
+      {
+        "query": "physical",
+        "count": 12
+      },
+      {
+        "query": "object",
+        "count": 12
+      },
+      {
+        "query": "taxonomy",
+        "count": 12
+      },
+      {
+        "query": "name",
+        "count": 12
+      },
+      {
+        "query": "Bradypodion",
+        "count": 12
+      },
+      {
+        "query": "physical_object_taxonomy_name:\"Bradypodion\" AND modality:\"MicroNanoXRayComputedTomography\" AND media_type:\"Volumetric Image Stack\" AND (title:Skull OR title:Cranium OR title:Head)",
+        "count": 10
+      },
+      {
+        "query": "physical_object_taxonomy_name:(\"Chamaeleo calyptratus\" OR \"Furcifer pardalis\" OR \"Trioceros melleri\") AND NOT physical_object_organization:\"FLMNH Division of Herpetology\" AND modality:\"MicroNanoXRayComputedTomography\" AND media_type:\"Volumetric Image Stack\" AND (title:Skull OR title:Cranium OR title:Head)",
+        "count": 12
+      },
+      {
+        "query": "physical_object_taxonomy_name:\"Chamaeleo calyptratus\" AND physical_object_organization:\"FLMNH Division of Herpetology\" AND modality:\"MicroNanoXRayComputedTomography\" AND (media_type:\"Volumetric Image Stack\" OR media_type:Mesh) AND (title:Skull OR title:Cranium OR title:Head)",
+        "count": 10
+      },
+      {
+        "query": "physical_object_taxonomy_name:\"Furcifer pardalis\" AND physical_object_organization:\"FLMNH Division of Herpetology\" AND modality:\"MicroNanoXRayComputedTomography\" AND media_type:\"Volumetric Image Stack\" AND (title:Skull OR title:Cranium OR title:Head)",
+        "count": 5
+      },
+      {
+        "query": "physical_object_taxonomy_name:\"Trioceros melleri\" AND modality:\"MicroNanoXRayComputedTomography\" AND media_type:\"Volumetric Image Stack\" AND (title:Skull OR title:Cranium OR title:Head)",
+        "count": 3
+      }
+    ],
+    "dead_ends": [
+      "Title/description keyword hits may reflect generic head or skull scans rather than scans intentionally capturing the orbital or neurocranial structures needed for this project.",
+      "Result counts still do not validate anatomical suitability; no specimen-level inspection was performed to confirm skull completeness, resolution, or visibility of the optic canal/foramen region.",
+      "Result counts are capped or summarized at 10, so current outputs still do not reveal record-level metadata, scan resolution, or exact anatomical coverage.",
+      "Family-level taxonomy searches such as Chamaeleonidae have previously underperformed compared with species- or genus-level targeting.",
+      "Several malformed or tokenized searches ('physical', 'object', 'taxonomy', 'name', 'Bradypodion') produced generic capped counts of 12 and added no interpretable signal.",
+      "Trioceros melleri has limited result volume, which may restrict its usefulness unless individual scans prove exceptionally high quality.",
+      "The accumulated history includes malformed or fragmented prior query logging entries (e.g., isolated terms like 'physical', 'object', 'taxonomy'), which do not contribute meaningfully to dataset discovery.",
+      "The broader multi-genus anatomical query using highly specific terms like optic foramen, optic canal, orbitosphenoid, and laterosphenoid returned 0 results, showing that these descriptors are rarely indexed explicitly.",
+      "Direct optic-nerve-specific terminology remains weak as a discriminator, forcing reliance on proxy anatomy terms like skull, orbit, braincase, and foramen.",
+      "Searches still rely on result counts only; no record-level metadata or preview inspection yet confirms whether optic foramina or canals are actually visible and segmentable.",
+      "The specimen-link query returned only a single result, suggesting that direct ID chaining is useful for validation but not for broad discovery.",
+      "Direct optic-nerve and optic-canal terminology continues to be unproductive in MorphoSource metadata, so anatomy-specific keyword targeting remains a poor primary strategy.",
+      "Current result logs provide counts only, not specimen/media metadata, so no direct assessment yet of optic nerve canal visibility, orbit preservation, resolution, or scan completeness.",
+      "Bradypodion remains unresolved in practice because the only apparent searches associated with it were malformed rather than well-structured taxon-specific queries.",
+      "Broad family-level taxonomy and anatomical_region-based strategies remain weak or non-informative compared with species/genus-level searches.",
+      "Family-level query using physical_object_taxonomy_name:Chamaeleonidae with micro/nano CT and skull/cranium terms returned 0 results.",
+      "No direct confirmation yet that any returned scans preserve the optic foramen/canal or internal cranial morphology at sufficient quality for optic nerve inference.",
+      "Broader taxonomic query using physical_object_taxonomy_name:(Chamaeleonidae OR Iguania) with anatomical_region filters returned 0 results, indicating anatomical_region may be poorly populated or mismatched to relevant records.",
+      "Several malformed or tokenized searches (\"physical\", \"object\", \"taxonomy\", \"name\", \"Chamaeleonidae\") each returned generic 12-result outputs and do not provide interpretable research signal."
+    ],
+    "all_discoveries": [
+      "Species-level querying works better than family-level querying: \"Chamaeleo calyptratus\" with micro/nano CT and skull/cranium terms returned 10 results.",
+      "Genus-level querying across chameleon genera (Chamaeleo, Furcifer, Trioceros, Bradypodion) also returned 10 results, suggesting relevant skull/head CT media exist beyond a single species.",
+      "A specific FLMNH Division of Herpetology specimen pathway appears valid: \"Chamaeleo calyptratus\" linked to media_parent_id 000408242 / physical_object_id 000408235 / uf:herp:191369 returned 1 result.",
+      "MorphoSource search appears sensitive to field choice: title-based skull/head/cranium filters produced results, while anatomical_region-based orbit/neurocranium filters returned none.",
+      "There is at least some chameleon CT skull coverage in MorphoSource suitable for cranial morphology work, potentially including mesh and volumetric image stack media.",
+      "Species-level chameleon searches continue to outperform family-level searches for finding relevant MorphoSource CT material.",
+      "Furcifer pardalis is a strong signal taxon, returning 10 micro/nano CT skull/head/cranium results, suggesting a potentially rich cranial dataset for comparative optic-region work.",
+      "Trioceros melleri also returned positive results (3), indicating the dataset landscape is not limited to a single species and may support cross-species comparisons.",
+      "Multi-genus chameleon searches using optic-region proxy terms (orbit, orbital, braincase, neurocranium, foramen, optic) returned 10 results, showing that anatomy-proxy keywording is more promising than anatomical_region fields.",
+      "Chamaeleo calyptratus remains a high-yield focal species, with 10 results both for anatomy-proxy description/keyword searches and for FLMNH Division of Herpetology micro/nano CT material.",
+      "Institution-linked searching appears productive: FLMNH Division of Herpetology is likely a useful collection anchor for deeper specimen- and media-level investigation.",
+      "FLMNH Division of Herpetology appears to be a strong institutional source for chameleon cranial microCT data relevant to optic nerve morphology.",
+      "Chamaeleo calyptratus is currently the highest-yield focal species, with 12 FLMNH microCT skull/head/cranium hits when optic/foramen/braincase proxy terms are included.",
+      "Furcifer pardalis remains a robust secondary species lead, with 5 FLMNH skull/head/cranium microCT hits under a tighter institution-specific query and 10 hits in earlier broader searches.",
+      "Trioceros melleri continues to provide a smaller but real comparative dataset signal, with 3 skull/head/cranium microCT hits.",
+      "Multi-genus searches across Bradypodion, Furcifer, Trioceros, and Chamaeleo using cranial-anatomy proxy terms still recover 10 results, supporting the usefulness of indirect optic-pathway search terms such as foramen, braincase, orbitosphenoid, and laterosphenoid.",
+      "A specific record linkage was confirmed through media_parent_id/physical_object_id/specimen_id, indicating that specimen-level drill-down and parent-child media tracing are feasible in MorphoSource.",
+      "Institution-focused filtering continues to show FLMNH Division of Herpetology as the strongest source of candidate chameleon skull microCT data for optic nerve morphology work.",
+      "A strict volumetric-stack-only query recovered 10 results for Chamaeleo calyptratus at FLMNH, indicating a solid species-level dataset for downstream specimen vetting.",
+      "Furcifer pardalis also appears usable, with 5 FLMNH volumetric image stack results under skull/head/cranium and cranial-anatomy filters.",
+      "Trioceros melleri remains represented, with 3 volumetric image stack results, giving at least a modest comparative outgroup within chameleons.",
+      "A non-FLMNH query across Chamaeleo calyptratus, Furcifer pardalis, and Trioceros melleri returned 10 results, suggesting relevant holdings are not confined to a single institution.",
+      "Bradypodion emerges as a productive additional genus, with 10 microCT volumetric image stack results for skull/cranium/head-focused records.",
+      "Chamaeleo calyptratus remains a strong target within FLMNH Division of Herpetology, yielding 10 skull/head-focused microCT records under strict modality filters.",
+      "Furcifer pardalis has a smaller but still usable FLMNH skull microCT set, with 5 volumetric image stack results.",
+      "Trioceros melleri is represented more sparsely, with 3 volumetric image stack results, but still remains a viable comparative taxon.",
+      "Institutional diversification is feasible: non-FLMNH records for Chamaeleo calyptratus, Furcifer pardalis, and Trioceros melleri total 12 results under the same skull/head and microCT constraints.",
+      "The current search strategy is now clearly effective when centered on taxon plus skull/head/cranium plus microCT volumetric stack filters, rather than optic-specific metadata."
+    ],
+    "next_directions": [
+      "Inspect specimen-level records within the 10 Bradypodion results to determine species diversity, cranial completeness, and whether the orbit/optic canal region is visible at sufficient resolution.",
+      "Profile the 12 non-FLMNH Chamaeleo/Furcifer/Trioceros records by institution to identify secondary collection hubs that could expand the comparative sample beyond FLMNH.",
+      "Retrieve and compare metadata fields such as voxel size, scan resolution, life stage, and preparation quality for FLMNH Chamaeleo calyptratus and Furcifer pardalis candidates.",
+      "Search species-level Bradypodion queries and broader chameleon genera not yet tested in depth to see whether the apparent Bradypodion signal can be expanded into a richer phylogenetic sampling.",
+      "Examine whether meshes or derivative media exist for the strongest volumetric stacks, since surface models may help with cranial foramen localization even if volumetric stacks remain primary."
+    ],
+    "summary": "This iteration was a strong advance because it expanded the candidate chameleon dataset beyond the previously emphasized FLMNH-centered taxa and identified Bradypodion as a notably productive additional genus. The searches confirmed that strict filters on Micro/Nano X-ray CT volumetric image stacks combined with skull/cranium/head metadata continue to return the most relevant material. FLMNH still appears to be the densest source for Chamaeleo calyptratus and Furcifer pardalis, while Trioceros melleri remains present but comparatively sparse. The 12 non-FMNLH results for the main focal taxa also reinforce that there is meaningful room for cross-institutional sampling.\n\nThe broader methodological picture is now clearer: MorphoSource metadata is not likely to expose optic nerve morphology datasets through direct anatomical terminology, so the practical route is to assemble a skull-focused CT corpus first and evaluate optic-canal visibility record by record. The major outstanding task is no longer discovery of broad candidate pools, but specimen-level triage. To move toward an analysis-ready corpus for optic nerve morphology, the next iterations should focus on scan quality, voxel size, cranial completeness, anatomical coverage around the orbit and braincase, and institutional clustering of the newly identified non-FLMNH and Bradypodion material.",
+    "score": 8
+  },
+  "run_id": "20260322_170151_analyze_chameleon_optic_nerve_morphology"
+}

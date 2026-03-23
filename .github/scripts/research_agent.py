@@ -705,10 +705,100 @@ def _format_memory_for_llm(memory):
     nexts = memory.get("next_directions", [])
     if nexts:
         parts.append("Next directions:\n" + "\n".join(f"  - {n}" for n in nexts))
+    specimens = memory.get("specimens_analyzed", [])
+    if specimens:
+        parts.append("Specimens analyzed with 3D Slicer:\n" + "\n".join(
+            f"  - media {s['media_id']}: {s.get('summary', '')[:150]}" for s in specimens[-5:]))
+
     summary = memory.get("summary", "")
     if summary:
         parts.append(f"Running summary:\n{summary}")
     return "\n\n".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# Specimen analysis tool call (3D Slicer integration)
+# ---------------------------------------------------------------------------
+
+
+def _find_downloadable_media_ids(search_results):
+    """Extract media IDs of open-access mesh specimens from search results.
+
+    Only returns specimens with visibility explicitly set to 'open'.
+    Restricted, restricted_download, and unknown visibility are skipped.
+    """
+    candidates = []
+    seen = set()
+    for r in search_results:
+        data = r.get("result_data", {})
+        response = data.get("response", data)
+        for key in ("media", "physical_objects"):
+            items = response.get(key, [])
+            for item in items:
+                mid = item.get("id", [""])[0] if isinstance(item.get("id"), list) else str(item.get("id", ""))
+                vis = item.get("visibility", [""])[0] if isinstance(item.get("visibility"), list) else str(item.get("visibility", ""))
+                mtype = item.get("media_type", [""])[0] if isinstance(item.get("media_type"), list) else ""
+                title = item.get("title", [""])[0] if isinstance(item.get("title"), list) else ""
+                taxonomy = item.get("physical_object_taxonomy_name", [""])[0] if isinstance(item.get("physical_object_taxonomy_name"), list) else ""
+
+                if not mid or mid in seen:
+                    continue
+                # STRICT: only open-access specimens
+                if vis.lower() != "open":
+                    continue
+                if not ("mesh" in mtype.lower() or "mesh" in title.lower()):
+                    continue
+
+                seen.add(mid)
+                candidates.append({
+                    "media_id": mid, "title": title,
+                    "media_type": mtype, "taxonomy": taxonomy,
+                    "visibility": vis,
+                })
+                log.debug("Open-access candidate: %s (%s) - %s", mid, taxonomy, title)
+    log.info("Found %d open-access downloadable mesh specimens", len(candidates))
+    return candidates
+
+
+def _should_analyze_specimen(cycle, total_depth, memory, candidates):
+    """Decide whether to download and analyze a specimen this cycle.
+
+    Strategy: analyze on cycle 3, then every 5 cycles, if we have candidates.
+    Also analyze if the LLM evaluation specifically recommends it.
+    """
+    if not candidates:
+        return False, None
+
+    analyzed = memory.get("specimens_analyzed", []) if memory else []
+    analyzed_ids = {s.get("media_id") for s in analyzed}
+
+    # Filter out already-analyzed specimens
+    new_candidates = [c for c in candidates if c["media_id"] not in analyzed_ids]
+    if not new_candidates:
+        return False, None
+
+    # Analyze on cycle 3, then every 5 cycles
+    if cycle == 3 or (cycle > 3 and cycle % 5 == 0):
+        return True, new_candidates[0]
+
+    return False, None
+
+
+def _run_specimen_analysis(media_id, topic):
+    """Call the SlicerTool to download and analyze a specimen."""
+    try:
+        from slicer_tool import analyze_specimen
+        log.info("SlicerTool: analyzing specimen %s", media_id)
+        result = analyze_specimen(media_id, topic)
+        log.info("SlicerTool result: success=%s, duration=%.1fs",
+                 result.get("success"), result.get("duration_s", 0))
+        return result
+    except ImportError:
+        log.warning("slicer_tool not available")
+        return {"success": False, "error": "slicer_tool not importable", "media_id": media_id}
+    except Exception as exc:
+        log.error("SlicerTool failed: %s", exc)
+        return {"success": False, "error": str(exc), "media_id": media_id}
 
 
 # ---------------------------------------------------------------------------
@@ -717,7 +807,7 @@ def _format_memory_for_llm(memory):
 
 
 def run_single_cycle(topic, cycle, total_depth, memory, seed_context=None, program=""):
-    """One fast cycle: decompose -> search -> refine -> evaluate -> memory."""
+    """One fast cycle: decompose -> search -> refine -> evaluate -> [analyze specimen] -> memory."""
     t0 = time.time()
     log.info("--- Cycle %d/%d ---", cycle, total_depth)
 
@@ -752,6 +842,47 @@ def run_single_cycle(topic, cycle, total_depth, memory, seed_context=None, progr
     evaluation = evaluate_iteration(topic, search_results, memory, program)
     new_memory = _build_memory(cycle, search_results, evaluation, memory)
 
+    # --- Specimen analysis tool call ---
+    candidates = _find_downloadable_media_ids(search_results)
+    should_analyze, specimen = _should_analyze_specimen(cycle, total_depth, memory, candidates)
+
+    specimen_result = None
+    if should_analyze and specimen:
+        log.info("Triggering specimen analysis: %s (%s)",
+                 specimen["media_id"], specimen.get("title", ""))
+        if _run_logger:
+            _run_logger.event(cycle, "specimen_download",
+                              media_id=specimen["media_id"],
+                              title=specimen.get("title", ""))
+
+        specimen_result = _run_specimen_analysis(specimen["media_id"], topic)
+
+        if specimen_result.get("success"):
+            summary = specimen_result.get("summary", "")
+            new_memory.setdefault("specimens_analyzed", []).append({
+                "media_id": specimen["media_id"],
+                "cycle": cycle,
+                "summary": summary[:500],
+                "analysis": {k: v for k, v in specimen_result.get("analysis", {}).items()
+                             if k not in ("screenshots",)},
+            })
+            new_memory["all_discoveries"].append(
+                f"SPECIMEN ANALYZED: {specimen['media_id']} — {summary[:200]}"
+            )
+            if _run_logger:
+                _run_logger.event(cycle, "specimen_analyzed",
+                                  media_id=specimen["media_id"],
+                                  success=True,
+                                  distances=specimen_result.get("analysis", {}).get("distances", {}))
+            log.info("Specimen analysis added to memory")
+        else:
+            if _run_logger:
+                _run_logger.event(cycle, "specimen_analyzed",
+                                  media_id=specimen["media_id"],
+                                  success=False,
+                                  error=specimen_result.get("error", ""))
+            log.warning("Specimen analysis failed: %s", specimen_result.get("error", ""))
+
     duration_ms = int((time.time() - t0) * 1000)
     if _run_logger:
         _run_logger.event(cycle, "evaluate",
@@ -759,6 +890,7 @@ def run_single_cycle(topic, cycle, total_depth, memory, seed_context=None, progr
                           discoveries=evaluation.get("discoveries", []),
                           duration_ms=duration_ms,
                           total_hits=total_hits,
+                          specimen_analyzed=specimen["media_id"] if specimen_result else None,
                           memory_summary=evaluation.get("summary", "")[:300])
 
     log.info("Cycle %d: score=%s/10, hits=%d, %dms",
@@ -771,6 +903,7 @@ def run_single_cycle(topic, cycle, total_depth, memory, seed_context=None, progr
                            for r in search_results],
         "total_hits": total_hits,
         "evaluation": evaluation,
+        "specimen_analyzed": specimen_result if specimen_result else None,
     }
     return result, new_memory, search_results
 
