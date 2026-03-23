@@ -30,60 +30,24 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _helpers import load_dotenv as _do_load_dotenv, call_llm, SLICER_BIN
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("Layer3")
 
-SLICER_BIN = "/Applications/Slicer.app/Contents/MacOS/Slicer"
-
-
-def _load_dotenv():
-    search = Path(__file__).resolve().parent
-    for _ in range(5):
-        env_file = search / ".env"
-        if env_file.is_file():
-            for line in env_file.read_text().splitlines():
-                line = line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, _, value = line.partition("=")
-                os.environ.setdefault(key.strip(), value.strip())
-            return
-        search = search.parent
-
-
-_load_dotenv()
+_do_load_dotenv()
 
 
 def _call_llm(system: str, user: str, max_tokens: int = 4000) -> str | None:
-    api_key = os.environ.get("OPENAI_API_KEY")
-    model = os.environ.get("OPENAI_MODEL", "gpt-5.4")
-    if not api_key:
-        return None
-    try:
-        from openai import OpenAI
-    except ImportError:
-        return None
-
-    client = OpenAI(api_key=api_key)
-    kwargs = {"model": model, "messages": [
-        {"role": "system", "content": system},
-        {"role": "user", "content": user},
-    ]}
-    is_reasoning = model.lower().startswith(("o1", "o3", "o4", "gpt-5"))
-    if is_reasoning:
-        kwargs["max_completion_tokens"] = max_tokens
-    else:
-        kwargs["max_tokens"] = max_tokens
-        kwargs["temperature"] = 0.4
-
-    try:
-        resp = client.chat.completions.create(**kwargs)
-        return (resp.choices[0].message.content or "").strip()
-    except Exception as exc:
-        log.error("LLM failed: %s", exc)
-        return None
+    """Local wrapper that adapts (system, user) signature to shared call_llm."""
+    return call_llm(
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        max_tokens=max_tokens,
+        label="Layer3",
+    )
 
 
 # ---------------------------------------------------------------------------

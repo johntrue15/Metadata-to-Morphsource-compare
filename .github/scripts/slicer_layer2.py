@@ -27,33 +27,13 @@ import textwrap
 import time
 from pathlib import Path
 
-# Add script dir to path for imports
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
+from _helpers import load_dotenv as _do_load_dotenv, call_llm, SLICER_BIN
 from literature_search import search_literature, Paper
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("Layer2")
 
-SLICER_BIN = "/Applications/Slicer.app/Contents/MacOS/Slicer"
-
-
-def _load_dotenv():
-    search = Path(__file__).resolve().parent
-    for _ in range(5):
-        env_file = search / ".env"
-        if env_file.is_file():
-            for line in env_file.read_text().splitlines():
-                line = line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, _, value = line.partition("=")
-                os.environ.setdefault(key.strip(), value.strip())
-            return
-        search = search.parent
-
-
-_load_dotenv()
+_do_load_dotenv()
 
 
 # ---------------------------------------------------------------------------
@@ -62,42 +42,16 @@ _load_dotenv()
 
 
 def _call_llm(system: str, user: str, max_tokens: int = 4000, json_mode: bool = False) -> str | None:
-    api_key = os.environ.get("OPENAI_API_KEY")
-    model = os.environ.get("OPENAI_MODEL", "gpt-5.4")
-    if not api_key:
-        log.warning("OPENAI_API_KEY not set")
-        return None
-
-    try:
-        from openai import OpenAI
-    except ImportError:
-        log.warning("openai not installed")
-        return None
-
-    client = OpenAI(api_key=api_key)
-    kwargs = {"model": model, "messages": [
-        {"role": "system", "content": system},
-        {"role": "user", "content": user},
-    ]}
-
-    is_reasoning = model.lower().startswith(("o1", "o3", "o4", "gpt-5"))
-    if is_reasoning:
-        kwargs["max_completion_tokens"] = max_tokens
-        if json_mode:
-            kwargs["messages"][0]["content"] += "\nRespond with valid JSON only."
-    else:
-        kwargs["max_tokens"] = max_tokens
-        kwargs["temperature"] = 0.4
-        if json_mode:
-            kwargs["response_format"] = {"type": "json_object"}
-
-    try:
-        resp = client.chat.completions.create(**kwargs)
-        content = resp.choices[0].message.content
-        return (content or "").strip()
-    except Exception as exc:
-        log.error("LLM call failed: %s", exc)
-        return None
+    """Local wrapper that adapts (system, user) signature to shared call_llm."""
+    return call_llm(
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        max_tokens=max_tokens,
+        json_mode=json_mode,
+        label="Layer2",
+    )
 
 
 def _call_vision(images: list[Path], prompt: str, max_tokens: int = 2000) -> str | None:

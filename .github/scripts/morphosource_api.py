@@ -172,7 +172,7 @@ def search_morphosource(api_params, formatted_query, query_info=None, max_retrie
 
     headers = {}
     if api_key:
-        headers['Authorization'] = f'Bearer {api_key}'
+        headers['Authorization'] = api_key
     
     attempt_history = []
     current_params = deepcopy(api_params)

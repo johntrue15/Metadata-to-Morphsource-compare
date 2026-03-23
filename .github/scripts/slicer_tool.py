@@ -25,31 +25,13 @@ import textwrap
 import time
 from pathlib import Path
 
+from _helpers import load_dotenv as _do_load_dotenv, SLICER_BIN, AUTORESEARCHCLAW_HOME, MORPHOSOURCE_API_BASE
+
 log = logging.getLogger("SlicerTool")
 
-SLICER_BIN = "/Applications/Slicer.app/Contents/MacOS/Slicer"
-DATA_DIR = Path.home() / ".autoresearchclaw" / "specimens"
-SCRIPT_DIR = Path(__file__).resolve().parent
+DATA_DIR = AUTORESEARCHCLAW_HOME / "specimens"
 
-sys.path.insert(0, str(SCRIPT_DIR))
-
-
-def _load_dotenv():
-    search = SCRIPT_DIR
-    for _ in range(5):
-        env_file = search / ".env"
-        if env_file.is_file():
-            for line in env_file.read_text().splitlines():
-                line = line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, _, value = line.partition("=")
-                os.environ.setdefault(key.strip(), value.strip())
-            return
-        search = search.parent
-
-
-_load_dotenv()
+_do_load_dotenv()
 
 
 # ---------------------------------------------------------------------------
@@ -309,11 +291,11 @@ def analyze_specimen(media_id: str, topic: str = "", skip_download: bool = False
             "summary": f"Specimen {media_id}: Slicer not available on this runner",
         }
 
-    # Check if already downloaded
+    # Check cache — reuse previously downloaded + analyzed specimens
     specimen_dir = DATA_DIR / f"media_{media_id}"
     existing_analysis = specimen_dir / "analysis" / "analysis.json"
-    if existing_analysis.exists() and skip_download:
-        log.info("Using cached analysis for %s", media_id)
+    if existing_analysis.exists():
+        log.info("CACHE HIT: reusing analysis for %s", media_id)
         analysis = json.loads(existing_analysis.read_text())
         summary = _build_summary(media_id, {"success": True}, analysis)
         return {
@@ -323,7 +305,8 @@ def analyze_specimen(media_id: str, topic: str = "", skip_download: bool = False
             "duration_s": round(time.time() - t0, 1),
         }
 
-    # Step 1: Download
+    # Step 1: Download (not cached)
+    log.info("CACHE MISS: downloading %s", media_id)
     download_result = _download_specimen(media_id)
     if not download_result.get("success"):
         summary = f"Specimen {media_id}: download FAILED — {download_result.get('error', 'unknown')}"

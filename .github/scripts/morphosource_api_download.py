@@ -25,21 +25,17 @@ from urllib.parse import unquote, urlparse
 
 import requests
 
+from _helpers import safe_first, load_dotenv as _do_load_dotenv, MORPHOSOURCE_API_BASE
+
 log = logging.getLogger("MorphoDownload")
 
-BASE = "https://www.morphosource.org/api"
+BASE = MORPHOSOURCE_API_BASE
 TIMEOUT = (10, 120)
 
 USE_STATEMENT = (
     "Automated download for comparative morphometric research analysis "
     "using AutoResearchClaw autonomous research agent workflow."
 )
-
-
-def _first(value: Any) -> str:
-    if isinstance(value, list):
-        return str(value[0]) if value else ""
-    return str(value) if value is not None else ""
 
 
 def header_filename(cd: Optional[str]) -> Optional[str]:
@@ -78,10 +74,10 @@ def get_visibility(api_data: Dict) -> str:
         if isinstance(media, dict):
             vis = media.get("visibility_ssi") or media.get("visibility")
             if vis:
-                return _first(vis).lower()
+                return safe_first(vis).lower()
         vis = response.get("visibility_ssi") or response.get("visibility")
         if vis:
-            return _first(vis).lower()
+            return safe_first(vis).lower()
     return "unknown"
 
 
@@ -253,31 +249,8 @@ def download_media(media_id: str, out_dir: str = "downloads") -> Dict[str, Any]:
         }
 
 
-def _load_dotenv():
-    from pathlib import Path as _P
-    try:
-        from dotenv import load_dotenv
-    except ImportError:
-        load_dotenv = None
-    search = _P(__file__).resolve().parent
-    for _ in range(5):
-        env_file = search / ".env"
-        if env_file.is_file():
-            if load_dotenv:
-                load_dotenv(env_file, override=False)
-            else:
-                for line in env_file.read_text().splitlines():
-                    line = line.strip()
-                    if not line or line.startswith("#") or "=" not in line:
-                        continue
-                    key, _, value = line.partition("=")
-                    os.environ.setdefault(key.strip(), value.strip())
-            return
-        search = search.parent
-
-
 if __name__ == "__main__":
-    _load_dotenv()
+    _do_load_dotenv()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
     media_id = os.environ.get("MEDIA_ID", "") or (sys.argv[1] if len(sys.argv) > 1 else "")

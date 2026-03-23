@@ -13,6 +13,8 @@ from pathlib import Path
 from urllib.parse import urlencode
 import importlib.util
 
+from _helpers import is_reasoning_model, get_openai_model
+
 
 def _load_dotenv():
     """Walk up from this script to find a .env file and load it."""
@@ -435,8 +437,8 @@ https://www.morphosource.org/api/physical-objects?f%5Btaxonomy_gbif%5D%5B%5D=Ser
             }
         ]
         
-        model = os.environ.get("OPENAI_MODEL", "gpt-5.4")
-        is_reasoning = model.lower().startswith(("o1", "o3", "o4", "gpt-5"))
+        model = get_openai_model()
+        is_reasoning = is_reasoning_model(model)
         llm_kwargs = {"model": model, "messages": messages}
         if is_reasoning:
             llm_kwargs["max_completion_tokens"] = 2000

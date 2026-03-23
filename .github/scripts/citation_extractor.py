@@ -18,8 +18,10 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, asdict
 from typing import Any, Dict, List, Optional
+
+from _helpers import safe_first
 
 log = logging.getLogger("CitationExtractor")
 
@@ -50,12 +52,6 @@ class Citation:
 # ---------------------------------------------------------------------------
 
 
-def _first(value: Any) -> str:
-    if isinstance(value, list):
-        return str(value[0]) if value else ""
-    return str(value) if value is not None else ""
-
-
 def extract_dois_from_record(record: Dict[str, Any]) -> List[Dict[str, str]]:
     """Extract DOIs from all text fields in a MorphoSource record."""
     doi_sources = []
@@ -71,7 +67,7 @@ def extract_dois_from_record(record: Dict[str, Any]) -> List[Dict[str, str]]:
     ]
 
     for field_name, value in fields_to_check:
-        text = _first(value) if value else ""
+        text = safe_first(value) if value else ""
         if not text:
             continue
         for match in DOI_PATTERN.finditer(text):
@@ -182,7 +178,7 @@ def extract_citations(record: Dict[str, Any], fetch_metadata: bool = True) -> Li
         citations.append(Citation(doi=doi, source_field=source, url=f"https://doi.org/{doi}"))
 
     # Also extract citation text even without DOIs
-    cite_as = _first(record.get("cite_as"))
+    cite_as = safe_first(record.get("cite_as"))
     if cite_as and not any(c.doi for c in citations):
         citations.append(Citation(
             title=cite_as[:200],

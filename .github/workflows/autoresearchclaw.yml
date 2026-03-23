@@ -132,6 +132,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+      - name: Restore specimen cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.autoresearchclaw/specimens
+          key: specimens-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            specimens-${{ runner.os }}-
+
       - name: Set up Python
         run: |
           export PATH="/opt/anaconda3/bin:$PATH"
@@ -181,6 +189,21 @@ jobs:
             .github/scripts/research_report.md
             .github/scripts/research_agent.log
           if-no-files-found: warn
+
+      - name: Upload knowledge graph
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: knowledge-graph
+          path: ~/.autoresearchclaw/graphs/*.json
+          if-no-files-found: ignore
+
+      - name: Log specimen cache status
+        if: always()
+        run: |
+          echo "Cached specimens:"
+          ls ~/.autoresearchclaw/specimens/ 2>/dev/null | head -20 || echo "  (none)"
+          du -sh ~/.autoresearchclaw/specimens/ 2>/dev/null || echo "  0B"
 
       - name: Post final status to tracking issue
         if: always()

@@ -22,7 +22,9 @@ import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Set
+
+from _helpers import safe_first
 
 log = logging.getLogger("KnowledgeGraph")
 
@@ -66,26 +68,18 @@ class KnowledgeGraph:
             self._edge_set.add(key)
             self.edges.append(Edge(source=source, target=target, relation=relation, properties=props))
 
-    # --- Extraction helpers ---
-
-    @staticmethod
-    def _first(value: Any) -> str:
-        if isinstance(value, list):
-            return str(value[0]) if value else ""
-        return str(value) if value is not None else ""
-
     # --- Add records ---
 
     def add_media_record(self, record: Dict[str, Any], media_list_id: str = ""):
         """Add a MorphoSource media record to the graph."""
-        mid = self._first(record.get("id"))
+        mid = safe_first(record.get("id"))
         if not mid:
             return
 
-        title = self._first(record.get("title"))
-        mtype = self._first(record.get("media_type"))
-        modality = self._first(record.get("modality"))
-        visibility = self._first(record.get("visibility"))
+        title = safe_first(record.get("title"))
+        mtype = safe_first(record.get("media_type"))
+        modality = safe_first(record.get("modality"))
+        visibility = safe_first(record.get("visibility"))
 
         media_id = self._add_node(
             f"media:{mid}", "Media", title or f"Media {mid}",
@@ -93,14 +87,14 @@ class KnowledgeGraph:
         )
 
         # Parent media
-        parent_id = self._first(record.get("media_parent_id"))
+        parent_id = safe_first(record.get("media_parent_id"))
         if parent_id:
             parent_nid = self._add_node(f"media:{parent_id}", "Media", f"Media {parent_id}")
             self._add_edge(media_id, parent_nid, "DERIVED_FROM")
 
         # Specimen
-        specimen_id = self._first(record.get("physical_object_id"))
-        specimen_title = self._first(record.get("physical_object_title"))
+        specimen_id = safe_first(record.get("physical_object_id"))
+        specimen_title = safe_first(record.get("physical_object_title"))
         if specimen_id:
             spec_nid = self._add_node(
                 f"specimen:{specimen_id}", "Specimen", specimen_title or f"Specimen {specimen_id}",
@@ -109,13 +103,13 @@ class KnowledgeGraph:
             self._add_edge(media_id, spec_nid, "BELONGS_TO")
 
             # Institution
-            org = self._first(record.get("physical_object_organization"))
+            org = safe_first(record.get("physical_object_organization"))
             if org:
                 org_nid = self._add_node(f"institution:{_slug(org)}", "Institution", org)
                 self._add_edge(spec_nid, org_nid, "HELD_BY")
 
             # Taxonomy
-            taxon_name = self._first(record.get("physical_object_taxonomy_name"))
+            taxon_name = safe_first(record.get("physical_object_taxonomy_name"))
             if taxon_name:
                 tax_nid = self._add_node(f"taxon:{_slug(taxon_name)}", "Taxon", taxon_name)
                 self._add_edge(spec_nid, tax_nid, "IS_TAXON")
@@ -130,7 +124,7 @@ class KnowledgeGraph:
 
         # DOIs / Citations
         for field_name in ("doi", "cite_as", "description"):
-            text = self._first(record.get(field_name))
+            text = safe_first(record.get(field_name))
             if text:
                 for doi_match in re.finditer(r'10\.\d{4,}/[^\s,;"\'\]>)]+', text):
                     doi = doi_match.group().rstrip(".")
@@ -171,7 +165,6 @@ class KnowledgeGraph:
     def verify_connections(self) -> Dict[str, Any]:
         """Verify graph integrity and find interesting patterns."""
         media_nodes = {n.id for n in self.nodes.values() if n.type == "Media"}
-        specimen_nodes = {n.id for n in self.nodes.values() if n.type == "Specimen"}
         paper_nodes = {n.id for n in self.nodes.values() if n.type == "Paper"}
 
         connected_media = set()

@@ -107,7 +107,8 @@ def get_term_hierarchy(term_id: str, ontology: str = "uberon") -> List[str]:
             data = json.loads(resp.read().decode("utf-8"))
         terms = data.get("_embedded", {}).get("terms", [])
         return [t.get("label", "") for t in terms if t.get("label")]
-    except Exception:
+    except Exception as exc:
+        log.debug("Hierarchy lookup failed: %s", exc)
         return []
 
 

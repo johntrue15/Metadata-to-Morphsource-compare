@@ -9,14 +9,19 @@ Run:  python3 dashboard.py
 """
 
 import json
+import logging
 import os
 import time
 from pathlib import Path
 
 from flask import Flask, Response, jsonify, render_template_string
 
+from _helpers import AUTORESEARCHCLAW_HOME
+
+log = logging.getLogger("Dashboard")
+
 app = Flask(__name__)
-LOG_DIR = Path.home() / ".autoresearchclaw" / "logs"
+LOG_DIR = AUTORESEARCHCLAW_HOME / "logs"
 
 # ---------------------------------------------------------------------------
 # Data helpers
@@ -34,7 +39,8 @@ def _list_runs():
             meta["has_log"] = jsonl.exists()
             meta["cycle_count"] = sum(1 for _ in open(jsonl) if jsonl.exists()) if jsonl.exists() else 0
             runs.append(meta)
-        except Exception:
+        except Exception as exc:
+            log.debug("Bad meta file: %s", exc)
             continue
     return runs
 

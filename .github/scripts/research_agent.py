@@ -26,36 +26,13 @@ import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
 
+from _helpers import safe_first, load_dotenv as _do_load_dotenv, call_llm as _shared_call_llm, is_reasoning_model, MORPHOSOURCE_API_BASE, AUTORESEARCHCLAW_HOME, get_openai_model, token_tracker
+
 # ---------------------------------------------------------------------------
 # Load .env for local development
 # ---------------------------------------------------------------------------
 
-
-def _load_dotenv():
-    try:
-        from dotenv import load_dotenv  # type: ignore
-    except ImportError:
-        load_dotenv = None
-    search = Path(__file__).resolve().parent
-    for _ in range(5):
-        env_file = search / ".env"
-        if env_file.is_file():
-            if load_dotenv:
-                load_dotenv(env_file, override=False)
-            else:
-                with open(env_file) as fh:
-                    for line in fh:
-                        line = line.strip()
-                        if not line or line.startswith("#") or "=" not in line:
-                            continue
-                        key, _, value = line.partition("=")
-                        os.environ.setdefault(key.strip(), value.strip())
-            return str(env_file)
-        search = search.parent
-    return None
-
-
-_load_dotenv()
+_do_load_dotenv()
 
 # ---------------------------------------------------------------------------
 # Console logging
@@ -95,13 +72,12 @@ except ImportError:
 # Configuration
 # ---------------------------------------------------------------------------
 
-OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.4")
+OPENAI_MODEL = get_openai_model()
 MAX_QUERIES = 5
 _LLM_RETRIES = 3
 MAX_REFINEMENT_ROUNDS = 2
-MORPHOSOURCE_API_BASE = "https://www.morphosource.org/api"
 SCRIPT_DIR = Path(__file__).resolve().parent
-LOG_DIR = Path.home() / ".autoresearchclaw" / "logs"
+LOG_DIR = AUTORESEARCHCLAW_HOME / "logs"
 
 log.info("Model: %s | Debug: %s", OPENAI_MODEL, _debug)
 
@@ -274,66 +250,17 @@ def _load_program(path=None):
 # ---------------------------------------------------------------------------
 
 
-def _is_reasoning_model(model_name):
-    m = model_name.lower()
-    return m.startswith(("o1", "o3", "o4", "gpt-5"))
+def _call_llm(messages, max_tokens=2000, json_mode=False, label="LLM", tier="peak"):
+    """Call LLM with tiered model selection.
 
-
-def _call_llm(messages, max_tokens=2000, json_mode=False, label="LLM"):
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        log.warning("[%s] OPENAI_API_KEY not set", label)
-        return None
-    if OpenAI is None:
-        log.warning("[%s] openai package not installed", label)
-        return None
-
-    client = OpenAI(api_key=api_key)
-    reasoning = _is_reasoning_model(OPENAI_MODEL)
-    kwargs = {"model": OPENAI_MODEL, "messages": messages}
-
-    if reasoning:
-        kwargs["max_completion_tokens"] = max_tokens
-        if json_mode:
-            msgs = list(messages)
-            if msgs and msgs[0]["role"] == "system":
-                msgs[0] = {**msgs[0], "content": msgs[0]["content"] + "\nRespond with valid JSON only."}
-            kwargs["messages"] = msgs
-    else:
-        kwargs["max_tokens"] = max_tokens
-        kwargs["temperature"] = 0.7
-        if json_mode:
-            kwargs["response_format"] = {"type": "json_object"}
-
-    log.debug("[%s] model=%s reasoning=%s tokens=%d", label, OPENAI_MODEL, reasoning, max_tokens)
-
-    try:
-        response = client.chat.completions.create(**kwargs)
-    except Exception as first_err:
-        err_str = str(first_err).lower()
-        if not reasoning and ("max_tokens" in err_str or "unsupported" in err_str):
-            log.info("[%s] Retrying as reasoning model", label)
-            kwargs.pop("max_tokens", None)
-            kwargs.pop("temperature", None)
-            kwargs.pop("response_format", None)
-            kwargs["max_completion_tokens"] = max_tokens
-            try:
-                response = client.chat.completions.create(**kwargs)
-            except Exception as retry_err:
-                log.error("[%s] Retry failed: %s", label, retry_err)
-                return None
-        else:
-            log.error("[%s] API call failed: %s", label, first_err)
-            return None
-
-    choice = response.choices[0] if response.choices else None
-    content = choice.message.content if choice else None
-    usage = response.usage
-    log.info("[%s] finish=%s len=%s usage=%s", label,
-             choice.finish_reason if choice else "none",
-             len(content) if content else 0,
-             f"{usage.prompt_tokens}/{usage.completion_tokens}" if usage else "N/A")
-    return (content or "").strip()
+    Tiers:
+        fast  -- cheap model for decomposition, query formatting, parsing
+        mid   -- balanced model for evaluation, summaries
+        peak  -- strongest model for synthesis, deep reasoning
+    """
+    from _helpers import call_llm as _hlp_call_llm
+    return _hlp_call_llm(messages, max_tokens=max_tokens, json_mode=json_mode,
+                         label=label, tier=tier)
 
 
 # ---------------------------------------------------------------------------
@@ -507,6 +434,7 @@ def decompose_topic(topic, seed_context=None, memory_context=None):
             [{"role": "system", "content": _DECOMPOSE_SYSTEM},
              {"role": "user", "content": user_content}],
             max_tokens=2000, json_mode=True, label=f"Decompose-{attempt}",
+            tier="fast",
         )
         if content is None:
             break
@@ -610,6 +538,7 @@ def synthesize_report(topic, search_results, seed_context=None, memory_context=N
             [{"role": "system", "content": _SYNTHESIS_SYSTEM},
              {"role": "user", "content": user_msg}],
             max_tokens=4000, label=f"Synthesize-{attempt}",
+            tier="peak",
         )
         if report is None:
             break
@@ -662,6 +591,7 @@ def evaluate_iteration(topic, search_results, memory, program=""):
         [{"role": "system", "content": _EVALUATE_SYSTEM},
          {"role": "user", "content": "\n\n".join(context_parts)}],
         max_tokens=2000, json_mode=True, label="Evaluate",
+        tier="mid",
     )
     if content:
         try:
@@ -734,13 +664,6 @@ def _format_memory_for_llm(memory):
 # ---------------------------------------------------------------------------
 
 
-def _safe_first(value):
-    """Safely get the first element from a MorphoSource field value."""
-    if isinstance(value, list):
-        return str(value[0]) if value else ""
-    return str(value) if value is not None else ""
-
-
 def _find_downloadable_media_ids(search_results):
     """Extract media IDs of open-access mesh specimens from search results.
 
@@ -755,11 +678,11 @@ def _find_downloadable_media_ids(search_results):
         for key in ("media", "physical_objects"):
             items = response.get(key, [])
             for item in items:
-                mid = _safe_first(item.get("id"))
-                vis = _safe_first(item.get("visibility"))
-                mtype = _safe_first(item.get("media_type"))
-                title = _safe_first(item.get("title"))
-                taxonomy = _safe_first(item.get("physical_object_taxonomy_name"))
+                mid = safe_first(item.get("id"))
+                vis = safe_first(item.get("visibility"))
+                mtype = safe_first(item.get("media_type"))
+                title = safe_first(item.get("title"))
+                taxonomy = safe_first(item.get("physical_object_taxonomy_name"))
 
                 if not mid or mid in seen:
                     continue
@@ -957,12 +880,15 @@ def _build_issue_report(topic, cycle_results, memory, seed_context, issue_num, t
     next_lines = "\n".join(f"- {n}" for n in next_dirs) if next_dirs else "_Continuing..._"
     report_text = report.get("report", "_No report._")
 
+    cost_line = f"**API cost so far:** ~${token_tracker.estimate_cost():.4f} ({token_tracker.total_tokens:,} tokens)"
+
     issue_body = (
         f"## Research Issue {issue_num}/{total_issues}\n\n"
         f"**Topic:** {topic}\n"
         f"**Cycles covered:** {cycles_covered[0]}-{cycles_covered[-1]}\n"
         f"**Total hits this batch:** {total_hits}\n"
-        f"**Current score:** {latest_score}/10\n\n"
+        f"**Current score:** {latest_score}/10\n"
+        f"{cost_line}\n\n"
         f"### Key Discoveries\n{disc_lines}\n\n"
         f"### Next Directions\n{next_lines}\n\n"
         f"---\n\n### Full Report\n\n{report_text}\n\n"
@@ -1167,6 +1093,11 @@ def run_research_program(topic, research_depth=10, github_issues=3,
                 for t, insts in verification["taxa_shared_across_institutions"].items():
                     kg_section += f"- {t}: {', '.join(insts)}\n"
 
+        cost_section = (
+            f"\n### API Usage & Cost\n\n"
+            f"{token_tracker.markdown_table()}\n\n"
+        )
+
         final_body = (
             f"## Final Research Summary\n\n"
             f"**Topic:** {topic}\n"
@@ -1175,10 +1106,12 @@ def run_research_program(topic, research_depth=10, github_issues=3,
             f"**Issue links:** {issue_links}\n\n"
             f"### All Discoveries\n{disc_text}\n\n"
             f"{kg_section}"
+            f"{cost_section}"
             f"### Summary\n{memory.get('summary', '')}\n\n"
             f"---\n\n_Comment on this issue to continue the research._"
         )
         _post_to_issue(final_body)
+        log.info("Token usage: %s", token_tracker.summary())
 
     # Export knowledge graph
     if kg:
@@ -1198,6 +1131,7 @@ def run_research_program(topic, research_depth=10, github_issues=3,
         "iteration_issues": iteration_issues,
         "final_memory": memory,
         "knowledge_graph": kg.stats() if kg else None,
+        "token_usage": token_tracker.to_dict(),
         "all_results": all_cycle_results,
     }
 

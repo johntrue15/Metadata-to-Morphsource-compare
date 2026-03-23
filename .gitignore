@@ -63,3 +63,20 @@ coverage.xml
 .tox/
 *.cover
 .hypothesis/
+
+# MorphoSource downloads (large binary files)
+data/morphosource-download-*/
+*.zip
+
+# AutoResearchClaw runtime artifacts
+.autoresearchclaw/
+research_report.json
+research_report.md
+research_agent.log
+
+# Generated analysis reports
+bandit-report.json
+deep-research-report.md
+
+# Large data files (use Git LFS or download separately)
+data/json/morphosource_data_complete_compare.json

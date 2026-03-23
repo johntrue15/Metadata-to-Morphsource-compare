@@ -11,8 +11,7 @@ from typing import Any, Dict, List
 import requests
 from openai import OpenAI
 
-# MorphoSource API configuration
-MORPHOSOURCE_API_BASE = "https://www.morphosource.org/api"
+from _helpers import MORPHOSOURCE_API_BASE, get_openai_model
 
 # Conservative token budget for requests (leave headroom for responses)
 MAX_CONTEXT_TOKENS = 6000
@@ -198,7 +197,7 @@ def process_chat(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
     conversation: List[Dict[str, Any]] = list(messages)
 
     try:
-        _model = os.environ.get("OPENAI_MODEL", "gpt-5.4")
+        _model = get_openai_model()
         response = _call_openai(
             client,
             conversation,

@@ -22,3 +22,8 @@ PyYAML>=6.0.0
 
 # OpenAI API (for AI-powered query system)
 openai>=1.0.0
+
+# AutoResearchClaw dependencies
+flask>=3.0.0
+python-dotenv>=1.0.0
+trimesh>=4.0.0
