@@ -958,13 +958,22 @@ def _build_issue_report(topic, cycle_results, memory, seed_context, issue_num, t
 
 
 def run_research_program(topic, research_depth=10, github_issues=3,
-                         media_id=None, program=""):
-    """Two-loop research program.
+                         media_id=None, media_list_id=None, program=""):
+    """Two-loop research program with knowledge graph and ontology support.
 
     Inner loop (research_depth): fast cycles building memory.
     Outer loop (github_issues): periodic GitHub issue creation.
     """
     log.info("Starting: %d cycles, %d GitHub issues", research_depth, github_issues)
+
+    # Initialize knowledge graph
+    try:
+        from knowledge_graph import KnowledgeGraph
+        kg = KnowledgeGraph()
+        log.info("Knowledge graph initialized")
+    except ImportError:
+        kg = None
+        log.info("Knowledge graph module not available")
 
     seed_context = None
     if media_id:
@@ -977,12 +986,39 @@ def run_research_program(topic, research_depth=10, github_issues=3,
                 f"Fetched **[media {padded}]"
                 f"(https://www.morphosource.org/concern/media/{padded})** "
                 f"as research seed:\n\n{seed_context}")
+            if kg and isinstance(seed_data, dict):
+                record = seed_data.get("response", seed_data)
+                if isinstance(record, dict):
+                    kg.add_media_record(record)
 
-    _post_to_issue(
+    # Fetch media list if provided
+    media_list_context = ""
+    if media_list_id:
+        list_data = _fetch_media_list(media_list_id)
+        if list_data:
+            media_list_context = _summarize_media_list(list_data)
+            _post_to_issue(
+                f"### Seed Media List\n\n"
+                f"Fetched **[list {media_list_id}]"
+                f"(https://www.morphosource.org/media-lists/{media_list_id})** "
+                f":\n\n{media_list_context}")
+            if seed_context:
+                seed_context += f"\n\n{media_list_context}"
+            else:
+                seed_context = media_list_context
+            if kg:
+                for item in list_data.get("items", []):
+                    kg.add_media_record(item, media_list_id=media_list_id)
+
+    start_msg = (
         f"### Research Program Started\n\n"
         f"**Depth:** {research_depth} cycles | "
         f"**Issues:** {github_issues} reports\n\n"
-        f"Dashboard: `http://localhost:5001`")
+    )
+    if kg:
+        start_msg += f"**Knowledge graph:** {kg.summary()}\n\n"
+    start_msg += "Dashboard: `http://localhost:5001`"
+    _post_to_issue(start_msg)
 
     github_issues = min(github_issues, research_depth)
     issue_interval = max(1, research_depth // github_issues)
@@ -993,6 +1029,18 @@ def run_research_program(topic, research_depth=10, github_issues=3,
     iteration_issues = []
     issue_counter = 0
 
+    # Optional modules
+    try:
+        from citation_extractor import extract_citations_from_search_results
+        _has_citations = True
+    except ImportError:
+        _has_citations = False
+    try:
+        from ontology_search import enrich_query_with_ontology
+        _has_ontology = True
+    except ImportError:
+        _has_ontology = False
+
     for cycle in range(1, research_depth + 1):
         result, memory, _raw = run_single_cycle(
             topic, cycle, research_depth, memory,
@@ -1000,6 +1048,29 @@ def run_research_program(topic, research_depth=10, github_issues=3,
         )
         all_cycle_results.append(result)
         pending_cycles.append(result)
+
+        # Add search results to knowledge graph
+        if kg and _raw:
+            for r in _raw:
+                data = r.get("result_data", {})
+                response = data.get("response", data)
+                for key in ("media", "physical_objects"):
+                    for item in response.get(key, []):
+                        kg.add_media_record(item, media_list_id=media_list_id or "")
+
+            # Extract citations from search results
+            if _has_citations:
+                try:
+                    citations = extract_citations_from_search_results(_raw)
+                    for c in citations:
+                        if c.doi:
+                            kg.add_citation(c.doi, title=c.title, authors=c.authors,
+                                            year=c.year, journal=c.journal)
+                except Exception as exc:
+                    log.debug("Citation extraction error: %s", exc)
+
+            if _run_logger and cycle % 5 == 0:
+                _run_logger.event(cycle, "knowledge_graph", **kg.stats())
 
         at_issue_boundary = (cycle % issue_interval == 0) or (cycle == research_depth)
         issues_remaining = github_issues - issue_counter
@@ -1055,6 +1126,23 @@ def run_research_program(topic, research_depth=10, github_issues=3,
         issue_links = " ".join(f"#{n}" for n in iteration_issues) if iteration_issues else "N/A"
 
         disc_text = "\n".join(f"- {d}" for d in all_disc) if all_disc else "_None_"
+        kg_section = ""
+        if kg:
+            kg_section = (
+                f"\n### Knowledge Graph\n"
+                f"**{kg.summary()}**\n\n"
+                f"```mermaid\n{kg.to_mermaid(max_nodes=20)}\n```\n\n"
+            )
+            verification = kg.verify_connections()
+            if verification.get("multi_reference_papers"):
+                kg_section += "**Papers referencing multiple specimens:**\n"
+                for p, specs in verification["multi_reference_papers"].items():
+                    kg_section += f"- {p}: {', '.join(specs)}\n"
+            if verification.get("taxa_shared_across_institutions"):
+                kg_section += "\n**Taxa shared across institutions:**\n"
+                for t, insts in verification["taxa_shared_across_institutions"].items():
+                    kg_section += f"- {t}: {', '.join(insts)}\n"
+
         final_body = (
             f"## Final Research Summary\n\n"
             f"**Topic:** {topic}\n"
@@ -1062,10 +1150,19 @@ def run_research_program(topic, research_depth=10, github_issues=3,
             f"**Total queries:** {total_queries}\n"
             f"**Issue links:** {issue_links}\n\n"
             f"### All Discoveries\n{disc_text}\n\n"
+            f"{kg_section}"
             f"### Summary\n{memory.get('summary', '')}\n\n"
             f"---\n\n_Comment on this issue to continue the research._"
         )
         _post_to_issue(final_body)
+
+    # Export knowledge graph
+    if kg:
+        kg_dir = Path.home() / ".autoresearchclaw" / "graphs"
+        kg_dir.mkdir(parents=True, exist_ok=True)
+        run_id = _run_logger.run_id if _run_logger else "unknown"
+        kg.export_json(str(kg_dir / f"{run_id}_graph.json"))
+        log.info("Knowledge graph exported: %s", kg.summary())
 
     if _run_logger:
         _run_logger.finish(status="completed", issue_links=[f"#{n}" for n in iteration_issues])
@@ -1076,6 +1173,7 @@ def run_research_program(topic, research_depth=10, github_issues=3,
         "github_issues_created": len(iteration_issues),
         "iteration_issues": iteration_issues,
         "final_memory": memory,
+        "knowledge_graph": kg.stats() if kg else None,
         "all_results": all_cycle_results,
     }
 
@@ -1083,6 +1181,79 @@ def run_research_program(topic, research_depth=10, github_issues=3,
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
+
+
+def _fetch_media_list(list_id):
+    """Fetch media list contents from MorphoSource API."""
+    url = f"{MORPHOSOURCE_API_BASE}/media?media_list={list_id}&per_page=50&page=1&locale=en"
+    log.info("Fetching media list %s", list_id)
+    headers = {"Accept": "application/json"}
+    api_key = os.environ.get("MORPHOSOURCE_API_KEY")
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    try:
+        if _requests:
+            resp = _requests.get(url, headers=headers, timeout=30)
+            if resp.status_code == 200:
+                data = resp.json()
+                response = data.get("response", data)
+                media_items = response.get("media", [])
+                pages = response.get("pages", {})
+                total = pages.get("total_count", len(media_items))
+                log.info("Media list %s: %d items (showing %d)", list_id, total, len(media_items))
+                return {"items": media_items, "total_count": total, "list_id": list_id}
+        else:
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                if resp.getcode() == 200:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    response = data.get("response", data)
+                    media_items = response.get("media", [])
+                    pages = response.get("pages", {})
+                    total = pages.get("total_count", len(media_items))
+                    return {"items": media_items, "total_count": total, "list_id": list_id}
+    except Exception as exc:
+        log.error("Failed to fetch media list %s: %s", list_id, exc)
+    return None
+
+
+def _summarize_media_list(list_data):
+    """Create a text summary of a media list for seed context."""
+    if not list_data:
+        return ""
+    items = list_data.get("items", [])
+    total = list_data.get("total_count", len(items))
+    list_id = list_data.get("list_id", "")
+
+    def _first(v):
+        return v[0] if isinstance(v, list) and v else str(v) if v else ""
+
+    taxa = set()
+    parts = set()
+    orgs = set()
+    open_count = 0
+    for item in items:
+        t = _first(item.get("physical_object_taxonomy_name"))
+        if t:
+            taxa.add(t)
+        p = _first(item.get("part"))
+        if p:
+            parts.add(p)
+        o = _first(item.get("physical_object_organization"))
+        if o:
+            orgs.add(o)
+        vis = _first(item.get("visibility"))
+        if vis.lower() == "open":
+            open_count += 1
+
+    lines = [
+        f"**Media List {list_id}**: {total} total records",
+        f"**Open access:** {open_count}/{len(items)} in sample",
+        f"**Taxa:** {', '.join(sorted(taxa)[:10])}",
+        f"**Parts:** {', '.join(sorted(parts)[:10])}",
+        f"**Institutions:** {', '.join(sorted(orgs)[:5])}",
+    ]
+    return "\n".join(lines)
 
 
 def main():
@@ -1093,6 +1264,7 @@ def main():
         description="AutoResearchClaw — autonomous MorphoSource research agent")
     parser.add_argument("topic", help="Research topic or goal")
     parser.add_argument("--media-id", default=None, help="Seed media ID")
+    parser.add_argument("--media-list", default=None, help="MorphoSource media list ID (e.g. 000656244)")
     parser.add_argument("--research-depth", type=lambda v: int(float(v)), default=10,
                         help="Internal research cycles (default: 10)")
     parser.add_argument("--github-issues", type=lambda v: int(float(v)), default=3,
@@ -1110,6 +1282,7 @@ def main():
     log.info("Research depth: %d cycles", args.research_depth)
     log.info("GitHub issues: %d", args.github_issues)
     log.info("Seed media: %s", args.media_id or "none")
+    log.info("Seed media list: %s", args.media_list or "none")
     log.info("Model: %s", OPENAI_MODEL)
     log.info("Run ID: %s", _run_logger.run_id)
     log.info("Log file: %s", _run_logger.jsonl_path)
@@ -1121,6 +1294,7 @@ def main():
             research_depth=args.research_depth,
             github_issues=args.github_issues,
             media_id=args.media_id,
+            media_list_id=args.media_list,
             program=program,
         )
     except Exception:

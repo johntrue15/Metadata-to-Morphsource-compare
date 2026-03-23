@@ -26,6 +26,11 @@ on:
         required: false
         type: string
         default: ''
+      media_list_id:
+        description: 'MorphoSource media list ID for batch seeding (e.g. 000656244)'
+        required: false
+        type: string
+        default: ''
       openai_model:
         description: 'OpenAI model to use (default: gpt-5.4)'
         required: false
@@ -150,11 +155,15 @@ jobs:
           if [ -n "${{ inputs.media_id }}" ]; then
             MEDIA_ARG="--media-id ${{ inputs.media_id }}"
           fi
+          LIST_ARG=""
+          if [ -n "${{ inputs.media_list_id }}" ]; then
+            LIST_ARG="--media-list ${{ inputs.media_list_id }}"
+          fi
           python3 research_agent.py \
             "${{ inputs.research_topic }}" \
             --research-depth ${{ inputs.research_depth || 10 }} \
             --github-issues ${{ inputs.github_issues || 3 }} \
-            $MEDIA_ARG
+            $MEDIA_ARG $LIST_ARG
 
       - name: Upload research artifacts
         if: always()
