@@ -437,7 +437,8 @@ https://www.morphosource.org/api/physical-objects?f%5Btaxonomy_gbif%5D%5B%5D=Ser
             }
         ]
         
-        model = get_openai_model()
+        from _helpers import get_model_for_tier
+        model = get_model_for_tier("fast")
         is_reasoning = is_reasoning_model(model)
         llm_kwargs = {"model": model, "messages": messages}
         if is_reasoning:

@@ -277,6 +277,149 @@ class KnowledgeGraph:
 
         return "\n".join(lines)
 
+    def export_html(self, path: str, title: str = "AutoResearchClaw Knowledge Graph"):
+        """Export an interactive HTML visualization using vis-network.js."""
+        stats = self.stats()
+        type_colors = {
+            "Media": "#58a6ff",
+            "Specimen": "#3fb950",
+            "Paper": "#d29922",
+            "Institution": "#f85149",
+            "Taxon": "#bc8cff",
+            "MediaList": "#79c0ff",
+        }
+        type_shapes = {
+            "Media": "dot",
+            "Specimen": "diamond",
+            "Paper": "triangle",
+            "Institution": "square",
+            "Taxon": "hexagon",
+            "MediaList": "star",
+        }
+
+        vis_nodes = []
+        for n in self.nodes.values():
+            vis_nodes.append({
+                "id": n.id,
+                "label": n.label[:40],
+                "title": f"{n.type}: {n.label}\n{json.dumps(n.properties, default=str)[:200]}",
+                "group": n.type,
+                "color": type_colors.get(n.type, "#8b949e"),
+                "shape": type_shapes.get(n.type, "dot"),
+                "size": 12 if n.type in ("Media", "Taxon") else 18,
+            })
+
+        vis_edges = []
+        for e in self.edges:
+            vis_edges.append({
+                "from": e.source,
+                "to": e.target,
+                "label": e.relation,
+                "arrows": "to",
+                "color": {"color": "#30363d", "opacity": 0.6},
+                "font": {"size": 8, "color": "#8b949e"},
+            })
+
+        html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{title}</title>
+<script src="https://unpkg.com/vis-network@9.1.6/standalone/umd/vis-network.min.js"></script>
+<style>
+  * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+  body {{ font-family: -apple-system, sans-serif; background: #0d1117; color: #c9d1d9; }}
+  #header {{ padding: 16px 24px; background: #161b22; border-bottom: 1px solid #30363d; }}
+  h1 {{ font-size: 1.4em; color: #58a6ff; margin-bottom: 8px; }}
+  .stats {{ color: #8b949e; font-size: 0.9em; }}
+  .stats span {{ margin-right: 16px; }}
+  #graph {{ width: 100%; height: calc(100vh - 120px); }}
+  #legend {{ position: fixed; bottom: 16px; left: 16px; background: #161b22;
+             border: 1px solid #30363d; border-radius: 8px; padding: 12px; z-index: 10; }}
+  .legend-item {{ display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: 0.85em; }}
+  .legend-dot {{ width: 12px; height: 12px; border-radius: 50%; }}
+  #search {{ position: fixed; top: 70px; right: 16px; z-index: 10; }}
+  #search input {{ background: #0d1117; border: 1px solid #30363d; color: #c9d1d9;
+                   padding: 8px 12px; border-radius: 6px; width: 220px; font-size: 0.9em; }}
+  #info {{ position: fixed; top: 70px; left: 16px; background: #161b22;
+           border: 1px solid #30363d; border-radius: 8px; padding: 12px;
+           max-width: 350px; font-size: 0.85em; z-index: 10; display: none; }}
+  #info h3 {{ color: #58a6ff; margin-bottom: 6px; }}
+  #info pre {{ white-space: pre-wrap; color: #8b949e; font-size: 0.8em; max-height: 200px; overflow-y: auto; }}
+</style>
+</head>
+<body>
+<div id="header">
+  <h1>{title}</h1>
+  <div class="stats">
+    <span>{stats['media']} media</span>
+    <span>{stats['specimens']} specimens</span>
+    <span>{stats['papers']} papers</span>
+    <span>{stats['institutions']} institutions</span>
+    <span>{stats['taxa']} taxa</span>
+    <span>{stats['total_edges']} connections</span>
+  </div>
+</div>
+<div id="graph"></div>
+<div id="search"><input type="text" id="searchBox" placeholder="Search nodes..." oninput="searchNodes(this.value)"></div>
+<div id="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#58a6ff"></div> Media</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#3fb950"></div> Specimen</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#d29922"></div> Paper</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#f85149"></div> Institution</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#bc8cff"></div> Taxon</div>
+</div>
+<div id="info"><h3 id="infoTitle"></h3><pre id="infoBody"></pre></div>
+<script>
+const nodesData = {json.dumps(vis_nodes, default=str)};
+const edgesData = {json.dumps(vis_edges, default=str)};
+
+const nodes = new vis.DataSet(nodesData);
+const edges = new vis.DataSet(edgesData);
+
+const container = document.getElementById("graph");
+const data = {{ nodes: nodes, edges: edges }};
+const options = {{
+  physics: {{
+    solver: "forceAtlas2Based",
+    forceAtlas2Based: {{ gravitationalConstant: -30, springLength: 80, springConstant: 0.04 }},
+    stabilization: {{ iterations: 200 }},
+  }},
+  interaction: {{ hover: true, tooltipDelay: 100, zoomView: true }},
+  edges: {{ smooth: {{ type: "continuous" }}, font: {{ size: 8 }} }},
+  nodes: {{ font: {{ size: 11, color: "#c9d1d9" }}, borderWidth: 1 }},
+}};
+
+const network = new vis.Network(container, data, options);
+
+network.on("click", function(params) {{
+  const info = document.getElementById("info");
+  if (params.nodes.length > 0) {{
+    const nodeId = params.nodes[0];
+    const node = nodes.get(nodeId);
+    document.getElementById("infoTitle").textContent = node.label;
+    document.getElementById("infoBody").textContent = node.title || "";
+    info.style.display = "block";
+  }} else {{
+    info.style.display = "none";
+  }}
+}});
+
+function searchNodes(query) {{
+  if (!query) {{ nodes.forEach(n => nodes.update({{id: n.id, opacity: 1}})); return; }}
+  const q = query.toLowerCase();
+  nodes.forEach(n => {{
+    const match = n.label.toLowerCase().includes(q) || (n.title || "").toLowerCase().includes(q);
+    nodes.update({{id: n.id, opacity: match ? 1 : 0.1}});
+  }});
+}}
+</script>
+</body>
+</html>"""
+
+        Path(path).write_text(html, encoding="utf-8")
+        log.info("Exported interactive HTML graph to %s (%d nodes, %d edges)", path, len(self.nodes), len(self.edges))
+
     def to_dict(self) -> Dict:
         return {
             "nodes": {nid: asdict(n) for nid, n in self.nodes.items()},

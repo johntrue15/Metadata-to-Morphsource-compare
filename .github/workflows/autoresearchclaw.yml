@@ -31,6 +31,11 @@ on:
         required: false
         type: string
         default: ''
+      continue_from:
+        description: 'GitHub issue number to continue from (e.g. 223). Loads prior discoveries and memory.'
+        required: false
+        type: string
+        default: ''
       openai_model:
         description: 'OpenAI model to use (default: gpt-5.4)'
         required: false
@@ -167,11 +172,15 @@ jobs:
           if [ -n "${{ inputs.media_list_id }}" ]; then
             LIST_ARG="--media-list ${{ inputs.media_list_id }}"
           fi
+          CONTINUE_ARG=""
+          if [ -n "${{ inputs.continue_from }}" ]; then
+            CONTINUE_ARG="--continue-from ${{ inputs.continue_from }}"
+          fi
           python3 research_agent.py \
             "${{ inputs.research_topic }}" \
             --research-depth ${{ inputs.research_depth || 10 }} \
             --github-issues ${{ inputs.github_issues || 3 }} \
-            $MEDIA_ARG $LIST_ARG \
+            $MEDIA_ARG $LIST_ARG $CONTINUE_ARG \
             > research_agent.log 2>&1
           EXIT_CODE=$?
           echo "Agent exited with code $EXIT_CODE"
@@ -195,7 +204,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: knowledge-graph
-          path: ~/.autoresearchclaw/graphs/*.json
+          path: |
+            ~/.autoresearchclaw/graphs/*.json
+            ~/.autoresearchclaw/graphs/*.html
           if-no-files-found: ignore
 
       - name: Log specimen cache status

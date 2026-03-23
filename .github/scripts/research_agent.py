@@ -903,12 +903,148 @@ def _build_issue_report(topic, cycle_results, memory, seed_context, issue_num, t
 
 
 # ---------------------------------------------------------------------------
+# Continue from previous run (seed with prior memory)
+# ---------------------------------------------------------------------------
+
+
+def _load_prior_memory(source: str) -> dict | None:
+    """Load memory from a previous run to continue research.
+
+    Accepts:
+      - A GitHub issue number (e.g. "223") — fetches issue + comments via API
+      - A path to a research_report.json file
+      - A run ID matching a file in ~/.autoresearchclaw/graphs/
+    """
+    # Try as a local JSON file path
+    p = Path(source)
+    if p.is_file() and p.suffix == ".json":
+        log.info("Loading prior memory from file: %s", p)
+        data = json.loads(p.read_text())
+        return data.get("final_memory")
+
+    # Try as a run ID in the graphs directory
+    graphs_dir = AUTORESEARCHCLAW_HOME / "graphs"
+    for candidate in graphs_dir.glob("*_graph.json"):
+        if source in candidate.name:
+            log.info("Loading prior graph: %s", candidate)
+            return _extract_memory_from_graph(candidate)
+
+    # Try as a GitHub issue number
+    if source.isdigit() and _reporter and _reporter.enabled:
+        return _fetch_memory_from_issue(int(source))
+
+    log.warning("Could not resolve --continue-from '%s'", source)
+    return None
+
+
+def _fetch_memory_from_issue(issue_number: int) -> dict | None:
+    """Fetch a GitHub issue's body and comments to reconstruct memory."""
+    if not _reporter or not _reporter.enabled:
+        return None
+
+    log.info("Fetching issue #%d for prior memory...", issue_number)
+
+    # Get issue body
+    status, issue_data = _reporter._api("GET", f"issues/{issue_number}")
+    if status != 200:
+        log.warning("Could not fetch issue #%d: HTTP %d", issue_number, status)
+        return None
+
+    # Get comments
+    status, comments = _reporter._api("GET", f"issues/{issue_number}/comments")
+    if status != 200:
+        comments = []
+
+    # Build context from all text
+    parts = [issue_data.get("body", "")]
+    if isinstance(comments, list):
+        for c in comments:
+            parts.append(c.get("body", ""))
+
+    full_text = "\n\n".join(parts)
+
+    # Use LLM to extract structured memory from the issue text
+    extract_prompt = (
+        "Extract research memory from this GitHub issue. Return a JSON object with:\n"
+        '  "queries_tried": [{"query": "...", "count": N}],\n'
+        '  "all_discoveries": ["discovery 1", ...],\n'
+        '  "dead_ends": ["dead end 1", ...],\n'
+        '  "next_directions": ["direction 1", ...],\n'
+        '  "summary": "2-3 paragraph summary of all findings"\n\n'
+        "Return ONLY the JSON object."
+    )
+
+    content = _call_llm(
+        [{"role": "system", "content": extract_prompt},
+         {"role": "user", "content": full_text[:8000]}],
+        max_tokens=2000, json_mode=True, label="ExtractMemory", tier="mid",
+    )
+
+    if content:
+        try:
+            memory = json.loads(content)
+            memory["iteration"] = 0
+            memory["score"] = 7
+            memory.setdefault("queries_tried", [])
+            memory.setdefault("all_discoveries", [])
+            memory.setdefault("dead_ends", [])
+            memory.setdefault("next_directions", [])
+            log.info("Extracted memory from issue #%d: %d discoveries, %d queries",
+                     issue_number, len(memory["all_discoveries"]), len(memory["queries_tried"]))
+            return memory
+        except (json.JSONDecodeError, ValueError):
+            log.warning("Could not parse memory from issue #%d", issue_number)
+
+    return None
+
+
+def _extract_memory_from_graph(graph_path: Path) -> dict | None:
+    """Extract memory from a knowledge graph JSON."""
+    try:
+        data = json.loads(graph_path.read_text())
+        nodes = data.get("nodes", [])
+        stats = data.get("stats", {})
+
+        taxa = [n["label"] for n in nodes if n.get("type") == "Taxon"][:20]
+        institutions = [n["label"] for n in nodes if n.get("type") == "Institution"][:10]
+        papers = [n["label"] for n in nodes if n.get("type") == "Paper"][:10]
+
+        memory = {
+            "iteration": 0,
+            "score": 7,
+            "queries_tried": [],
+            "all_discoveries": [
+                f"Knowledge graph contains {stats.get('media', 0)} media, "
+                f"{stats.get('specimens', 0)} specimens, {stats.get('papers', 0)} papers",
+                f"Taxa found: {', '.join(taxa[:10])}",
+                f"Institutions: {', '.join(institutions[:5])}",
+            ],
+            "dead_ends": [],
+            "next_directions": [
+                "Build on the existing knowledge graph",
+                "Explore taxa and institutions not yet covered",
+            ],
+            "summary": (
+                f"Previous run built a knowledge graph with {stats.get('media', 0)} media records, "
+                f"{stats.get('specimens', 0)} specimens across {stats.get('institutions', 0)} institutions "
+                f"and {stats.get('taxa', 0)} taxa. Papers referenced: {len(papers)}."
+            ),
+        }
+        log.info("Extracted memory from graph: %s", graph_path.name)
+        return memory
+    except Exception as exc:
+        log.warning("Failed to extract memory from graph: %s", exc)
+        return None
+
+
+# ---------------------------------------------------------------------------
 # Orchestrator — two-loop architecture
 # ---------------------------------------------------------------------------
 
 
 def run_research_program(topic, research_depth=10, github_issues=3,
-                         media_id=None, media_list_id=None, program=""):
+                         media_id=None, media_list_id=None, program="",
+                         prior_memory=None):
     """Two-loop research program with knowledge graph and ontology support.
 
     Inner loop (research_depth): fast cycles building memory.
@@ -973,7 +1109,18 @@ def run_research_program(topic, research_depth=10, github_issues=3,
     github_issues = min(github_issues, research_depth)
     issue_interval = max(1, research_depth // github_issues)
 
-    memory = None
+    memory = prior_memory
+    if memory:
+        log.info("Starting with prior memory: %d discoveries, %d queries tried",
+                 len(memory.get("all_discoveries", [])),
+                 len(memory.get("queries_tried", [])))
+        _post_to_issue(
+            f"### Continuing from prior research\n\n"
+            f"**Prior discoveries:** {len(memory.get('all_discoveries', []))}\n"
+            f"**Prior queries:** {len(memory.get('queries_tried', []))}\n"
+            f"**Prior summary:** {memory.get('summary', '')[:300]}..."
+        )
+
     all_cycle_results = []
     pending_cycles = []
     iteration_issues = []
@@ -1119,6 +1266,10 @@ def run_research_program(topic, research_depth=10, github_issues=3,
         kg_dir.mkdir(parents=True, exist_ok=True)
         run_id = _run_logger.run_id if _run_logger else "unknown"
         kg.export_json(str(kg_dir / f"{run_id}_graph.json"))
+        kg.export_html(
+            str(kg_dir / f"{run_id}_graph.html"),
+            title=f"AutoResearchClaw: {topic[:80]}",
+        )
         log.info("Knowledge graph exported: %s", kg.summary())
 
     if _run_logger:
@@ -1223,6 +1374,8 @@ def main():
     parser.add_argument("topic", help="Research topic or goal")
     parser.add_argument("--media-id", default=None, help="Seed media ID")
     parser.add_argument("--media-list", default=None, help="MorphoSource media list ID (e.g. 000656244)")
+    parser.add_argument("--continue-from", default=None,
+                        help="GitHub issue number or run ID to continue from (e.g. 223 or path to research_report.json)")
     parser.add_argument("--research-depth", type=lambda v: int(float(v)), default=10,
                         help="Internal research cycles (default: 10)")
     parser.add_argument("--github-issues", type=lambda v: int(float(v)), default=3,
@@ -1234,6 +1387,15 @@ def main():
     _run_logger = RunLogger(args.topic, args.research_depth, args.github_issues, args.media_id)
     program = _load_program(args.program)
 
+    # Load prior memory if continuing from a previous run
+    prior_memory = None
+    if args.continue_from:
+        prior_memory = _load_prior_memory(args.continue_from)
+        if prior_memory:
+            log.info("Loaded prior memory from: %s", args.continue_from)
+        else:
+            log.warning("Could not load prior memory from: %s — starting fresh", args.continue_from)
+
     log.info("=" * 60)
     log.info("AutoResearchClaw starting")
     log.info("Topic: %s", args.topic)
@@ -1241,6 +1403,8 @@ def main():
     log.info("GitHub issues: %d", args.github_issues)
     log.info("Seed media: %s", args.media_id or "none")
     log.info("Seed media list: %s", args.media_list or "none")
+    log.info("Continue from: %s", args.continue_from or "none")
+    log.info("Prior memory: %s", "loaded" if prior_memory else "none")
     log.info("Model: %s", OPENAI_MODEL)
     log.info("Run ID: %s", _run_logger.run_id)
     log.info("Log file: %s", _run_logger.jsonl_path)
@@ -1254,6 +1418,7 @@ def main():
             media_id=args.media_id,
             media_list_id=args.media_list,
             program=program,
+            prior_memory=prior_memory,
         )
     except Exception:
         log.error("Research program failed:\n%s", traceback.format_exc())
