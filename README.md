@@ -136,16 +136,40 @@ Tests/                  # pytest suite (unit / integration / live tiers)
 Full tree with one-line descriptions per file:
 <https://johntrue15.github.io/MorphoClaw/reference/project-structure/>.
 
-## Self-hosted runner
+## Self-hosted runners
 
-The research pipeline runs on a self-hosted Mac mini with 3D Slicer 5.10
-+ SlicerMorph, Anaconda Python 3.12, and a persistent specimen cache.
+The research pipeline runs on self-hosted runners with 3D Slicer 5.10 +
+SlicerMorph, Python 3.12, and a persistent specimen cache.
 
-```bash
-cd ~/actions-runner-morphosource
-./config.sh --url https://github.com/USER/REPO --token TOKEN
-./run.sh
-```
+* **Mac mini** &mdash; original CPU/MPS host. 3D Slicer + Anaconda at the
+  standard mac paths.
+
+  ```bash
+  cd ~/actions-runner-morphosource
+  ./config.sh --url https://github.com/USER/REPO --token TOKEN
+  ./run.sh
+  ```
+
+* **Windows + NVIDIA GPU (WSL2)** &mdash; for fast nnInteractive +
+  SlicerMorph runs. See
+  [`docs/self-hosted-gpu-runner.md`](docs/self-hosted-gpu-runner.md) for
+  a complete bring-up guide; the short version is:
+
+  ```powershell
+  # On the Windows host (elevated PowerShell):
+  powershell -ExecutionPolicy Bypass -File scripts\runners\setup-windows-host.ps1
+  ```
+
+  ```bash
+  # Then inside Ubuntu / WSL2:
+  bash scripts/runners/setup-wsl-runner.sh
+  cd ~/actions-runner-morphoclaw && ./run.sh
+  ```
+
+Each runner advertises its host-specific paths via its own
+`<runner>/.env` (`ANACONDA_BIN`, `SLICER_BIN`, `NNINTERACTIVE_HOME`); the
+workflows resolve those at job start and fall back to the Mac mini
+defaults if unset.
 
 ## Local linting (matches CI)
 

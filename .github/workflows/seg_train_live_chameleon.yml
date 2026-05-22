@@ -82,6 +82,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+      - name: Resolve runner-local paths
+        # See docs/self-hosted-gpu-runner.md. Defaults match the Mac mini.
+        shell: bash
+        run: |
+          ANACONDA_BIN="${ANACONDA_BIN:-/opt/anaconda3/bin}"
+          SLICER_BIN="${SLICER_BIN:-/Applications/Slicer.app/Contents/MacOS/Slicer}"
+          NNI_HOME="${NNINTERACTIVE_HOME:-$HOME/.autoresearchclaw/nninteractive}"
+          echo "ANACONDA_BIN=$ANACONDA_BIN"      >> "$GITHUB_ENV"
+          echo "SLICER_BIN=$SLICER_BIN"          >> "$GITHUB_ENV"
+          echo "NNINTERACTIVE_HOME=$NNI_HOME"    >> "$GITHUB_ENV"
+          echo "$ANACONDA_BIN"                   >> "$GITHUB_PATH"
+
       - name: Print runner info
         run: |
           echo "Host: $(hostname)"
@@ -94,10 +106,9 @@ jobs:
 
       - name: Bootstrap nnInteractive (idempotent)
         run: |
-          NNI_HOME="${NNINTERACTIVE_HOME:-$HOME/.autoresearchclaw/nninteractive}"
-          if [ -x "$NNI_HOME/bin/python" ] && \
-             "$NNI_HOME/bin/python" -c "import nnInteractive" >/dev/null 2>&1; then
-            echo "nnInteractive venv already present at $NNI_HOME"
+          if [ -x "$NNINTERACTIVE_HOME/bin/python" ] && \
+             "$NNINTERACTIVE_HOME/bin/python" -c "import nnInteractive" >/dev/null 2>&1; then
+            echo "nnInteractive venv already present at $NNINTERACTIVE_HOME"
           else
             chmod +x .github/scripts/install_nninteractive.sh
             .github/scripts/install_nninteractive.sh

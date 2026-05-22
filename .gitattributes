@@ -1,0 +1,25 @@
+# Force LF for files that are interpreted by bash / Linux tooling on
+# self-hosted runners (Mac mini, WSL2 on Windows). Without this, Windows
+# checkouts can convert these files to CRLF and the bash shebang fails
+# with: /usr/bin/env: 'bash\r': No such file or directory
+*.sh                text eol=lf
+*.bash              text eol=lf
+
+# The actions-runner reads its `.env` line-by-line; CRLF tails confuse
+# its key=value parser on Linux.
+scripts/runners/runner-env.example      text eol=lf
+
+# These python scripts are run inside 3D Slicer's bundled Python on
+# Linux runners; LF is safer.
+scripts/runners/slicer_install_slicermorph.py   text eol=lf
+scripts/runners/gpu_smoke.py                    text eol=lf
+.github/scripts/install_nninteractive*.sh       text eol=lf
+.github/scripts/install_seg_train_extras.sh     text eol=lf
+.github/scripts/slicer_*.py                     text eol=lf
+
+# PowerShell can read either, but keep CRLF for native Windows tools.
+*.ps1               text eol=crlf
+
+# Generated knowledge-graph snapshots: don't try to normalise their
+# whitespace (they're produced verbatim by the runner).
+docs/data/**/*.json -text

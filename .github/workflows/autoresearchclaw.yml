@@ -157,8 +157,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      # Note: actions/cache was removed. This job only runs on the self-hosted
-      # Mac mini where ~/.autoresearchclaw/specimens already persists between
+      - name: Resolve runner-local paths
+        # See docs/self-hosted-gpu-runner.md. Defaults match the Mac mini.
+        shell: bash
+        run: |
+          ANACONDA_BIN="${ANACONDA_BIN:-/opt/anaconda3/bin}"
+          SLICER_BIN="${SLICER_BIN:-/Applications/Slicer.app/Contents/MacOS/Slicer}"
+          NNI_HOME="${NNINTERACTIVE_HOME:-$HOME/.autoresearchclaw/nninteractive}"
+          echo "ANACONDA_BIN=$ANACONDA_BIN"      >> "$GITHUB_ENV"
+          echo "SLICER_BIN=$SLICER_BIN"          >> "$GITHUB_ENV"
+          echo "NNINTERACTIVE_HOME=$NNI_HOME"    >> "$GITHUB_ENV"
+          echo "$ANACONDA_BIN"                   >> "$GITHUB_PATH"
+
+      # Note: actions/cache was removed. This job only runs on a self-hosted
+      # runner where ~/.autoresearchclaw/specimens already persists between
       # runs on local disk. The cache was creating a unique key per run_id and
       # then trying to tar/upload the entire 35+ GB directory in the post-step,
       # which exhausted free space on the runner ("No space left on device")
@@ -166,19 +178,17 @@ jobs:
 
       - name: Set up Python
         run: |
-          export PATH="/opt/anaconda3/bin:$PATH"
           python3 --version
           python3 -m pip install --quiet openai requests python-dotenv flask
 
       - name: Ensure nnInteractive is bootstrapped (idempotent)
         if: ${{ inputs.enable_nninteractive }}
         run: |
-          NNI_HOME="${NNINTERACTIVE_HOME:-$HOME/.autoresearchclaw/nninteractive}"
-          if [ -x "$NNI_HOME/bin/python" ] && \
-             "$NNI_HOME/bin/python" -c "import nnInteractive" >/dev/null 2>&1; then
-            echo "nnInteractive venv already present at $NNI_HOME — skipping bootstrap"
+          if [ -x "$NNINTERACTIVE_HOME/bin/python" ] && \
+             "$NNINTERACTIVE_HOME/bin/python" -c "import nnInteractive" >/dev/null 2>&1; then
+            echo "nnInteractive venv already present at $NNINTERACTIVE_HOME — skipping bootstrap"
           else
-            echo "Bootstrapping nnInteractive at $NNI_HOME (first run, may take ~10 min)"
+            echo "Bootstrapping nnInteractive at $NNINTERACTIVE_HOME (first run, may take ~10 min)"
             chmod +x .github/scripts/install_nninteractive.sh
             .github/scripts/install_nninteractive.sh
           fi
@@ -186,7 +196,6 @@ jobs:
       - name: Run research agent
         id: research
         env:
-          PATH: /opt/anaconda3/bin:/usr/local/bin:/usr/bin:/bin
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_MODEL: ${{ inputs.openai_model || 'gpt-5.4' }}
           MORPHOSOURCE_API_KEY: ${{ secrets.MORPHOSOURCE_API_KEY }}

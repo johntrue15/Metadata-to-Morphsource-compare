@@ -74,16 +74,27 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: 25
     env:
-      SLICER_BIN: /Applications/Slicer.app/Contents/MacOS/Slicer
       SLICER_REQUIRE_INTEGRATION: '1'
       SLICER_TEST_TIMEOUT_S: ${{ inputs.slicer_timeout_s || '300' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+      - name: Resolve runner-local paths
+        # See docs/self-hosted-gpu-runner.md. Defaults match the Mac mini.
+        # SLICER_BIN comes from the runner's own .env on Linux/WSL hosts.
+        shell: bash
+        run: |
+          ANACONDA_BIN="${ANACONDA_BIN:-/opt/anaconda3/bin}"
+          SLICER_BIN="${SLICER_BIN:-/Applications/Slicer.app/Contents/MacOS/Slicer}"
+          NNI_HOME="${NNINTERACTIVE_HOME:-$HOME/.autoresearchclaw/nninteractive}"
+          echo "ANACONDA_BIN=$ANACONDA_BIN"      >> "$GITHUB_ENV"
+          echo "SLICER_BIN=$SLICER_BIN"          >> "$GITHUB_ENV"
+          echo "NNINTERACTIVE_HOME=$NNI_HOME"    >> "$GITHUB_ENV"
+          echo "$ANACONDA_BIN"                   >> "$GITHUB_PATH"
+
       - name: Set up Python
         run: |
-          export PATH="/opt/anaconda3/bin:$PATH"
           python3 --version
           python3 -m pip install --quiet -r requirements-test.txt
 
@@ -101,7 +112,6 @@ jobs:
       - name: Run SlicerMorph cached-model regression tests
         id: pytest
         env:
-          PATH: /opt/anaconda3/bin:/usr/local/bin:/usr/bin:/bin
           SLICER_REQUIRE_SLICERMORPH: ${{ inputs.require_slicermorph && '1' || '0' }}
         run: |
           export PYTHONUNBUFFERED=1

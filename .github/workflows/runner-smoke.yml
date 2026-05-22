@@ -1,0 +1,187 @@
+name: Runner GPU smoke test
+
+# End-to-end smoke test for a MorphoClaw self-hosted GPU runner (typically
+# the WSL2 + NVIDIA setup described in docs/self-hosted-gpu-runner.md).
+#
+# This is the GitHub-Actions counterpart of scripts/runners/test-runner.sh:
+# it exercises nvidia-smi, the nnInteractive venv, a real CUDA forward pass
+# on a synthetic 32^3 volume, Slicer headless launch, and SlicerMorph import.
+#
+# Trigger it manually from the Actions tab the first time you bring a GPU
+# runner online to prove routing + secrets + GPU + Slicer all work together.
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_label:
+        description: 'Runner label to target (defaults to gpu). Use "slicer" or "self-hosted" to target a non-GPU runner for partial checks.'
+        required: false
+        type: string
+        default: 'gpu'
+      skip_inference:
+        description: 'Skip the CUDA forward-pass test (still checks imports + session construction).'
+        required: false
+        type: boolean
+        default: false
+      skip_slicer:
+        description: 'Skip the Slicer + SlicerMorph checks.'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: runner-smoke-${{ github.run_id }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: GPU + Slicer smoke
+    runs-on:
+      - self-hosted
+      - ${{ inputs.target_label || 'gpu' }}
+    timeout-minutes: 25
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Resolve runner-local paths
+        shell: bash
+        run: |
+          ANACONDA_BIN="${ANACONDA_BIN:-/opt/anaconda3/bin}"
+          SLICER_BIN="${SLICER_BIN:-/Applications/Slicer.app/Contents/MacOS/Slicer}"
+          NNI_HOME="${NNINTERACTIVE_HOME:-$HOME/.autoresearchclaw/nninteractive}"
+          echo "ANACONDA_BIN=$ANACONDA_BIN"      >> "$GITHUB_ENV"
+          echo "SLICER_BIN=$SLICER_BIN"          >> "$GITHUB_ENV"
+          echo "NNINTERACTIVE_HOME=$NNI_HOME"    >> "$GITHUB_ENV"
+          echo "$ANACONDA_BIN"                   >> "$GITHUB_PATH"
+
+      - name: Runner info
+        shell: bash
+        run: |
+          echo "## Runner identity" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "- host: \`$(hostname)\`" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "- uname: \`$(uname -a)\`" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "- runner name: \`${RUNNER_NAME:-?}\`" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "- targeted labels: \`self-hosted, ${{ inputs.target_label || 'gpu' }}\`" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "- ANACONDA_BIN=\`$ANACONDA_BIN\`" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "- SLICER_BIN=\`$SLICER_BIN\`" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "- NNINTERACTIVE_HOME=\`$NNINTERACTIVE_HOME\`" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: nvidia-smi
+        id: nvidia
+        shell: bash
+        run: |
+          {
+            echo ""
+            echo "## nvidia-smi"
+            echo ""
+            echo '```'
+            if command -v nvidia-smi >/dev/null 2>&1; then
+              nvidia-smi || true
+            else
+              echo "nvidia-smi NOT FOUND on this runner."
+            fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          # Don't fail if the user targets a non-GPU runner; gpu_smoke.py reports it.
+          command -v nvidia-smi >/dev/null 2>&1 || echo "::warning::nvidia-smi missing"
+
+      - name: Ensure nnInteractive is bootstrapped (idempotent)
+        shell: bash
+        run: |
+          if [ -x "$NNINTERACTIVE_HOME/bin/python" ] && \
+             "$NNINTERACTIVE_HOME/bin/python" -c "import nnInteractive" >/dev/null 2>&1; then
+            echo "nnInteractive venv already present at $NNINTERACTIVE_HOME"
+          else
+            chmod +x .github/scripts/install_nninteractive.sh
+            .github/scripts/install_nninteractive.sh
+          fi
+
+      - name: Run gpu_smoke.py (CUDA + nnInteractive forward pass)
+        id: gpu
+        if: ${{ !inputs.skip_inference }}
+        shell: bash
+        env:
+          GPU_SMOKE_REPORT: ${{ github.workspace }}/gpu_smoke_report.json
+        run: |
+          "$NNINTERACTIVE_HOME/bin/python" scripts/runners/gpu_smoke.py | tee gpu_smoke.log
+          if [ -f "$GPU_SMOKE_REPORT" ]; then
+            {
+              echo ""
+              echo "## GPU smoke report"
+              echo ""
+              echo '```json'
+              cat "$GPU_SMOKE_REPORT"
+              echo
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Slicer headless --version
+        id: slicer
+        if: ${{ !inputs.skip_slicer }}
+        shell: bash
+        run: |
+          if [ ! -x "$SLICER_BIN" ]; then
+            echo "::error::SLICER_BIN does not exist or is not executable: $SLICER_BIN"
+            exit 1
+          fi
+          "$SLICER_BIN" --no-splash --no-main-window --version | tee slicer-version.log
+          {
+            echo ""
+            echo "## Slicer"
+            echo ""
+            echo '```'
+            cat slicer-version.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: SlicerMorph import probe (import GPA)
+        id: slicermorph
+        if: ${{ !inputs.skip_slicer }}
+        shell: bash
+        run: |
+          cat > /tmp/probe_gpa.py <<'PY'
+          import sys
+          try:
+              import GPA  # noqa: F401
+              print("SlicerMorph::OK")
+              import slicer
+              slicer.app.exit(0)
+          except Exception as exc:
+              print(f"SlicerMorph::FAIL::{exc}")
+              import slicer
+              slicer.app.exit(1)
+          PY
+          "$SLICER_BIN" --no-splash --no-main-window --python-script /tmp/probe_gpa.py \
+              | tee slicermorph.log
+          if grep -q '^SlicerMorph::OK' slicermorph.log; then
+            echo "## SlicerMorph: OK" >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo ""
+              echo "## SlicerMorph probe output"
+              echo ""
+              echo '```'
+              tail -40 slicermorph.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+      - name: Upload smoke logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runner-smoke-logs
+          path: |
+            gpu_smoke.log
+            gpu_smoke_report.json
+            slicer-version.log
+            slicermorph.log
+          if-no-files-found: ignore
+          retention-days: 14

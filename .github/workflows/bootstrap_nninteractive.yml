@@ -46,6 +46,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+      - name: Resolve runner-local paths
+        # Each self-hosted runner advertises its layout via its own .env
+        # (see docs/self-hosted-gpu-runner.md). Defaults match the Mac mini.
+        shell: bash
+        run: |
+          ANACONDA_BIN="${ANACONDA_BIN:-/opt/anaconda3/bin}"
+          SLICER_BIN="${SLICER_BIN:-/Applications/Slicer.app/Contents/MacOS/Slicer}"
+          NNI_HOME="${NNINTERACTIVE_HOME:-$HOME/.autoresearchclaw/nninteractive}"
+          echo "ANACONDA_BIN=$ANACONDA_BIN"      >> "$GITHUB_ENV"
+          echo "SLICER_BIN=$SLICER_BIN"          >> "$GITHUB_ENV"
+          echo "NNINTERACTIVE_HOME=$NNI_HOME"    >> "$GITHUB_ENV"
+          echo "$ANACONDA_BIN"                   >> "$GITHUB_PATH"
+
       - name: Print runner info
         run: |
           echo "Host: $(hostname)"
@@ -68,21 +81,17 @@ jobs:
 
       - name: Print sanity report
         run: |
-          NNI_HOME="${NNINTERACTIVE_HOME:-$HOME/.autoresearchclaw/nninteractive}"
-          echo "Venv: $NNI_HOME"
-          ls -la "$NNI_HOME/bin" | head -20 || true
+          echo "Venv: $NNINTERACTIVE_HOME"
+          ls -la "$NNINTERACTIVE_HOME/bin" | head -20 || true
           echo "Models:"
-          ls -la "$NNI_HOME/models" 2>/dev/null || echo "  (none)"
+          ls -la "$NNINTERACTIVE_HOME/models" 2>/dev/null || echo "  (none)"
           echo "Disk usage:"
-          du -sh "$NNI_HOME" 2>/dev/null || true
+          du -sh "$NNINTERACTIVE_HOME" 2>/dev/null || true
 
       - name: Install SlicerNNInteractive extension (optional)
         if: ${{ inputs.install_slicer_extension }}
         continue-on-error: true
-        env:
-          PATH: /opt/anaconda3/bin:/usr/local/bin:/usr/bin:/bin
         run: |
-          SLICER_BIN="${SLICER_BIN:-/Applications/Slicer.app/Contents/MacOS/Slicer}"
           if [ ! -x "$SLICER_BIN" ]; then
             echo "Slicer not found at $SLICER_BIN — skipping client extension install"
             exit 0
@@ -94,5 +103,5 @@ jobs:
       - name: Summary
         run: |
           echo "::notice::nnInteractive bootstrap complete."
-          echo "Activate the venv with: source $HOME/.autoresearchclaw/nninteractive/bin/activate"
+          echo "Activate the venv with: source $NNINTERACTIVE_HOME/bin/activate"
           echo "Then run: nninteractive_loop.py --input <volume> --goal '<what to segment>'"

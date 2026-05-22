@@ -1,0 +1,38 @@
+# =============================================================================
+# Example actions-runner/.env  (place at <RUNNER_DIR>/.env)
+#
+# Every line is exported into the job environment before any workflow step
+# runs. This is how each self-hosted runner advertises its own paths to the
+# MorphoClaw workflows without us having to hard-code one host's layout into
+# the YAML.
+#
+# scripts/runners/setup-wsl-runner.sh generates a matching file automatically
+# for the WSL/CUDA runner; this file is for reference and for hand-configuring
+# the Mac mini (or any other) runner.
+# =============================================================================
+
+# ----- Anaconda / Miniforge prefix -------------------------------------------
+# Workflows do `export PATH="${ANACONDA_BIN:-/opt/anaconda3/bin}:$PATH"`.
+# Examples:
+#   Mac mini (current default):    /opt/anaconda3/bin
+#   WSL with Miniforge:            /home/<user>/miniforge3/bin
+#   Ubuntu with system python3.12: /usr/bin
+ANACONDA_BIN=/opt/anaconda3/bin
+
+# ----- 3D Slicer launcher ----------------------------------------------------
+# Workflows read SLICER_BIN to launch Slicer headlessly.
+# Examples:
+#   macOS:           /Applications/Slicer.app/Contents/MacOS/Slicer
+#   WSL (xvfb-wrap): /home/<user>/bin/Slicer   (wrapper from install-slicer-linux.sh)
+#   Native Linux:    /opt/slicer/Slicer-5.10.0-linux-amd64/Slicer
+SLICER_BIN=/Applications/Slicer.app/Contents/MacOS/Slicer
+
+# ----- nnInteractive venv home -----------------------------------------------
+# install_nninteractive.sh writes its venv here. Workflows that need the venv
+# resolve it from this var.
+NNINTERACTIVE_HOME=/Users/runner/.autoresearchclaw/nninteractive
+
+# ----- PATH ------------------------------------------------------------------
+# Optional but recommended -- put ANACONDA_BIN first so `python3` resolves to
+# the conda interpreter you actually want.
+PATH=/opt/anaconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
