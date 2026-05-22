@@ -1,0 +1,48 @@
+---
+description: MorphoClaw self-hosted runner inventory + ops (Mac mini + Dell XPS WSL GPU)
+globs: .github/workflows/**,scripts/runners/**,docs/self-hosted-gpu-runner.md
+alwaysApply: false
+---
+
+# Self-hosted runners on this repo
+
+| Runner            | OS                         | Labels                                                                                   | Use for                                |
+| ----------------- | -------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------- |
+| `m4-morphosource` | macOS ARM64                | `self-hosted, macOS, ARM64, morphosource`                                                | MorphoSource scraping, light scripting |
+| `DellXPS-wsl-gpu` | Linux x64 (WSL2 + Ubuntu)  | `self-hosted, Linux, X64, gpu, cuda, nvidia, wsl, nninteractive, slicer, host-dellxps`   | nnInteractive / GPU training / Slicer  |
+
+## Routing a workflow at the GPU runner
+
+Use **the most specific label set** so the job picks the right host:
+
+```yaml
+runs-on: [self-hosted, gpu, nninteractive]   # routes to DellXPS-wsl-gpu
+```
+
+`[self-hosted]` alone is wrong — it can land on the Mac mini.
+
+## Dell XPS GPU runner operational commands (run from a Cursor terminal on the Dell)
+
+PowerShell wrapper: `scripts/runners/runner-ctl.ps1 <subcommand>`
+
+| Task                  | One-liner                                                                |
+| --------------------- | ------------------------------------------------------------------------ |
+| Start the runner      | `pwsh scripts/runners/runner-ctl.ps1 start`                              |
+| Stop the runner       | `pwsh scripts/runners/runner-ctl.ps1 stop`                               |
+| Runner status         | `pwsh scripts/runners/runner-ctl.ps1 status`                             |
+| Dispatch a workflow   | `pwsh scripts/runners/runner-ctl.ps1 dispatch runner-smoke.yml -f skip_slicer=true`     |
+| List recent runs      | `pwsh scripts/runners/runner-ctl.ps1 runs`                               |
+| Tail a run live       | `pwsh scripts/runners/runner-ctl.ps1 tail <run-id>`                      |
+| Watch runner log      | `pwsh scripts/runners/runner-ctl.ps1 log`                                |
+
+## Environment overrides
+
+Each runner ships a per-host `.env` next to the runner binary that sets
+`ANACONDA_BIN`, `SLICER_BIN`, and `NNINTERACTIVE_HOME`. Workflows must NOT
+hardcode macOS paths — they should pull from `${{ env.ANACONDA_BIN }}` etc.
+See `scripts/runners/runner-env.example` for the canonical template.
+
+## Adding a new runner
+
+Follow `docs/self-hosted-gpu-runner.md`. Re-using `scripts/runners/setup-wsl-runner.sh`
+is idempotent — safe to re-run on an existing box.

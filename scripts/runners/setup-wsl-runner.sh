@@ -287,8 +287,14 @@ log "Writing per-runner environment to $RUNNER_ENV"
     echo "ANACONDA_BIN=${ANACONDA_BIN}"
     echo "NNINTERACTIVE_HOME=${NNI_HOME}"
     echo "SLICER_BIN=${SLICER_BIN_DEFAULT}"
-    # Make the runner's PATH match what the workflows expect.
-    echo "PATH=${ANACONDA_BIN}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin"
+    # Make the runner's PATH match what the workflows expect. On WSL we also
+    # need /usr/lib/wsl/lib up front so non-interactive job shells can see
+    # `nvidia-smi` (it lives in the WSL CUDA-passthrough mount, not /usr/bin).
+    WSL_LIB=""
+    if [ -x /usr/lib/wsl/lib/nvidia-smi ]; then
+        WSL_LIB="/usr/lib/wsl/lib:"
+    fi
+    echo "PATH=${WSL_LIB}${ANACONDA_BIN}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin"
     # Stop the actions-runner from prepending its bundled node to PATH ahead of
     # whatever the workflows decide; the bundled node still works for actions.
     echo "RUNNER_ALLOW_RUNASROOT=0"

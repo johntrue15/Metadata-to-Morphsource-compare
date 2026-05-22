@@ -47,21 +47,44 @@ command -v xvfb-run >/dev/null || warn "xvfb-run not on PATH yet -- run setup-ws
 # 1. Pick a download URL
 # ---------------------------------------------------------------------------
 
+_resolve_slicer_url_from_find() {
+    # Use the official download.slicer.org "find" API. It returns JSON of the form:
+    #   {"download_url":"/bitstream/<itemId>", "name":"Slicer_linux_amd64_<rev>",
+    #    "revision":"<rev>", "version":"5.10.0", "size":434498865, ...}
+    # We compose the absolute URL from download_url.
+    local query="$1"   # e.g. "os=linux&stability=release&revision=34045"
+    local json found
+    if ! json="$(curl -fsSL "https://download.slicer.org/find?$query" 2>/dev/null)"; then
+        echo "" ; return 1
+    fi
+    if ! command -v jq >/dev/null 2>&1; then
+        # jq is part of our apt prereqs, but provide a regex fallback just in case.
+        found="$(printf '%s' "$json" | grep -oE '"download_url":"[^"]+"' | sed 's/.*"\(\/[^"]*\)".*/\1/')"
+    else
+        found="$(printf '%s' "$json" | jq -r '.download_url // empty')"
+    fi
+    if [ -z "$found" ] || [ "$found" = "null" ]; then
+        echo "" ; return 1
+    fi
+    printf 'https://download.slicer.org%s' "$found"
+}
+
 if [ -z "$SLICER_DOWNLOAD_URL" ]; then
     if [ -n "$SLICER_VERSION" ]; then
-        # Slicer publishes versioned downloads on slicer-packages.kitware.com
-        # Use the /api/v1 search endpoint to resolve a versioned tarball.
-        log "Resolving download URL for Slicer $SLICER_VERSION"
-        SLICER_DOWNLOAD_URL="$(curl -fsSL \
-            "https://slicer-packages.kitware.com/api/v1/app/5/package?revision=${SLICER_VERSION}&os=linux&arch=amd64" \
-            | jq -r '.[0].downloadUrl // empty')" || true
-        if [ -z "$SLICER_DOWNLOAD_URL" ] || [ "$SLICER_DOWNLOAD_URL" = "null" ]; then
-            warn "Could not look up $SLICER_VERSION via slicer-packages.kitware.com; falling back to the 'release' channel."
-            SLICER_DOWNLOAD_URL="https://download.slicer.org/?os=linux&stability=release"
+        log "Resolving download URL for Slicer $SLICER_VERSION via download.slicer.org/find"
+        SLICER_DOWNLOAD_URL="$(_resolve_slicer_url_from_find "os=linux&stability=release&revision=${SLICER_VERSION}")" || true
+        if [ -z "$SLICER_DOWNLOAD_URL" ]; then
+            warn "Could not look up Slicer $SLICER_VERSION via /find; falling back to the latest release."
+            SLICER_DOWNLOAD_URL="$(_resolve_slicer_url_from_find "os=linux&stability=release")" || true
         fi
     else
-        # The /?os=linux&stability=release redirect lands on the current stable tarball.
-        SLICER_DOWNLOAD_URL="https://download.slicer.org/?os=linux&stability=release"
+        log "Resolving latest stable Slicer Linux tarball via download.slicer.org/find"
+        SLICER_DOWNLOAD_URL="$(_resolve_slicer_url_from_find "os=linux&stability=release")" || true
+    fi
+    if [ -z "$SLICER_DOWNLOAD_URL" ]; then
+        die "Could not resolve a Slicer download URL. Set SLICER_DOWNLOAD_URL=<direct .tar.gz URL>
+            and re-run. (You can find one by visiting https://download.slicer.org/ in a browser
+            and copying the link from the Linux release row.)"
     fi
 fi
 ok "Slicer download URL: $SLICER_DOWNLOAD_URL"

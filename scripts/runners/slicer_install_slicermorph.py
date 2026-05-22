@@ -28,36 +28,52 @@ OPTIONAL_EXTS = (
 )
 
 
+_METADATA_REFRESHED = False
+
+
+def _ensure_metadata_refreshed(em) -> bool:
+    """Slicer 5.10 requires an explicit metadata fetch before installs work."""
+    global _METADATA_REFRESHED
+    if _METADATA_REFRESHED:
+        return True
+    print("Refreshing extensions metadata from server ...")
+    try:
+        # signature: updateExtensionsMetadataFromServer(force, waitForCompletion) -> bool
+        ok = em.updateExtensionsMetadataFromServer(True, True)
+    except Exception as exc:
+        print(f"[ERROR] metadata refresh crashed: {exc}")
+        return False
+    if not ok:
+        print("[ERROR] metadata refresh returned False (no network? wrong server URL?).")
+        return False
+    _METADATA_REFRESHED = True
+    print("  metadata refreshed.")
+    return True
+
+
 def install_extension(name: str) -> bool:
     em = slicer.app.extensionsManagerModel()
     if em.isExtensionInstalled(name):
-        path = em.extensionInstallPath(name)
+        path = em.extensionInstallPath(name) if hasattr(em, "extensionInstallPath") else "(installed)"
         print(f"[OK] {name} already installed at: {path}")
         return True
 
+    if not _ensure_metadata_refreshed(em):
+        return False
+
     print(f"Installing {name} ...")
     try:
-        metadata = em.retrieveExtensionMetadataByName(name)
-    except Exception as exc:
-        print(f"[ERROR] {name}: lookup failed: {exc}")
-        return False
-
-    if not metadata or not metadata.get("extension_id"):
-        print(f"[ERROR] {name}: not found in the extensions catalog "
-              "(check internet / Slicer version).")
-        return False
-
-    print(f"  extension_id = {metadata['extension_id']}")
-    try:
-        ok = em.downloadAndInstallExtensionByName(name)
+        # Slicer 5.10 signature:
+        #   downloadAndInstallExtensionByName(name, installDependencies, waitForCompletion) -> bool
+        ok = em.downloadAndInstallExtensionByName(name, True, True)
     except Exception as exc:
         print(f"[ERROR] {name}: install crashed: {exc}")
         return False
 
-    if ok:
+    if ok and em.isExtensionInstalled(name):
         print(f"[OK] {name} installed.")
         return True
-    print(f"[ERROR] {name}: downloadAndInstallExtensionByName returned False.")
+    print(f"[ERROR] {name}: install returned {ok}, isExtensionInstalled={em.isExtensionInstalled(name)}")
     return False
 
 
