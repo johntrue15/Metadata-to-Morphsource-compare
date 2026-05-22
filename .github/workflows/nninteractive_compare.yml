@@ -73,7 +73,11 @@ on:
 jobs:
   compare:
     name: Run nnInteractive vs MorphoSource GT
-    runs-on: self-hosted
+    # Route to any self-hosted runner that has the `nninteractive` label.
+    # That's the GPU host (DellXPS-wsl-gpu) today; the Mac mini does not
+    # advertise that label and would otherwise win the race for
+    # `runs-on: self-hosted` since it's always idle.
+    runs-on: [self-hosted, nninteractive]
     permissions:
       contents: read
       issues: write
