@@ -1,0 +1,107 @@
+name: Runner liveness
+
+# Out-of-band API-side check that the Dell XPS self-hosted runner is `online`
+# in GitHub's eyes. The on-host watchdog and the systemd Restart= drop-in
+# catch process- and service-level failures, and the scheduled
+# `runner-smoke.yml` catches GPU/Slicer/nnInteractive drift. None of them
+# can catch the case where the runner is fully gone from GitHub's POV
+# (auth lapsed, host hung, network partition) — a self-hosted job would
+# just queue forever without any visible failure.
+#
+# This workflow runs on `ubuntu-latest` (cheap, always available), polls
+# the Actions runners API every 30 min, and opens / updates / closes the
+# single sticky "Runner health" issue.
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  # `actions:read` to list self-hosted runners on the repo.
+  actions: read
+
+concurrency:
+  # One liveness check at a time; if cron fires while a previous run is
+  # somehow still in flight, cancel the earlier (we only care about now).
+  group: runner-liveness
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Probe runner status via API
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      RUNNER_NAME: DellXPS-wsl-gpu
+    steps:
+      - name: Checkout (for composite action)
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+
+      - name: Query runner status
+        id: probe
+        uses: actions/github-script@v8
+        env:
+          RUNNER_NAME: ${{ env.RUNNER_NAME }}
+        with:
+          script: |
+            const target = process.env.RUNNER_NAME;
+            const resp = await github.rest.actions.listSelfHostedRunnersForRepo({
+              ...context.repo,
+              per_page: 100,
+            });
+            const runner = resp.data.runners.find(r => r.name === target);
+            if (!runner) {
+              core.setOutput('exists', 'false');
+              core.setOutput('status', 'missing');
+              core.setOutput('busy', 'false');
+              core.warning(`Runner '${target}' is NOT registered with this repo.`);
+              return;
+            }
+            core.setOutput('exists', 'true');
+            core.setOutput('status', runner.status);  // 'online' | 'offline'
+            core.setOutput('busy', String(runner.busy));
+            core.setOutput('labels', (runner.labels || []).map(l => l.name).join(','));
+            core.info(`Runner '${target}': status=${runner.status} busy=${runner.busy}`);
+            await core.summary
+              .addHeading(`Runner '${target}'`, 2)
+              .addTable([
+                [{data: 'field', header: true}, {data: 'value', header: true}],
+                ['status', runner.status],
+                ['busy', String(runner.busy)],
+                ['os', runner.os || '—'],
+                ['labels', (runner.labels || []).map(l => l.name).join(', ') || '—'],
+              ])
+              .write();
+
+      - name: Report health — offline / missing
+        if: ${{ steps.probe.outputs.status == 'offline' || steps.probe.outputs.status == 'missing' }}
+        uses: ./.github/actions/report-runner-health
+        with:
+          runner-name: ${{ env.RUNNER_NAME }}
+          probe-name: liveness
+          status: offline
+          context: |
+            API reports runner `${{ env.RUNNER_NAME }}` as **${{ steps.probe.outputs.status }}**
+            (`exists=${{ steps.probe.outputs.exists }}`,
+             `busy=${{ steps.probe.outputs.busy }}`).
+
+            On-host recovery:
+
+            ```powershell
+            pwsh scripts\runners\runner-ctl.ps1 status
+            pwsh scripts\runners\runner-ctl.ps1 restart
+            pwsh scripts\runners\runner-ctl.ps1 watchdog status
+            ```
+
+      - name: Report health — online (recovered)
+        if: ${{ steps.probe.outputs.status == 'online' }}
+        uses: ./.github/actions/report-runner-health
+        with:
+          runner-name: ${{ env.RUNNER_NAME }}
+          probe-name: liveness
+          status: recovered

@@ -16,6 +16,10 @@ box with CUDA passthrough (bare metal, WSL2, or LXD/Proxmox VM).
 | `slicer_install_slicermorph.py` | Inside Slicer (via `--python-script`) | Headlessly installs SlicerMorph + a few common companion extensions. |
 | `test-runner.sh` | Inside Ubuntu / WSL2 | Local end-to-end smoke test: nvidia-smi, runner config, PyTorch + CUDA, `nnInteractiveInferenceSession` constructed on the GPU, synthetic forward pass, Slicer headless, `import GPA`. Exits non-zero on the first failure. |
 | `gpu_smoke.py` | Inside the nnInteractive venv | Python helper called by `test-runner.sh` and by `.github/workflows/runner-smoke.yml`. Does the real PyTorch + nnInteractive work. |
+| `install-runner-service.sh` | Inside Ubuntu / WSL2 | Promotes the foreground `./run.sh` runner to a systemd-managed service with `Restart=on-failure` (auto-recovers from crashes after 30s). Idempotent. |
+| `runner-watchdog.ps1` | Windows host (Task Scheduler) | One-shot check: ensures the WSL distro is awake and the runner service is `active`. Restarts whichever is down. Logs to `%LOCALAPPDATA%\MorphoClaw\runner-watchdog.log`. |
+| `install-watchdog.ps1` / `uninstall-watchdog.ps1` | Windows host | Idempotent installer/uninstaller for the `MorphoClaw-RunnerWatchdog` Scheduled Task that runs `runner-watchdog.ps1` every 5 min and at logon. |
+| `runner-ctl.ps1` | Windows host | Unified CLI for status / start / stop / restart / log / dispatch / tail / cancel / token / `watchdog install|uninstall|status|run-once`. |
 | `runner-env.example` | Reference | Sample of the `.env` file the actions-runner reads. Useful for hand-configuring the Mac mini or any other host. |
 
 ## One-shot bring-up (Dell XPS + GTX 1650 Ti, but applies to any Windows + NVIDIA box)
@@ -54,9 +58,22 @@ box with CUDA passthrough (bare metal, WSL2, or LXD/Proxmox VM).
 
 4. **Start the runner:**
 
+   For an ad-hoc foreground run:
+
    ```bash
    cd ~/actions-runner-morphoclaw
    ./run.sh
+   ```
+
+   Or, for the recommended setup (auto-restart on crash + auto-wake on
+   host boot), install it as a systemd service plus a Windows watchdog:
+
+   ```bash
+   bash scripts/runners/install-runner-service.sh
+   ```
+
+   ```powershell
+   pwsh scripts\runners\runner-ctl.ps1 watchdog install
    ```
 
 5. **Verify routing + secrets via GitHub:** trigger the

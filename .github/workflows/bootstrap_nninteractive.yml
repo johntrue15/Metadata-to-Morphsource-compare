@@ -1,11 +1,14 @@
 name: Bootstrap nnInteractive
 
 # One-time (or on-demand) installation of the nnInteractive Python backend
-# and (optionally) the SlicerNNInteractive 3D Slicer extension on the
-# AutoResearchClaw self-hosted Mac mini runner.
+# and (optionally) the SlicerNNInteractive 3D Slicer extension on a
+# self-hosted runner. Defaults to the gpu-labelled host (DellXPS-wsl-gpu);
+# override via the `target_label` input.
 #
 # Re-running this workflow is safe — install_nninteractive.sh is idempotent
-# unless `force_reinstall` is set.
+# unless `force_reinstall` is set. Also fires weekly on Monday 11:00 UTC to
+# catch torch / nnInteractive package drift; the weekly probe reports its
+# result to the sticky "Runner health: DellXPS-wsl-gpu" issue.
 
 concurrency:
   group: nninteractive-bootstrap
@@ -14,6 +17,11 @@ concurrency:
 on:
   workflow_dispatch:
     inputs:
+      target_label:
+        description: 'Runner label to target alongside self-hosted (default: gpu, i.e. the XPS).'
+        required: false
+        type: string
+        default: 'gpu'
       force_reinstall:
         description: 'Wipe the existing venv and reinstall from scratch'
         required: false
@@ -34,13 +42,21 @@ on:
         required: false
         type: string
         default: ''
+  schedule:
+    # Mondays 11:00 UTC — catches torch / nnInteractive package drift over
+    # the weekend before the work week starts. Idempotent: if everything
+    # is already installed, this just verifies imports + model presence.
+    - cron: '0 11 * * 1'
 
 jobs:
   bootstrap:
     name: Bootstrap nnInteractive on self-hosted runner
-    runs-on: self-hosted
+    runs-on:
+      - self-hosted
+      - ${{ inputs.target_label || 'gpu' }}
     permissions:
       contents: read
+      issues: write
 
     steps:
       - name: Checkout repository
@@ -105,3 +121,49 @@ jobs:
           echo "::notice::nnInteractive bootstrap complete."
           echo "Activate the venv with: source $NNINTERACTIVE_HOME/bin/activate"
           echo "Then run: nninteractive_loop.py --input <volume> --goal '<what to segment>'"
+
+      - name: Detect which host ran the job
+        id: whoami
+        if: always()
+        shell: bash
+        run: |
+          # The runner-health issue is keyed by runner name, so we only report
+          # when the job actually landed on DellXPS-wsl-gpu. The runner exports
+          # its own name via $RUNNER_NAME (set by actions-runner itself).
+          echo "runner_name=${RUNNER_NAME:-unknown}" >> "$GITHUB_OUTPUT"
+          echo "Job ran on runner: ${RUNNER_NAME:-unknown}"
+
+      - name: Collect failure context
+        id: collect
+        if: failure() && steps.whoami.outputs.runner_name == 'DellXPS-wsl-gpu'
+        shell: bash
+        run: |
+          {
+            echo "Bootstrap failed in [run ${{ github.run_id }}](${{ github.serverUrl }}/${{ github.repository }}/actions/runs/${{ github.run_id }})."
+            echo ""
+            echo "Likely causes: torch wheel drift after a driver update, nnInteractive package upgrade breaking the venv, model weights moved/corrupted."
+            echo ""
+            echo "Recover by re-running with \`force_reinstall=true\`."
+          } > _health_context.md
+          {
+            echo 'context<<HEALTH_EOF'
+            cat _health_context.md
+            echo 'HEALTH_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Report health (success)
+        if: success() && github.event_name == 'schedule' && steps.whoami.outputs.runner_name == 'DellXPS-wsl-gpu'
+        uses: ./.github/actions/report-runner-health
+        with:
+          runner-name: DellXPS-wsl-gpu
+          probe-name: bootstrap
+          status: success
+
+      - name: Report health (failure)
+        if: failure() && steps.whoami.outputs.runner_name == 'DellXPS-wsl-gpu'
+        uses: ./.github/actions/report-runner-health
+        with:
+          runner-name: DellXPS-wsl-gpu
+          probe-name: bootstrap
+          status: failure
+          context: ${{ steps.collect.outputs.context }}

@@ -362,12 +362,16 @@ Start the runner (manual, foreground) with:
 
 To check that GitHub sees it: https://github.com/${GH_REPO}/settings/actions/runners
 
-If you want it to start automatically later, you can install the systemd
-unit shipped with the runner:
+If you want it to start automatically (recommended), install the
+service via the wrapper script — it adds Restart=on-failure so a crash
+auto-recovers after 30s:
 
-    cd ${RUNNER_DIR}
-    sudo ./svc.sh install \$USER
-    sudo ./svc.sh start
+    bash scripts/runners/install-runner-service.sh
+
+And on the Windows host, install the Task Scheduler watchdog so a
+stopped WSL distro gets woken up automatically:
+
+    pwsh scripts\runners\runner-ctl.ps1 watchdog install
 
 You can re-run this script anytime; every step is idempotent.
 

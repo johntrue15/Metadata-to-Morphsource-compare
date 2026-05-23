@@ -173,24 +173,31 @@ smoke test:
   greenlight to flip the other GPU-heavy workflows to
   `[self-hosted, gpu]`).
 
-If/when you later want it to come up at boot, the actions-runner ships a
-systemd unit:
+If/when you later want it to come up at boot, run the bundled installer
+(it wraps `./svc.sh install` and drops in `Restart=on-failure` so a
+crash auto-recovers after 30s):
 
 ```bash
-cd ~/actions-runner-morphoclaw
-sudo ./svc.sh install $USER
-sudo ./svc.sh start
-sudo ./svc.sh status
+bash scripts/runners/install-runner-service.sh
 ```
 
-Plus a tiny Windows Scheduled Task on the host that runs
+Plus a Windows Scheduled Task on the host that keeps WSL itself alive
+and starts the service if it's down — installed once with:
 
-```text
-wsl -d Ubuntu-24.04 -- true
+```powershell
+pwsh scripts\runners\runner-ctl.ps1 watchdog install
 ```
 
-at logon, which is enough to wake the distro so systemd picks the
-runner up.
+The watchdog fires every 5 minutes and at logon; together with the
+systemd drop-in this gives the runner three nested layers of recovery
+(process restart → service restart → host-level wake-up). Day-to-day
+status / log inspection still goes through `runner-ctl.ps1` —
+`pwsh scripts\runners\runner-ctl.ps1 status` reports both the
+systemd-managed and foreground-fallback paths.
+
+> **Caveat:** the Task Scheduler entry runs as the Windows user that
+> installed it. If you change Windows accounts, re-run
+> `runner-ctl.ps1 watchdog install` from the new account.
 
 ## How the workflows find Linux paths
 

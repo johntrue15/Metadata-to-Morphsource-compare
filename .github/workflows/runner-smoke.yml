@@ -28,13 +28,19 @@ on:
         required: false
         type: boolean
         default: false
+  schedule:
+    # Every 6 h at :17 past — off-cycle from common :00 / :30 cron slots
+    # to dodge contention with other repo workflows.
+    - cron: '17 */6 * * *'
 
 concurrency:
-  group: runner-smoke-${{ github.run_id }}
+  # Coalesce scheduled runs but never cancel a manual dispatch.
+  group: runner-smoke-${{ github.event_name == 'schedule' && 'scheduled' || github.run_id }}
   cancel-in-progress: false
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   smoke:
@@ -185,3 +191,50 @@ jobs:
             slicermorph.log
           if-no-files-found: ignore
           retention-days: 14
+
+      - name: Collect failure context
+        id: collect
+        if: failure()
+        shell: bash
+        run: |
+          # Concatenate the tail of each log; the report-runner-health composite
+          # uses this snippet in the issue comment on failure.
+          {
+            echo "Failing job: \`${{ github.job }}\` in [run ${{ github.run_id }}](${{ github.serverUrl }}/${{ github.repository }}/actions/runs/${{ github.run_id }})."
+            echo ""
+            for f in gpu_smoke.log gpu_smoke_report.json slicer-version.log slicermorph.log; do
+              if [ -s "$f" ]; then
+                echo ""
+                echo "<details><summary><code>$f</code> (last 40 lines)</summary>"
+                echo ""
+                echo '```'
+                tail -40 "$f" || true
+                echo '```'
+                echo ""
+                echo "</details>"
+              fi
+            done
+          } > _health_context.md
+          # Multi-line outputs need the heredoc form.
+          {
+            echo 'context<<HEALTH_EOF'
+            cat _health_context.md
+            echo 'HEALTH_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Report health (success)
+        if: success() && github.event_name == 'schedule'
+        uses: ./.github/actions/report-runner-health
+        with:
+          runner-name: DellXPS-wsl-gpu
+          probe-name: runner-smoke
+          status: success
+
+      - name: Report health (failure)
+        if: failure()
+        uses: ./.github/actions/report-runner-health
+        with:
+          runner-name: DellXPS-wsl-gpu
+          probe-name: runner-smoke
+          status: failure
+          context: ${{ steps.collect.outputs.context }}

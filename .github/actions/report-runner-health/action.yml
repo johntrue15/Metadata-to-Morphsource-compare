@@ -1,0 +1,252 @@
+name: 'Report runner health'
+description: >-
+  Open / update a single sticky GitHub issue that mirrors the current state of
+  the MorphoClaw self-hosted runner. The issue title is
+  `Runner health: <runner-name>` and it carries the `runner-health` label.
+  A machine-readable JSON block is embedded between AUTO-DATA markers so
+  multiple probes (runner-smoke, bootstrap, liveness) can each update only
+  their own field while preserving the rest.
+
+inputs:
+  runner-name:
+    description: Runner name (used in the issue title, e.g. DellXPS-wsl-gpu)
+    required: true
+  probe-name:
+    description: >-
+      Which probe is reporting. Recommended values: runner-smoke, bootstrap,
+      liveness. The probe gets its own slot in the issue body's JSON state.
+    required: true
+  status:
+    description: 'success | failure | offline | recovered'
+    required: true
+  context:
+    description: >-
+      Optional short markdown snippet appended as a comment on failure / offline
+      (e.g. last 40 lines of a log, link to a workflow run).
+    required: false
+    default: ''
+  github-token:
+    description: GITHUB_TOKEN with issues:write
+    required: false
+    default: ${{ github.token }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/github-script@v8
+      env:
+        RUNNER_NAME: ${{ inputs.runner-name }}
+        PROBE_NAME:  ${{ inputs.probe-name }}
+        PROBE_STATUS: ${{ inputs.status }}
+        PROBE_CONTEXT: ${{ inputs.context }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const runner = process.env.RUNNER_NAME;
+          const probe  = process.env.PROBE_NAME;
+          const status = process.env.PROBE_STATUS;
+          const ctx    = process.env.PROBE_CONTEXT || '';
+
+          const LABEL  = 'runner-health';
+          const TITLE  = `Runner health: ${runner}`;
+          const NOW    = new Date().toISOString();
+          const RUN_URL = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+          const RUN_REF = `[run ${context.runId}](${RUN_URL})`;
+          const MARK_S = '<!-- AUTO-DATA-START -->';
+          const MARK_E = '<!-- AUTO-DATA-END -->';
+
+          // ---- 1. Ensure the label exists -------------------------------
+          try {
+            await github.rest.issues.getLabel({ ...context.repo, name: LABEL });
+          } catch (e) {
+            if (e.status === 404) {
+              await github.rest.issues.createLabel({
+                ...context.repo,
+                name: LABEL,
+                color: 'd93f0b',
+                description: 'Tracks the live state of a self-hosted runner.',
+              });
+            }
+          }
+
+          // ---- 2. Find the sticky issue (open or closed) -----------------
+          // Label-based listing — quota-friendly, no Search API dependency.
+          // On the very first invocation, no issue carries the label yet,
+          // so this returns []; we'll create the issue on a bad event.
+          const labelled = await github.paginate(
+            github.rest.issues.listForRepo,
+            { ...context.repo, labels: LABEL, state: 'all', per_page: 100 },
+          );
+          let issue = labelled.find(i => i.title === TITLE && !i.pull_request) || null;
+
+          // ---- 3. Read current state ------------------------------------
+          let state = {
+            runner,
+            probes: {},
+            last_offline_at: null,
+            last_offline_run: null,
+          };
+          let trailingNotes = '';
+          if (issue) {
+            const body = issue.body || '';
+            const s = body.indexOf(MARK_S);
+            const e = body.indexOf(MARK_E);
+            if (s !== -1 && e !== -1 && e > s) {
+              const block = body.slice(s + MARK_S.length, e);
+              const m = block.match(/```json\s*([\s\S]*?)\s*```/);
+              if (m) {
+                try { state = { ...state, ...JSON.parse(m[1]) }; } catch (_) {}
+              }
+              const tail = body.slice(e + MARK_E.length).trim();
+              if (tail) trailingNotes = tail;
+            } else {
+              // First time we've touched this pre-existing issue: keep its
+              // existing body as trailing notes so a human's commentary survives.
+              trailingNotes = body.trim();
+            }
+          }
+
+          // ---- 4. Apply update for this probe ---------------------------
+          if (!state.probes[probe]) {
+            state.probes[probe] = {
+              last_result: null,
+              last_pass_at: null,
+              last_pass_run: null,
+              last_fail_at: null,
+              last_fail_run: null,
+            };
+          }
+          const slot = state.probes[probe];
+          slot.last_result = status;
+          if (status === 'success' || status === 'recovered') {
+            slot.last_pass_at  = NOW;
+            slot.last_pass_run = context.runId.toString();
+          } else if (status === 'failure') {
+            slot.last_fail_at  = NOW;
+            slot.last_fail_run = context.runId.toString();
+          } else if (status === 'offline') {
+            state.last_offline_at  = NOW;
+            state.last_offline_run = context.runId.toString();
+          }
+
+          // ---- 5. Render body -------------------------------------------
+          const probeRows = Object.entries(state.probes).map(([k, v]) => {
+            const pass = v.last_pass_at
+              ? `${v.last_pass_at} (run ${v.last_pass_run})`
+              : '—';
+            const fail = v.last_fail_at
+              ? `${v.last_fail_at} (run ${v.last_fail_run})`
+              : '—';
+            return `| \`${k}\` | ${v.last_result || '—'} | ${pass} | ${fail} |`;
+          }).join('\n');
+          const offlineLine = state.last_offline_at
+            ? `**Last offline:** ${state.last_offline_at} (run ${state.last_offline_run})`
+            : '**Last offline:** —';
+
+          const recovery = [
+            '<details><summary>Recovery snippet (run on the host)</summary>',
+            '',
+            '```powershell',
+            'pwsh scripts\\runners\\runner-ctl.ps1 status',
+            'pwsh scripts\\runners\\runner-ctl.ps1 restart',
+            'pwsh scripts\\runners\\runner-ctl.ps1 watchdog status',
+            '```',
+            '',
+            '</details>',
+          ].join('\n');
+
+          const newBody = [
+            `**Runner:** \`${runner}\``,
+            '',
+            offlineLine,
+            '',
+            '| Probe | Last result | Last pass | Last fail |',
+            '| --- | --- | --- | --- |',
+            probeRows || '| — | — | — | — |',
+            '',
+            recovery,
+            '',
+            MARK_S,
+            '```json',
+            JSON.stringify(state, null, 2),
+            '```',
+            MARK_E,
+            trailingNotes ? `\n${trailingNotes}` : '',
+          ].join('\n');
+
+          // ---- 6. Decide open/close + comment ---------------------------
+          const isBadEvent  = status === 'failure' || status === 'offline';
+          const isGoodEvent = status === 'success' || status === 'recovered';
+
+          if (!issue) {
+            if (isBadEvent) {
+              const created = await github.rest.issues.create({
+                ...context.repo,
+                title: TITLE,
+                body: newBody,
+                labels: [LABEL],
+              });
+              issue = created.data;
+              core.info(`Opened sticky issue #${issue.number}.`);
+            } else {
+              core.info('Issue does not exist and probe is healthy; nothing to do.');
+              return;
+            }
+          } else {
+            await github.rest.issues.update({
+              ...context.repo,
+              issue_number: issue.number,
+              body: newBody,
+            });
+            // Make sure our label is attached.
+            const labelNames = (issue.labels || []).map(l => (typeof l === 'string') ? l : l.name);
+            if (!labelNames.includes(LABEL)) {
+              await github.rest.issues.addLabels({
+                ...context.repo,
+                issue_number: issue.number,
+                labels: [LABEL],
+              });
+            }
+          }
+
+          if (isBadEvent) {
+            // Reopen if closed.
+            if (issue.state === 'closed') {
+              await github.rest.issues.update({
+                ...context.repo,
+                issue_number: issue.number,
+                state: 'open',
+              });
+              core.info(`Reopened issue #${issue.number}.`);
+            }
+            const commentBody = [
+              `**${probe}** reported \`${status}\` at ${NOW} (${RUN_REF}).`,
+              ctx ? `\n${ctx}` : '',
+            ].join('\n');
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: issue.number,
+              body: commentBody,
+            });
+          } else if (isGoodEvent && issue.state === 'open') {
+            // All probes green? Close.
+            const allGreen = Object.values(state.probes)
+              .every(p => p.last_result === 'success' || p.last_result === 'recovered');
+            const offlineCleared = !state.last_offline_at
+              || (state.probes[probe] && state.probes[probe].last_pass_at >= state.last_offline_at);
+            if (allGreen && offlineCleared) {
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number: issue.number,
+                body: `**${probe}** recovered at ${NOW} (${RUN_REF}). Closing.`,
+              });
+              await github.rest.issues.update({
+                ...context.repo,
+                issue_number: issue.number,
+                state: 'closed',
+              });
+              core.info(`Closed issue #${issue.number} (all probes green).`);
+            } else {
+              core.info(`Updated issue #${issue.number}; keeping open (other probes still red).`);
+            }
+          }

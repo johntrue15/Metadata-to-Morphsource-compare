@@ -31,7 +31,7 @@
 param(
     [Parameter(Mandatory = $true, Position = 0)]
     [ValidateSet('status', 'start', 'stop', 'restart', 'log', 'dispatch',
-                 'runs', 'tail', 'cancel', 'token', 'help')]
+                 'runs', 'tail', 'cancel', 'token', 'watchdog', 'help')]
     [string]$Command,
 
     [Parameter(Position = 1, ValueFromRemainingArguments = $true)]
@@ -109,6 +109,11 @@ Commands:
   tail <run-id>                Stream live logs of a run
   cancel <run-id>              Cancel an in-progress run
   token                        Print a fresh registration token
+  watchdog <subcommand>        Manage the Task Scheduler watchdog:
+                                 install    register MorphoClaw-RunnerWatchdog
+                                 uninstall  remove the scheduled task
+                                 status     show task state + last 20 log lines
+                                 run-once   trigger the watchdog right now
 
 Environment overrides:
   MORPHOCLAW_REPO    (default: johntrue15/MorphoClaw)
@@ -145,8 +150,15 @@ switch ($Command) {
         }
         Write-Host "== Local process view ==" -ForegroundColor Cyan
         Invoke-Wsl @"
-if pgrep -af 'Runner.Listener' >/dev/null; then
-    echo 'state: RUNNING'
+SVC='actions.runner.johntrue15-MorphoClaw.DellXPS-wsl-gpu.service'
+if systemctl is-active --quiet "`$SVC" 2>/dev/null; then
+    echo "state: RUNNING (systemd: \`$SVC)"
+    systemctl --no-pager status "`$SVC" 2>/dev/null | sed -n '1,3p;/Main PID/p;/Active:/p'
+    echo
+    echo '-- last 8 journal entries --'
+    journalctl -u "`$SVC" --no-pager -n 8 2>/dev/null | tail -8
+elif pgrep -af 'Runner.Listener' >/dev/null; then
+    echo 'state: RUNNING (foreground ./run.sh)'
     pgrep -af 'Runner.Listener|run.sh|run-helper' | head -5
     echo
     echo '-- last 10 lines of runner.log --'
@@ -159,38 +171,54 @@ fi
 
     'start' {
         Invoke-Wsl @"
-cd $RunnerDir
-if pgrep -af 'Runner.Listener' >/dev/null; then
-    echo 'Already running:'
-    pgrep -af 'Runner.Listener' | head -3
-    exit 0
+SVC='actions.runner.johntrue15-MorphoClaw.DellXPS-wsl-gpu.service'
+if systemctl list-unit-files --no-pager | grep -q "`$SVC"; then
+    sudo systemctl start "`$SVC"
+    sleep 2
+    systemctl is-active --quiet "`$SVC" && echo "Started (systemd: `$SVC)" || { echo 'FAILED, journal:'; journalctl -u "`$SVC" --no-pager -n 20; exit 1; }
+else
+    cd $RunnerDir
+    if pgrep -af 'Runner.Listener' >/dev/null; then
+        echo 'Already running:'
+        pgrep -af 'Runner.Listener' | head -3
+        exit 0
+    fi
+    setsid nohup ./run.sh > $LogPath 2>&1 < /dev/null &
+    disown
+    sleep 3
+    pgrep -af 'Runner.Listener' | head -3 || { echo 'FAILED to start; see runner.log'; tail -30 $LogPath; exit 1; }
+    echo 'Started (foreground).'
 fi
-setsid nohup ./run.sh > $LogPath 2>&1 < /dev/null &
-disown
-sleep 3
-pgrep -af 'Runner.Listener' | head -3 || { echo 'FAILED to start; see runner.log'; tail -30 $LogPath; exit 1; }
-echo 'Started.'
 "@
     }
 
     'stop' {
         Invoke-Wsl @"
-pids=`$(pgrep -f 'Runner.Listener|run.sh|run-helper' || true)
-if [ -z "`$pids" ]; then
-    echo 'Not running.'
-    exit 0
-fi
-echo "Stopping: `$pids"
-kill `$pids 2>/dev/null || true
-sleep 2
-# force-kill any stragglers
-for p in `$pids; do
-    if kill -0 `$p 2>/dev/null; then
-        kill -9 `$p 2>/dev/null || true
+SVC='actions.runner.johntrue15-MorphoClaw.DellXPS-wsl-gpu.service'
+if systemctl list-unit-files --no-pager | grep -q "`$SVC"; then
+    sudo systemctl stop "`$SVC"
+    sleep 1
+    if systemctl is-active --quiet "`$SVC"; then
+        echo 'Still active!'
+        exit 1
     fi
-done
-sleep 1
-pgrep -af 'Runner.Listener' && { echo 'still alive!'; exit 1; } || echo 'Stopped.'
+    echo "Stopped (systemd: `$SVC)"
+else
+    pids=`$(pgrep -f 'Runner.Listener|run.sh|run-helper' || true)
+    if [ -z "`$pids" ]; then
+        echo 'Not running.'
+        exit 0
+    fi
+    echo "Stopping: `$pids"
+    kill `$pids 2>/dev/null || true
+    sleep 2
+    for p in `$pids; do
+        if kill -0 `$p 2>/dev/null; then kill -9 `$p 2>/dev/null || true; fi
+    done
+    sleep 1
+    if pgrep -af 'Runner.Listener' >/dev/null; then echo 'still alive!'; exit 1; fi
+    echo 'Stopped.'
+fi
 "@
     }
 
@@ -208,7 +236,14 @@ pgrep -af 'Runner.Listener' && { echo 'still alive!'; exit 1; } || echo 'Stopped
                 $i++
             }
         }
-        Invoke-Wsl "tail -n $n $LogPath"
+        Invoke-Wsl @"
+SVC='actions.runner.johntrue15-MorphoClaw.DellXPS-wsl-gpu.service'
+if systemctl list-unit-files --no-pager | grep -q "`$SVC"; then
+    journalctl -u "`$SVC" --no-pager -n $n
+else
+    tail -n $n $LogPath
+fi
+"@
     }
 
     'dispatch' {
@@ -292,5 +327,81 @@ pgrep -af 'Runner.Listener' && { echo 'still alive!'; exit 1; } || echo 'Stopped
         $tok = & gh api -X POST "repos/$Repo/actions/runners/registration-token" --jq .token
         if (-not $tok) { Write-Error 'Failed to mint token.'; exit 3 }
         Write-Host $tok
+    }
+
+    'watchdog' {
+        if ($Rest.Length -eq 0) {
+            Write-Error "Usage: runner-ctl.ps1 watchdog <install|uninstall|status|run-once>"
+            exit 2
+        }
+        $sub      = $Rest[0]
+        $scriptDir = Split-Path -Parent $PSCommandPath
+        $taskName = 'MorphoClaw-RunnerWatchdog'
+        $logPath  = Join-Path $env:LOCALAPPDATA 'MorphoClaw\runner-watchdog.log'
+
+        switch ($sub) {
+            'install' {
+                $installer = Join-Path $scriptDir 'install-watchdog.ps1'
+                if (-not (Test-Path $installer)) {
+                    Write-Error "install-watchdog.ps1 not found at $installer"
+                    exit 3
+                }
+                # `& $installer @extra` is splatting; `& $installer @(...)`
+                # would pass the array as a single positional argument.
+                $extra = @($Rest | Select-Object -Skip 1)
+                & $installer @extra
+            }
+            'uninstall' {
+                $uninstaller = Join-Path $scriptDir 'uninstall-watchdog.ps1'
+                if (-not (Test-Path $uninstaller)) {
+                    Write-Error "uninstall-watchdog.ps1 not found at $uninstaller"
+                    exit 3
+                }
+                $extra = @($Rest | Select-Object -Skip 1)
+                & $uninstaller @extra
+            }
+            'status' {
+                Write-Host "== Scheduled Task '$taskName' ==" -ForegroundColor Cyan
+                $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+                if (-not $task) {
+                    Write-Host "  (not installed; run: runner-ctl.ps1 watchdog install)" -ForegroundColor Yellow
+                } else {
+                    $info = Get-ScheduledTaskInfo -TaskName $taskName
+                    [pscustomobject]@{
+                        State              = $task.State
+                        LastRunTime        = $info.LastRunTime
+                        LastTaskResult     = $info.LastTaskResult
+                        NextRunTime        = $info.NextRunTime
+                        NumberOfMissedRuns = $info.NumberOfMissedRuns
+                    } | Format-List
+                }
+                Write-Host "== Last 20 lines of $logPath ==" -ForegroundColor Cyan
+                if (Test-Path $logPath) {
+                    Get-Content -Path $logPath -Tail 20
+                } else {
+                    Write-Host "  (no log yet)"
+                }
+            }
+            'run-once' {
+                $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+                if (-not $task) {
+                    Write-Host "Task not installed; running watchdog inline." -ForegroundColor Yellow
+                    $watchdog = Join-Path $scriptDir 'runner-watchdog.ps1'
+                    if (-not (Test-Path $watchdog)) {
+                        Write-Error "runner-watchdog.ps1 not found at $watchdog"
+                        exit 3
+                    }
+                    & $watchdog
+                } else {
+                    Start-ScheduledTask -TaskName $taskName
+                    Write-Host "Triggered '$taskName'. Tail the log with:" -ForegroundColor Green
+                    Write-Host "  Get-Content -Wait `"$logPath`""
+                }
+            }
+            default {
+                Write-Error "Unknown watchdog subcommand: $sub. Expected install|uninstall|status|run-once."
+                exit 2
+            }
+        }
     }
 }
