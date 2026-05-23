@@ -622,7 +622,8 @@ def run_comparison(ct_media_id: str, gt_media_id: str, goal: str,
                    output_dir: Path, max_steps: int = 12,
                    voxelize_backend: str = "auto",
                    crop_around_mesh_mm: float = 0.0,
-                   skip_paint_loop: bool = False) -> dict:
+                   skip_paint_loop: bool = False,
+                   export_fixture_dir: Optional[Path] = None) -> dict:
     """End-to-end comparison.
 
     voxelize_backend  "auto" | "slicer" | "vtk"   (auto = Slicer first, VTK fallback)
@@ -632,6 +633,12 @@ def run_comparison(ct_media_id: str, gt_media_id: str, goal: str,
                         a dry run to verify coordinate alignment of the GT mesh
                         against the CT volume *before* spending OpenAI quota
                         on the iterative paint loop.
+    export_fixture_dir  If set, copy the small inputs/outputs needed to re-run
+                        ``run_comparison_from_fixture`` (CT + GT labelmap, and
+                        the prediction labelmap + metrics if the paint loop
+                        ran) into this directory. This is the "cached file"
+                        path that lets PR-level CI smoke-test the comparison
+                        pipeline in <2 min on a hosted runner.
     """
     t0 = time.time()
     pair_dir = output_dir / f"{ct_media_id}__vs__{gt_media_id}"
@@ -770,6 +777,23 @@ def run_comparison(ct_media_id: str, gt_media_id: str, goal: str,
         nni_result, metrics, pair_dir, max_steps,
     ))
 
+    # ---- 7. Optional: export a compact fixture bundle for cached re-runs ----
+    fixture_summary = None
+    if export_fixture_dir is not None:
+        fixture_summary = _export_fixture(
+            export_fixture_dir=Path(export_fixture_dir),
+            ct_media_id=ct_media_id,
+            gt_media_id=gt_media_id,
+            goal=goal,
+            max_steps=max_steps,
+            voxelize_backend=voxelize_result.get("backend", voxelize_backend),
+            crop_around_mesh_mm=crop_around_mesh_mm,
+            ct_used=cropped_ct,
+            gt_labelmap=gt_labelmap,
+            pred_labelmap=pred_labelmap,
+            metrics_path=pair_dir / "metrics.json",
+        )
+
     return {
         "success": True,
         "ct_media_id": ct_media_id,
@@ -788,7 +812,267 @@ def run_comparison(ct_media_id: str, gt_media_id: str, goal: str,
         "crop_summary": cropped_summary,
         "metrics": metrics,
         "duration_s": round(time.time() - t0, 1),
+        "fixture_export": fixture_summary,
     }
+
+
+# ---------------------------------------------------------------------------
+# Cached / fixture-based runs (PR CI smoke test path)
+# ---------------------------------------------------------------------------
+
+
+def _export_fixture(export_fixture_dir: Path,
+                    ct_media_id: str, gt_media_id: str,
+                    goal: str, max_steps: int,
+                    voxelize_backend: str,
+                    crop_around_mesh_mm: float,
+                    ct_used: Path, gt_labelmap: Path,
+                    pred_labelmap: Optional[Path],
+                    metrics_path: Optional[Path]) -> dict:
+    """Copy the small subset of files needed for ``--from-fixture`` re-runs.
+
+    Layout written:
+        <dir>/ct.nii.gz                  # cropped (or full) CT volume
+        <dir>/gt_voxelized.nii.gz        # GT mesh rasterized onto CT grid
+        <dir>/pred.nii.gz                # nnInteractive prediction (optional)
+        <dir>/baseline_metrics.json      # baseline metrics for regression gate
+        <dir>/fixture.json               # metadata: media ids, goal, steps, backend
+    """
+    import shutil
+    export_fixture_dir.mkdir(parents=True, exist_ok=True)
+
+    copied: dict[str, str] = {}
+
+    def _copy(src: Path, dest_name: str) -> None:
+        if src and Path(src).exists():
+            dest = export_fixture_dir / dest_name
+            shutil.copy2(src, dest)
+            copied[dest_name] = str(dest)
+
+    _copy(ct_used, "ct.nii.gz")
+    _copy(gt_labelmap, "gt_voxelized.nii.gz")
+    if pred_labelmap is not None:
+        _copy(pred_labelmap, "pred.nii.gz")
+    if metrics_path is not None:
+        _copy(metrics_path, "baseline_metrics.json")
+
+    meta = {
+        "ct_media_id": ct_media_id,
+        "gt_media_id": gt_media_id,
+        "goal": goal,
+        "max_steps": max_steps,
+        "voxelize_backend": voxelize_backend,
+        "crop_around_mesh_mm": crop_around_mesh_mm,
+        "files": copied,
+    }
+    (export_fixture_dir / "fixture.json").write_text(
+        json.dumps(meta, indent=2)
+    )
+    log.info("Exported fixture bundle to %s (files: %s)",
+             export_fixture_dir, sorted(copied.keys()))
+    return {"dir": str(export_fixture_dir), "files": copied, "meta": meta}
+
+
+def run_comparison_from_fixture(fixture_dir: Path, output_dir: Path,
+                                pred_labelmap: Optional[Path] = None,
+                                goal: Optional[str] = None,
+                                max_steps: Optional[int] = None,
+                                skip_paint_loop: bool = False) -> dict:
+    """Run the comparison using a pre-computed fixture.
+
+    Skips download, TIFF→NIfTI, crop, and voxelize. The fixture directory
+    must contain ``ct.nii.gz`` and ``gt_voxelized.nii.gz``; ``fixture.json``
+    provides the metadata. If ``pred_labelmap`` is supplied (or
+    ``pred.nii.gz`` exists in the fixture dir), the paint loop is also
+    skipped and only metrics + overlay + report are produced — the cheap
+    no-GPU no-OpenAI smoke path.
+    """
+    t0 = time.time()
+    fixture_dir = Path(fixture_dir)
+    fixture_meta_path = fixture_dir / "fixture.json"
+    if not fixture_meta_path.exists():
+        return {"success": False, "stage": "fixture_load",
+                "error": f"Missing {fixture_meta_path}"}
+    try:
+        meta = json.loads(fixture_meta_path.read_text())
+    except json.JSONDecodeError as exc:
+        return {"success": False, "stage": "fixture_load",
+                "error": f"Could not parse fixture.json: {exc}"}
+
+    ct_path = fixture_dir / "ct.nii.gz"
+    gt_labelmap = fixture_dir / "gt_voxelized.nii.gz"
+    if not ct_path.exists() or not gt_labelmap.exists():
+        return {"success": False, "stage": "fixture_load",
+                "error": "fixture is missing ct.nii.gz or gt_voxelized.nii.gz"}
+
+    ct_media_id = meta.get("ct_media_id", "ct")
+    gt_media_id = meta.get("gt_media_id", "gt")
+    fixture_goal = goal or meta.get("goal", "")
+    fixture_max_steps = (
+        max_steps if max_steps is not None
+        else int(meta.get("max_steps", 12))
+    )
+
+    pair_dir = output_dir / f"{ct_media_id}__vs__{gt_media_id}"
+    pair_dir.mkdir(parents=True, exist_ok=True)
+
+    pred_candidate = pred_labelmap or (fixture_dir / "pred.nii.gz")
+    have_cached_pred = pred_candidate.exists() if pred_candidate else False
+
+    # ---- 1. Render an alignment report so callers can sanity-check inputs ----
+    ct_pick = FilePick(path=ct_path, size=ct_path.stat().st_size)
+    mesh_pick = FilePick(path=Path("(fixture, mesh not included)"), size=0)
+
+    # ---- 2. Optionally short-circuit on alignment only ----
+    if skip_paint_loop and not have_cached_pred:
+        align_report_path = pair_dir / "alignment_report.md"
+        align_report_path.write_text(_render_alignment_report(
+            ct_media_id, gt_media_id, ct_pick, mesh_pick,
+            crop_summary=None,
+            voxelize_result={"backend": meta.get("voxelize_backend", "fixture")},
+            ct_full=ct_path, ct_used=ct_path,
+            gt_labelmap=gt_labelmap, pair_dir=pair_dir,
+        ))
+        return {
+            "success": True, "stage": "fixture_alignment_only",
+            "ct_path_used": str(ct_path),
+            "gt_labelmap": str(gt_labelmap),
+            "alignment_report": str(align_report_path),
+            "duration_s": round(time.time() - t0, 1),
+            "from_fixture": True,
+        }
+
+    # ---- 3. Either run the paint loop (slow GPU path) or use cached pred ----
+    if have_cached_pred:
+        log.info("Using cached prediction labelmap %s — skipping paint loop",
+                 pred_candidate)
+        pred_path = pred_candidate
+        nni_result = {
+            "labelmap_path": str(pred_path),
+            "from_cache": True,
+            "n_prompts": 0,
+        }
+    else:
+        nni_dir = pair_dir / "nninteractive"
+        nni_result = _run_paint_loop(ct_path, fixture_goal, nni_dir,
+                                     ct_media_id, fixture_max_steps)
+        if "error" in nni_result:
+            return {"success": False, "stage": "paint_loop",
+                    "result": nni_result, "from_fixture": True}
+        pred_path = Path(nni_result.get("labelmap_path", ""))
+        if not pred_path.exists():
+            return {"success": False, "stage": "paint_loop",
+                    "error": f"prediction labelmap missing: {pred_path}",
+                    "from_fixture": True}
+
+    # ---- 4. Metrics + overlay ----
+    metrics = _compute_metrics(
+        prediction=pred_path,
+        ground_truth=gt_labelmap,
+        volume=ct_path,
+        overlay_path=pair_dir / "overlay.png",
+        metrics_path=pair_dir / "metrics.json",
+    )
+    if "error" in metrics:
+        return {"success": False, "stage": "metrics", "result": metrics,
+                "from_fixture": True}
+
+    # ---- 5. Report ----
+    report_path = pair_dir / "report.md"
+    report_path.write_text(_render_report(
+        ct_media_id, gt_media_id, fixture_goal, ct_pick, mesh_pick,
+        voxelize_result={
+            "backend": meta.get("voxelize_backend", "fixture"),
+            "reference_dims": None,
+            "reference_spacing_xyz": None,
+            "foreground_voxels": metrics.get("voxel_count_gt"),
+            "foreground_volume_mm3": metrics.get("volume_mm3_gt"),
+        },
+        nni_result=nni_result,
+        metrics=metrics,
+        pair_dir=pair_dir,
+        max_steps=fixture_max_steps,
+    ))
+
+    return {
+        "success": True,
+        "ct_media_id": ct_media_id,
+        "gt_media_id": gt_media_id,
+        "goal": fixture_goal,
+        "ct_path_used": str(ct_path),
+        "gt_labelmap": str(gt_labelmap),
+        "prediction_labelmap": str(pred_path),
+        "metrics_path": str(pair_dir / "metrics.json"),
+        "overlay_path": str(pair_dir / "overlay.png"),
+        "report_path": str(report_path),
+        "metrics": metrics,
+        "from_fixture": True,
+        "used_cached_pred": have_cached_pred,
+        "duration_s": round(time.time() - t0, 1),
+    }
+
+
+def evaluate_regression(metrics: dict, baseline_metrics_path: Optional[Path],
+                        assert_dice: Optional[float],
+                        regression_tol: float = 0.01) -> tuple[bool, list[str]]:
+    """Return ``(passed, messages)``.
+
+    Fails (returns ``passed=False``) if either:
+      * ``assert_dice`` is set and the run's dice falls below it, OR
+      * ``baseline_metrics_path`` is set and dice or IoU regresses by more
+        than ``regression_tol`` (absolute) vs the baseline.
+    """
+    msgs: list[str] = []
+    passed = True
+    dice = metrics.get("dice")
+    iou = metrics.get("iou")
+
+    if assert_dice is not None:
+        if dice is None:
+            msgs.append(f"[FAIL] dice is null; expected >= {assert_dice}")
+            passed = False
+        elif dice + 1e-9 < assert_dice:
+            msgs.append(
+                f"[FAIL] dice {dice:.4f} < floor {assert_dice:.4f}"
+            )
+            passed = False
+        else:
+            msgs.append(f"[OK]   dice {dice:.4f} >= floor {assert_dice:.4f}")
+
+    if baseline_metrics_path is not None:
+        bp = Path(baseline_metrics_path)
+        if not bp.exists():
+            msgs.append(f"[FAIL] baseline metrics not found: {bp}")
+            passed = False
+        else:
+            try:
+                baseline = json.loads(bp.read_text())
+            except json.JSONDecodeError as exc:
+                msgs.append(f"[FAIL] baseline parse error: {exc}")
+                return False, msgs
+            b_dice = baseline.get("dice")
+            b_iou = baseline.get("iou")
+            for label, current, expected in (("dice", dice, b_dice),
+                                             ("iou", iou, b_iou)):
+                if expected is None or current is None:
+                    msgs.append(
+                        f"[SKIP] {label}: missing (cur={current} base={expected})"
+                    )
+                    continue
+                drop = expected - current
+                if drop > regression_tol + 1e-9:
+                    msgs.append(
+                        f"[FAIL] {label} regressed {drop:.4f} "
+                        f"(cur {current:.4f} vs baseline {expected:.4f}, "
+                        f"tol {regression_tol})"
+                    )
+                    passed = False
+                else:
+                    msgs.append(
+                        f"[OK]   {label} {current:.4f} vs baseline "
+                        f"{expected:.4f} (delta {-drop:+.4f}, tol {regression_tol})"
+                    )
+    return passed, msgs
 
 
 # ---------------------------------------------------------------------------
@@ -1031,7 +1315,57 @@ def _parse_args():
                    help="Stop after voxelizing the GT mesh and emit an "
                         "alignment report (alignment_report.md). Useful as a "
                         "dry run before spending OpenAI quota on the loop.")
+    p.add_argument("--export-fixture-dir", default="",
+                   help="After a successful end-to-end run, copy the small "
+                        "subset of files needed for cached fixture-based "
+                        "re-runs (ct.nii.gz, gt_voxelized.nii.gz, pred.nii.gz, "
+                        "baseline_metrics.json, fixture.json) into this dir. "
+                        "Used by the CI pipeline to publish a small "
+                        "`nninteractive-fixtures` artifact alongside the "
+                        "full run output.")
+    p.add_argument("--from-fixture", default="",
+                   help="Run the comparison using a cached fixture directory "
+                        "(skips download, TIFF, crop, voxelize). The dir must "
+                        "contain ct.nii.gz, gt_voxelized.nii.gz, and "
+                        "fixture.json. Add --pred-from-fixture to also skip "
+                        "the paint loop.")
+    p.add_argument("--pred-from-fixture", default="",
+                   help="When using --from-fixture, load this prediction "
+                        "labelmap instead of running the paint loop. Defaults "
+                        "to <fixture_dir>/pred.nii.gz if present. Enables a "
+                        "no-GPU, no-OpenAI smoke test of the comparison "
+                        "pipeline (metrics + overlay + report).")
+    p.add_argument("--assert-dice", type=float, default=None,
+                   help="Fail (exit 3) if the final dice < this floor.")
+    p.add_argument("--baseline-metrics", default="",
+                   help="Compare the run's metrics against this baseline "
+                        "metrics.json and fail (exit 3) if dice or IoU drop "
+                        "by more than --regression-tol vs the baseline.")
+    p.add_argument("--regression-tol", type=float, default=0.01,
+                   help="Allowed absolute dice/iou regression vs "
+                        "--baseline-metrics (default: 0.01)")
     return p.parse_args()
+
+
+def _apply_regression_gates(result: dict, args, log_) -> int:
+    """Inspect ``result`` and apply ``--assert-dice`` / ``--baseline-metrics``.
+
+    Returns the final exit code. 0 = success, 1 = run failed, 3 = run
+    succeeded but a regression gate was tripped.
+    """
+    if not result.get("success"):
+        return 1
+    metrics = result.get("metrics") or {}
+    baseline_path = Path(args.baseline_metrics) if args.baseline_metrics else None
+    passed, msgs = evaluate_regression(
+        metrics=metrics,
+        baseline_metrics_path=baseline_path,
+        assert_dice=args.assert_dice,
+        regression_tol=args.regression_tol,
+    )
+    for m in msgs:
+        log_.info("regression-gate: %s", m)
+    return 0 if passed else 3
 
 
 def main() -> int:
@@ -1040,6 +1374,25 @@ def main() -> int:
         format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
     )
     args = _parse_args()
+
+    # ---- Fast path: cached fixture run (PR smoke test) ----
+    if args.from_fixture:
+        fixture_dir = Path(args.from_fixture)
+        pred_override = Path(args.pred_from_fixture) if args.pred_from_fixture \
+            else None
+        log.info("Running comparison from fixture dir %s (pred override: %s)",
+                 fixture_dir, pred_override)
+        result = run_comparison_from_fixture(
+            fixture_dir=fixture_dir,
+            output_dir=Path(args.output_dir),
+            pred_labelmap=pred_override,
+            goal=args.goal.strip() or None,
+            max_steps=args.max_steps if args.max_steps != 12 else None,
+            skip_paint_loop=args.skip_paint_loop,
+        )
+        print(json.dumps({k: v for k, v in result.items() if k != "metrics"},
+                         indent=2, default=str))
+        return _apply_regression_gates(result, args, log)
 
     ct_id = args.ct_media_id.strip()
     gt_id = args.gt_media_id.strip()
@@ -1104,10 +1457,12 @@ def main() -> int:
         voxelize_backend=voxelize_backend,
         crop_around_mesh_mm=crop_mm,
         skip_paint_loop=args.skip_paint_loop,
+        export_fixture_dir=(Path(args.export_fixture_dir)
+                            if args.export_fixture_dir else None),
     )
     print(json.dumps({k: v for k, v in result.items() if k != "metrics"},
                      indent=2, default=str))
-    return 0 if result.get("success") else 1
+    return _apply_regression_gates(result, args, log)
 
 
 if __name__ == "__main__":

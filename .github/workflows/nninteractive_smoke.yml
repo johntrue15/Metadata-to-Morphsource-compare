@@ -1,0 +1,165 @@
+name: nnInteractive Compare Smoke
+
+# Fast (<2 min) regression test for the nnInteractive comparison pipeline.
+#
+# Runs `nninteractive_compare.py --from-fixture --pred-from-fixture` against
+# committed fixtures, then asserts dice/iou haven't regressed vs the baseline
+# metrics shipped with the fixture. Uses a public ubuntu-latest runner — no
+# GPU, no MorphoSource download, no OpenAI quota.
+#
+# This is the PR gate. The full GPU paint-loop run lives in
+# `nninteractive_compare.yml` and is dispatched manually (or on a schedule).
+
+on:
+  pull_request:
+    paths:
+      - '.github/scripts/nninteractive_compare.py'
+      - '.github/scripts/segmentation_metrics.py'
+      - '.github/scripts/voxelize_mesh_vtk.py'
+      - '.github/scripts/crop_around_mesh.py'
+      - 'tests/fixtures/nninteractive_compare/**'
+      - '.github/workflows/nninteractive_smoke.yml'
+  workflow_dispatch:
+    inputs:
+      fixture_dir:
+        description: 'Path to fixture directory (relative to repo root)'
+        required: false
+        type: string
+        default: 'tests/fixtures/nninteractive_compare/chameleon_stapes'
+      assert_dice:
+        description: 'Fail if dice < this floor (leave blank to skip)'
+        required: false
+        type: string
+        default: ''
+      regression_tol:
+        description: 'Allowed absolute dice/iou drop vs baseline'
+        required: false
+        type: string
+        default: '0.01'
+
+jobs:
+  smoke:
+    name: Compare from fixture (no GPU)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          lfs: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install minimal deps
+        run: |
+          python -m pip install --upgrade pip
+          # SimpleITK is the only hard requirement for metrics + overlay; the
+          # rest are pulled in transitively. We avoid installing torch /
+          # nnInteractive here — those only matter when --pred-from-fixture
+          # is unset, and the smoke workflow always uses a cached prediction.
+          pip install --quiet SimpleITK numpy matplotlib scipy
+
+      - name: Resolve fixture path
+        id: fixture
+        shell: bash
+        run: |
+          FIXTURE_DIR="${{ inputs.fixture_dir || 'tests/fixtures/nninteractive_compare/chameleon_stapes' }}"
+          if [ ! -d "$FIXTURE_DIR" ]; then
+            echo "::error::Fixture dir not found: $FIXTURE_DIR"
+            ls -R tests/fixtures || true
+            exit 1
+          fi
+          echo "dir=$FIXTURE_DIR" >> "$GITHUB_OUTPUT"
+          echo "Found fixture:"
+          ls -la "$FIXTURE_DIR"
+
+      - name: Run comparison from fixture
+        id: compare
+        shell: bash
+        working-directory: .github/scripts
+        env:
+          FIXTURE_DIR: ${{ steps.fixture.outputs.dir }}
+        run: |
+          mkdir -p /tmp/nni_smoke
+          ARGS=(
+            --from-fixture "$GITHUB_WORKSPACE/$FIXTURE_DIR"
+            --pred-from-fixture "$GITHUB_WORKSPACE/$FIXTURE_DIR/pred.nii.gz"
+            --baseline-metrics "$GITHUB_WORKSPACE/$FIXTURE_DIR/baseline_metrics.json"
+            --regression-tol "${{ inputs.regression_tol || '0.01' }}"
+            --output-dir /tmp/nni_smoke
+          )
+          if [ -n "${{ inputs.assert_dice }}" ]; then
+            ARGS+=(--assert-dice "${{ inputs.assert_dice }}")
+          fi
+
+          set +e
+          python3 nninteractive_compare.py "${ARGS[@]}" \
+            > /tmp/nni_smoke/run.log 2>&1
+          EXIT_CODE=$?
+          echo "compare exit code: $EXIT_CODE"
+          tail -60 /tmp/nni_smoke/run.log
+          exit $EXIT_CODE
+
+      - name: Upload smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nninteractive-smoke
+          path: |
+            /tmp/nni_smoke/**/*.json
+            /tmp/nni_smoke/**/*.md
+            /tmp/nni_smoke/**/*.png
+            /tmp/nni_smoke/run.log
+          if-no-files-found: warn
+
+      - name: Comment metrics on PR
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const root = '/tmp/nni_smoke';
+            let metricsBlob = null;
+            try {
+              for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+                if (!entry.isDirectory()) continue;
+                const mp = path.join(root, entry.name, 'metrics.json');
+                if (fs.existsSync(mp)) {
+                  metricsBlob = JSON.parse(fs.readFileSync(mp, 'utf8'));
+                  break;
+                }
+              }
+            } catch (e) {
+              core.warning(`Could not read metrics: ${e.message}`);
+            }
+            const logTail = fs.existsSync(`${root}/run.log`)
+              ? fs.readFileSync(`${root}/run.log`, 'utf8').split('\n').slice(-30).join('\n')
+              : '(no log captured)';
+            let body = `### nnInteractive comparison smoke result\n\n`;
+            if (metricsBlob) {
+              body += `| Metric | Value |\n|---|---|\n`;
+              for (const k of ['dice', 'iou', 'precision', 'recall',
+                               'volume_difference_pct', 'hausdorff_mm']) {
+                if (metricsBlob[k] !== undefined && metricsBlob[k] !== null) {
+                  body += `| ${k} | ${typeof metricsBlob[k] === 'number'
+                    ? metricsBlob[k].toFixed(4) : metricsBlob[k]} |\n`;
+                }
+              }
+            } else {
+              body += `_No metrics.json was produced. See run log below._\n`;
+            }
+            body += `\n<details><summary>Run log (last 30 lines)</summary>\n\n\`\`\`\n${logTail}\n\`\`\`\n</details>\n`;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body,
+            });
