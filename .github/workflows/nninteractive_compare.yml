@@ -73,7 +73,11 @@ on:
 jobs:
   compare:
     name: Run nnInteractive vs MorphoSource GT
-    runs-on: self-hosted
+    # Route to any self-hosted runner that has the `nninteractive` label.
+    # That's the GPU host (DellXPS-wsl-gpu) today; the Mac mini does not
+    # advertise that label and would otherwise win the race for
+    # `runs-on: self-hosted` since it's always idle.
+    runs-on: [self-hosted, nninteractive]
     permissions:
       contents: read
       issues: write
@@ -157,6 +161,7 @@ jobs:
             ARGS+=(--crop-around-mesh-mm "${{ inputs.crop_around_mesh_mm }}")
           fi
           ARGS+=(--output-dir /tmp/nni_compare)
+          ARGS+=(--export-fixture-dir /tmp/nni_compare_fixtures)
 
           set +e
           python3 nninteractive_compare.py "${ARGS[@]}" \
@@ -177,6 +182,20 @@ jobs:
             /tmp/nni_compare/**/*.png
             /tmp/nni_compare/**/*.nii.gz
             /tmp/nni_compare/run.log
+          if-no-files-found: warn
+
+      # Small (~5-15 MB) sibling artifact: just the files needed to re-run
+      # the comparison via `--from-fixture` (cropped CT, GT labelmap, optional
+      # prediction labelmap, baseline metrics.json, and fixture metadata).
+      # Used to seed committed fixtures for the PR-level smoke workflow.
+      - name: Upload fixture bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nninteractive-fixtures
+          path: |
+            /tmp/nni_compare_fixtures/**/*.nii.gz
+            /tmp/nni_compare_fixtures/**/*.json
           if-no-files-found: warn
 
       - name: Post comparison summary as a GitHub issue
