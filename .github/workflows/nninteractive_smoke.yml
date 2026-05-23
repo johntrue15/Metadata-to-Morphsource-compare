@@ -17,7 +17,7 @@ on:
       - '.github/scripts/segmentation_metrics.py'
       - '.github/scripts/voxelize_mesh_vtk.py'
       - '.github/scripts/crop_around_mesh.py'
-      - 'tests/fixtures/nninteractive_compare/**'
+      - 'Tests/fixtures/nninteractive_compare/**'
       - '.github/workflows/nninteractive_smoke.yml'
   workflow_dispatch:
     inputs:
@@ -25,7 +25,7 @@ on:
         description: 'Path to fixture directory (relative to repo root)'
         required: false
         type: string
-        default: 'tests/fixtures/nninteractive_compare/chameleon_stapes'
+        default: 'Tests/fixtures/nninteractive_compare/chameleon_stapes'
       assert_dice:
         description: 'Fail if dice < this floor (leave blank to skip)'
         required: false
@@ -70,10 +70,10 @@ jobs:
         id: fixture
         shell: bash
         run: |
-          FIXTURE_DIR="${{ inputs.fixture_dir || 'tests/fixtures/nninteractive_compare/chameleon_stapes' }}"
+          FIXTURE_DIR="${{ inputs.fixture_dir || 'Tests/fixtures/nninteractive_compare/chameleon_stapes' }}"
           if [ ! -d "$FIXTURE_DIR" ]; then
             echo "::error::Fixture dir not found: $FIXTURE_DIR"
-            ls -R tests/fixtures || true
+            ls -R Tests/fixtures || true
             exit 1
           fi
           echo "dir=$FIXTURE_DIR" >> "$GITHUB_OUTPUT"
