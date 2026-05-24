@@ -18,8 +18,11 @@ box with CUDA passthrough (bare metal, WSL2, or LXD/Proxmox VM).
 | `gpu_smoke.py` | Inside the nnInteractive venv | Python helper called by `test-runner.sh` and by `.github/workflows/runner-smoke.yml`. Does the real PyTorch + nnInteractive work. |
 | `install-runner-service.sh` | Inside Ubuntu / WSL2 | Promotes the foreground `./run.sh` runner to a systemd-managed service with `Restart=on-failure` (auto-recovers from crashes after 30s). Idempotent. |
 | `runner-watchdog.ps1` | Windows host (Task Scheduler) | One-shot check: ensures the WSL distro is awake and the runner service is `active`. Restarts whichever is down. Logs to `%LOCALAPPDATA%\MorphoClaw\runner-watchdog.log`. |
+| `runner-watchdog-launcher.vbs` | Windows host | WScript wrapper invoked by the Scheduled Task action; spawns `runner-watchdog.ps1` with no visible console window (avoids the ~100 ms cmd flash that `powershell.exe -WindowStyle Hidden` causes under `LogonType=Interactive`). |
 | `install-watchdog.ps1` / `uninstall-watchdog.ps1` | Windows host | Idempotent installer/uninstaller for the `MorphoClaw-RunnerWatchdog` Scheduled Task that runs `runner-watchdog.ps1` every 5 min and at logon. |
-| `runner-ctl.ps1` | Windows host | Unified CLI for status / start / stop / restart / log / dispatch / tail / cancel / token / `watchdog install|uninstall|status|run-once`. |
+| `wsl-keepalive-launcher.vbs` | Windows host (Task Scheduler) | Self-deduplicating launcher that holds one `wsl.exe -d <distro> -- bash -c "exec sleep infinity"` process alive. Without it, WSL2 idles the distro out every 60-120 s on some hosts (observed on WSL 2.7.3) — even with `vmIdleTimeout=-1` — which makes the runner cycle offline. Logs to `%LOCALAPPDATA%\MorphoClaw\wsl-keepalive.log`. |
+| `install-wsl-keepalive.ps1` / `uninstall-wsl-keepalive.ps1` | Windows host | Idempotent installer/uninstaller for the `MorphoClaw-WSL-Keepalive` Scheduled Task that runs the launcher every 1 min and at logon. |
+| `runner-ctl.ps1` | Windows host | Unified CLI for status / start / stop / restart / log / dispatch / tail / cancel / token / `watchdog install\|uninstall\|status\|run-once` / `keepalive install\|uninstall\|status\|run-once`. |
 | `runner-env.example` | Reference | Sample of the `.env` file the actions-runner reads. Useful for hand-configuring the Mac mini or any other host. |
 
 ## One-shot bring-up (Dell XPS + GTX 1650 Ti, but applies to any Windows + NVIDIA box)
@@ -66,7 +69,9 @@ box with CUDA passthrough (bare metal, WSL2, or LXD/Proxmox VM).
    ```
 
    Or, for the recommended setup (auto-restart on crash + auto-wake on
-   host boot), install it as a systemd service plus a Windows watchdog:
+   host boot + WSL stays warm so the runner does not cycle offline),
+   install it as a systemd service plus the Windows watchdog and the
+   WSL keepalive task:
 
    ```bash
    bash scripts/runners/install-runner-service.sh
@@ -74,7 +79,13 @@ box with CUDA passthrough (bare metal, WSL2, or LXD/Proxmox VM).
 
    ```powershell
    pwsh scripts\runners\runner-ctl.ps1 watchdog install
+   pwsh scripts\runners\runner-ctl.ps1 keepalive install
    ```
+
+   The watchdog handles "WSL died entirely" recovery on a 5-minute cycle;
+   the keepalive holds a persistent user-session inside WSL so WSL2 does
+   not idle the distro out between watchdog ticks (observed every 1-2 min
+   on WSL 2.7.3 even with `vmIdleTimeout=-1` set in `.wslconfig`).
 
 5. **Verify routing + secrets via GitHub:** trigger the
    "Runner GPU smoke test" workflow from the Actions tab. It runs the same

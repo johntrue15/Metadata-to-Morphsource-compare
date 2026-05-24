@@ -31,7 +31,7 @@
 param(
     [Parameter(Mandatory = $true, Position = 0)]
     [ValidateSet('status', 'start', 'stop', 'restart', 'log', 'dispatch',
-                 'runs', 'tail', 'cancel', 'token', 'watchdog', 'help')]
+                 'runs', 'tail', 'cancel', 'token', 'watchdog', 'keepalive', 'help')]
     [string]$Command,
 
     [Parameter(Position = 1, ValueFromRemainingArguments = $true)]
@@ -114,6 +114,11 @@ Commands:
                                  uninstall  remove the scheduled task
                                  status     show task state + last 20 log lines
                                  run-once   trigger the watchdog right now
+  keepalive <subcommand>       Manage the WSL keepalive (stops WSL idle-shutdown):
+                                 install    register MorphoClaw-WSL-Keepalive
+                                 uninstall  remove the task + kill keepalive procs
+                                 status     show task state + running keepalive procs
+                                 run-once   trigger the keepalive launcher right now
 
 Environment overrides:
   MORPHOCLAW_REPO    (default: johntrue15/MorphoClaw)
@@ -400,6 +405,89 @@ fi
             }
             default {
                 Write-Error "Unknown watchdog subcommand: $sub. Expected install|uninstall|status|run-once."
+                exit 2
+            }
+        }
+    }
+
+    'keepalive' {
+        if ($Rest.Length -eq 0) {
+            Write-Error "Usage: runner-ctl.ps1 keepalive <install|uninstall|status|run-once>"
+            exit 2
+        }
+        $sub        = $Rest[0]
+        $scriptDir  = Split-Path -Parent $PSCommandPath
+        $taskName   = 'MorphoClaw-WSL-Keepalive'
+        $logPath    = Join-Path $env:LOCALAPPDATA 'MorphoClaw\wsl-keepalive.log'
+        $sentinel   = 'exec sleep infinity'
+
+        switch ($sub) {
+            'install' {
+                $installer = Join-Path $scriptDir 'install-wsl-keepalive.ps1'
+                if (-not (Test-Path $installer)) {
+                    Write-Error "install-wsl-keepalive.ps1 not found at $installer"
+                    exit 3
+                }
+                $extra = @($Rest | Select-Object -Skip 1)
+                & $installer @extra
+            }
+            'uninstall' {
+                $uninstaller = Join-Path $scriptDir 'uninstall-wsl-keepalive.ps1'
+                if (-not (Test-Path $uninstaller)) {
+                    Write-Error "uninstall-wsl-keepalive.ps1 not found at $uninstaller"
+                    exit 3
+                }
+                $extra = @($Rest | Select-Object -Skip 1)
+                & $uninstaller @extra
+            }
+            'status' {
+                Write-Host "== Scheduled Task '$taskName' ==" -ForegroundColor Cyan
+                $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+                if (-not $task) {
+                    Write-Host "  (not installed; run: runner-ctl.ps1 keepalive install)" -ForegroundColor Yellow
+                } else {
+                    $info = Get-ScheduledTaskInfo -TaskName $taskName
+                    [pscustomobject]@{
+                        State              = $task.State
+                        LastRunTime        = $info.LastRunTime
+                        LastTaskResult     = $info.LastTaskResult
+                        NextRunTime        = $info.NextRunTime
+                        NumberOfMissedRuns = $info.NumberOfMissedRuns
+                    } | Format-List
+                }
+                Write-Host "== Active keepalive wsl.exe processes ==" -ForegroundColor Cyan
+                $procs = Get-CimInstance Win32_Process -Filter "Name='wsl.exe'" -ErrorAction SilentlyContinue |
+                         Where-Object { $_.CommandLine -and $_.CommandLine.ToLower().Contains($sentinel.ToLower()) }
+                if (-not $procs) {
+                    Write-Host "  (none — distro will idle-shutdown within ~60s)" -ForegroundColor Yellow
+                } else {
+                    $procs | Select-Object ProcessId, CommandLine | Format-List
+                }
+                Write-Host "== Last 20 lines of $logPath ==" -ForegroundColor Cyan
+                if (Test-Path $logPath) {
+                    Get-Content -Path $logPath -Tail 20
+                } else {
+                    Write-Host "  (no log yet — likely dedup'd silently on every fire)"
+                }
+            }
+            'run-once' {
+                $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+                if (-not $task) {
+                    Write-Host "Task not installed; running launcher inline." -ForegroundColor Yellow
+                    $launcher = Join-Path $scriptDir 'wsl-keepalive-launcher.vbs'
+                    if (-not (Test-Path $launcher)) {
+                        Write-Error "wsl-keepalive-launcher.vbs not found at $launcher"
+                        exit 3
+                    }
+                    & cscript.exe //nologo $launcher
+                } else {
+                    Start-ScheduledTask -TaskName $taskName
+                    Write-Host "Triggered '$taskName'. Inspect status with:" -ForegroundColor Green
+                    Write-Host "  pwsh runner-ctl.ps1 keepalive status"
+                }
+            }
+            default {
+                Write-Error "Unknown keepalive subcommand: $sub. Expected install|uninstall|status|run-once."
                 exit 2
             }
         }
