@@ -1,0 +1,1382 @@
+{
+  "schema_version": 1,
+  "bundle_label": "IMPC_mouse_skull_saturation_111clicks",
+  "built_at_utc": "2026-05-22T16:02:09.362182Z",
+  "built_by_host": "M4s-Mac-mini.local",
+  "source_volume": {
+    "path": null,
+    "size_bytes": null,
+    "sha256_file": null,
+    "sha256_voxels": "e9a958890f6529766f025feea9645e572ba218c73bda185262c40be5bdac5389",
+    "shape_kji": [
+      421,
+      258,
+      259
+    ],
+    "dtype": "uint8",
+    "spacing_mm": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "origin": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "volume_name": "IMPC_sample_data"
+  },
+  "final_segmentation": {
+    "composite": {
+      "path": "composite.nii.gz",
+      "size_bytes": 70383,
+      "sha256": "dd196875d7db242a7e5acfa1ebde2b71085cf05acd5bd4b56a5227e8c4c77143"
+    },
+    "per_segment": [
+      {
+        "sid": "Segment_1",
+        "name": "Segment_1",
+        "filename": "segments/Segment_1.nii.gz",
+        "size_bytes": 58045,
+        "sha256": "7bbe9ff625d703a261077e47f7ae2c29ef2ec992c4e526cfc625597d44a381f5"
+      },
+      {
+        "sid": "Segment_2",
+        "name": "Segment_2",
+        "filename": "segments/Segment_2.nii.gz",
+        "size_bytes": 59797,
+        "sha256": "a8ed36840d8190913ea2a71fc654d74408cfc8a9752fc74b735ef2d71d9de63c"
+      },
+      {
+        "sid": "Segment_3",
+        "name": "Segment_3",
+        "filename": "segments/Segment_3.nii.gz",
+        "size_bytes": 71755,
+        "sha256": "71851be0c4a6724dccbc5454207fa1773bf58a518058611a8d58ab73b094a7f9"
+      },
+      {
+        "sid": "Segment_4",
+        "name": "Segment_4",
+        "filename": "segments/Segment_4.nii.gz",
+        "size_bytes": 55544,
+        "sha256": "d8de1dc88ea51dcfaa694c6544a80517298da034614eeef7b6dca81431dce9a0"
+      },
+      {
+        "sid": "Segment_5",
+        "name": "Segment_5",
+        "filename": "segments/Segment_5.nii.gz",
+        "size_bytes": 55219,
+        "sha256": "87cb71657aa0c7476d265bf56461315adc7db97a701a7e9931979cb970e8400b"
+      },
+      {
+        "sid": "Segment_6",
+        "name": "Segment_6",
+        "filename": "segments/Segment_6.nii.gz",
+        "size_bytes": 56750,
+        "sha256": "68f86158d0e4abec2546b7f025930c26ed20dd8d366ddb4132584335d07778ca"
+      },
+      {
+        "sid": "Segment_7",
+        "name": "Segment_7",
+        "filename": "segments/Segment_7.nii.gz",
+        "size_bytes": 59933,
+        "sha256": "8d481b6248db0ec1870afce2f3551860cd341c12579de4fb920bca583630b931"
+      },
+      {
+        "sid": "Segment_8",
+        "name": "Segment_8",
+        "filename": "segments/Segment_8.nii.gz",
+        "size_bytes": 60769,
+        "sha256": "1d1f992c8b066f91fffab54df302d4a50470658f9e1f1b42c87c053343a5bd44"
+      },
+      {
+        "sid": "Segment_9",
+        "name": "Segment_9",
+        "filename": "segments/Segment_9.nii.gz",
+        "size_bytes": 55420,
+        "sha256": "d135920f37121d00502ac57221af917a33d91e83c3580e33789002bc61994d09"
+      },
+      {
+        "sid": "Segment_10",
+        "name": "Segment_10",
+        "filename": "segments/Segment_10.nii.gz",
+        "size_bytes": 58421,
+        "sha256": "46b881206433ee1ec14a6ea4190ef8fc3be9c04cd4b094690a8558488483c98f"
+      },
+      {
+        "sid": "Segment_11",
+        "name": "Segment_11",
+        "filename": "segments/Segment_11.nii.gz",
+        "size_bytes": 54881,
+        "sha256": "5918b335a8b5b8dfe085d61e88cc99ccf2e2f80ed31d299179cf174d3bca2334"
+      },
+      {
+        "sid": "Segment_12",
+        "name": "Segment_12",
+        "filename": "segments/Segment_12.nii.gz",
+        "size_bytes": 54957,
+        "sha256": "9f71a62a6c096c0470e477b212963de14b1e65ea5f8a7054e8b43231ed292fd3"
+      },
+      {
+        "sid": "Segment_13",
+        "name": "Segment_13",
+        "filename": "segments/Segment_13.nii.gz",
+        "size_bytes": 59930,
+        "sha256": "07e5db5262b47078a7e1f198efcee0d3cd52b6f5325aa71fcbf0b02fd7ee1ae2"
+      },
+      {
+        "sid": "Segment_14",
+        "name": "Segment_14",
+        "filename": "segments/Segment_14.nii.gz",
+        "size_bytes": 54938,
+        "sha256": "cb95ec626d8c3132b45b62d9823c1fbe256226dfe816d09f91b71141a141aefa"
+      },
+      {
+        "sid": "Segment_15",
+        "name": "Segment_15",
+        "filename": "segments/Segment_15.nii.gz",
+        "size_bytes": 55284,
+        "sha256": "c2736f81969b9cd38600bc0b44892d8a85ab550c012e45e574754ad33f1f0141"
+      },
+      {
+        "sid": "Segment_16",
+        "name": "Segment_16",
+        "filename": "segments/Segment_16.nii.gz",
+        "size_bytes": 56831,
+        "sha256": "f6c539b5ae29b72e1463ee4914a34cdb7adeb86e85481d3e3e5f48d577d18a86"
+      },
+      {
+        "sid": "Segment_17",
+        "name": "Segment_17",
+        "filename": "segments/Segment_17.nii.gz",
+        "size_bytes": 54904,
+        "sha256": "63729861ee39e644fe92e7ed3175477b3e8e8c24bcdc44348d7a8f3366e2a432"
+      },
+      {
+        "sid": "Segment_18",
+        "name": "Segment_18",
+        "filename": "segments/Segment_18.nii.gz",
+        "size_bytes": 56469,
+        "sha256": "3ea0f17b81b93229098ea884cb0be4bc5b128473ee655ea501a58a85b438cc4f"
+      },
+      {
+        "sid": "Segment_19",
+        "name": "Segment_19",
+        "filename": "segments/Segment_19.nii.gz",
+        "size_bytes": 55219,
+        "sha256": "9f4b1b734dd85948a28c1307e1b70707bc6ebc9707406b12363920dff79e2e06"
+      },
+      {
+        "sid": "Segment_20",
+        "name": "Segment_20",
+        "filename": "segments/Segment_20.nii.gz",
+        "size_bytes": 54897,
+        "sha256": "6b275207ddf676ef67c3f8f726c007f9ca64702840ca160634cfd2341f133169"
+      },
+      {
+        "sid": "Segment_21",
+        "name": "Segment_21",
+        "filename": "segments/Segment_21.nii.gz",
+        "size_bytes": 54872,
+        "sha256": "5b589ad5341b28f809871dee1b7ce6e31a9acc824877e0e3f3b8930f1673ca7c"
+      },
+      {
+        "sid": "Segment_22",
+        "name": "Segment_22",
+        "filename": "segments/Segment_22.nii.gz",
+        "size_bytes": 55002,
+        "sha256": "8c16d4e068576d82f7c9a41ef20ab3b4c86b4864eddf8b9c521315e90a06a294"
+      },
+      {
+        "sid": "Segment_23",
+        "name": "Segment_23",
+        "filename": "segments/Segment_23.nii.gz",
+        "size_bytes": 56114,
+        "sha256": "326e4c7518a555d8e9b44552532bb9dbe0fbe9b349a90e612d5adf337cdb92c0"
+      },
+      {
+        "sid": "Segment_24",
+        "name": "Segment_24",
+        "filename": "segments/Segment_24.nii.gz",
+        "size_bytes": 54989,
+        "sha256": "b5043503faa08996838997690c61c78f1cea01cdc4ef8dddd5e65cbde58a22f8"
+      },
+      {
+        "sid": "Segment_25",
+        "name": "Segment_25",
+        "filename": "segments/Segment_25.nii.gz",
+        "size_bytes": 54877,
+        "sha256": "7b6f33ee555a7336875534840d74a5b95fb614a1aceaf42c2e2322304b651ff9"
+      },
+      {
+        "sid": "Segment_26",
+        "name": "Segment_26",
+        "filename": "segments/Segment_26.nii.gz",
+        "size_bytes": 63450,
+        "sha256": "36bfce0db80de34a007fa034b612fbdd4b769d0d509a0595020f7386a9a78a3e"
+      },
+      {
+        "sid": "Segment_27",
+        "name": "Segment_27",
+        "filename": "segments/Segment_27.nii.gz",
+        "size_bytes": 60871,
+        "sha256": "6b9887007adba78c91c8575e4364318eb5e68b5e2b13fc2c87aecec7e26a83bf"
+      },
+      {
+        "sid": "Segment_28",
+        "name": "Segment_28",
+        "filename": "segments/Segment_28.nii.gz",
+        "size_bytes": 58139,
+        "sha256": "6eca6355cebfbd86e85ed2876a0fd6d97e869087be61290cea87c7f4b855b5dc"
+      },
+      {
+        "sid": "Segment_29",
+        "name": "Segment_29",
+        "filename": "segments/Segment_29.nii.gz",
+        "size_bytes": 54979,
+        "sha256": "533da4497f4969adbc6a53ef7b791fa4a300a2d4fd15637dfbe11ed0df51901b"
+      },
+      {
+        "sid": "Segment_30",
+        "name": "Segment_30",
+        "filename": "segments/Segment_30.nii.gz",
+        "size_bytes": 56282,
+        "sha256": "358932eef89b4d4d5ca5e6ae2c241f7ac52802840abd5f66e716ccaf09c13585"
+      },
+      {
+        "sid": "Segment_31",
+        "name": "Segment_31",
+        "filename": "segments/Segment_31.nii.gz",
+        "size_bytes": 55668,
+        "sha256": "3f9738a0305deb5a92a6e869af91279e45216676448d1b377855bbe45a2a83dd"
+      },
+      {
+        "sid": "Segment_32",
+        "name": "Segment_32",
+        "filename": "segments/Segment_32.nii.gz",
+        "size_bytes": 54938,
+        "sha256": "7dbb62735d2bb620664341a367c7e064e0f5911ae84734453881bffc2421d3e3"
+      },
+      {
+        "sid": "Segment_33",
+        "name": "Segment_33",
+        "filename": "segments/Segment_33.nii.gz",
+        "size_bytes": 55757,
+        "sha256": "257e91aa259a6269e7d1dfe1efe6ae5ef4135db4a5f318468236fc5d9ad33ec1"
+      },
+      {
+        "sid": "Segment_34",
+        "name": "Segment_34",
+        "filename": "segments/Segment_34.nii.gz",
+        "size_bytes": 56907,
+        "sha256": "0d8a3ed3ae7f79928ea39952a4040e168b9d969fd6ef45e3421f680a38920e3c"
+      },
+      {
+        "sid": "Segment_35",
+        "name": "Segment_35",
+        "filename": "segments/Segment_35.nii.gz",
+        "size_bytes": 55589,
+        "sha256": "0a8e8d37328b93b1fbcb6fcba247d725bd6a805c7f0d747b602e6aae1c7d1672"
+      },
+      {
+        "sid": "Segment_36",
+        "name": "Segment_36",
+        "filename": "segments/Segment_36.nii.gz",
+        "size_bytes": 54871,
+        "sha256": "7e2306a417886bb0b8077d135f6f5507305d9459438ec03c49b2209751a135b5"
+      },
+      {
+        "sid": "Segment_37",
+        "name": "Segment_37",
+        "filename": "segments/Segment_37.nii.gz",
+        "size_bytes": 57011,
+        "sha256": "0f1e8927fac24dada23232649f4d02807e8609a2f2cbeb7398fd1b71dbcfcbe5"
+      },
+      {
+        "sid": "Segment_38",
+        "name": "Segment_38",
+        "filename": "segments/Segment_38.nii.gz",
+        "size_bytes": 54972,
+        "sha256": "629a09c1c7d820a72a80553234f1a6a94dbee241b2d0eaf1d0425d124e292fae"
+      },
+      {
+        "sid": "Segment_39",
+        "name": "Segment_39",
+        "filename": "segments/Segment_39.nii.gz",
+        "size_bytes": 54845,
+        "sha256": "7d1f23f7a48beb2095ae52c079086330b46c9bc3afb5f445684d01e931fbda3f"
+      },
+      {
+        "sid": "Segment_40",
+        "name": "Segment_40",
+        "filename": "segments/Segment_40.nii.gz",
+        "size_bytes": 55275,
+        "sha256": "a16d29e8fb44fab156cccd4e1d7e01dd4ab9e5d2b0222cf90f2d62c85eee2364"
+      },
+      {
+        "sid": "Segment_41",
+        "name": "Segment_41",
+        "filename": "segments/Segment_41.nii.gz",
+        "size_bytes": 54857,
+        "sha256": "76a39bba971a3d7e7d0dd3434af3a9228db663b193ab37fbdec3dca6af51c8a5"
+      },
+      {
+        "sid": "Segment_42",
+        "name": "Segment_42",
+        "filename": "segments/Segment_42.nii.gz",
+        "size_bytes": 54988,
+        "sha256": "41675ff2a8b6fb47142031c14809b46ab3f77d2098770574e61bebdf4fbd2d51"
+      },
+      {
+        "sid": "Segment_43",
+        "name": "Segment_43",
+        "filename": "segments/Segment_43.nii.gz",
+        "size_bytes": 54879,
+        "sha256": "9095482a95f72a7942c66377d9fdd9677af34db9726ef4fbee6666e5b91dc92b"
+      },
+      {
+        "sid": "Segment_44",
+        "name": "Segment_44",
+        "filename": "segments/Segment_44.nii.gz",
+        "size_bytes": 54861,
+        "sha256": "d0d29e90c7feeba154da80656f5566c99ccc8eb1623b6f211e396ff6a8a23bf3"
+      },
+      {
+        "sid": "Segment_45",
+        "name": "Segment_45",
+        "filename": "segments/Segment_45.nii.gz",
+        "size_bytes": 54916,
+        "sha256": "aeeff16ad1593f39a27b9f84e274c385eda5fcbd211ce075ee30bcf479d1403a"
+      },
+      {
+        "sid": "Segment_46",
+        "name": "Segment_46",
+        "filename": "segments/Segment_46.nii.gz",
+        "size_bytes": 58495,
+        "sha256": "b697f6f10d7d5aae3534aeb489a0537fe62d743ff40068a69560005c426554fa"
+      },
+      {
+        "sid": "Segment_47",
+        "name": "Segment_47",
+        "filename": "segments/Segment_47.nii.gz",
+        "size_bytes": 54971,
+        "sha256": "c764447b155a644d15a5db008ef538d90bfb61244dc82e626873a791746626fd"
+      },
+      {
+        "sid": "Segment_48",
+        "name": "Segment_48",
+        "filename": "segments/Segment_48.nii.gz",
+        "size_bytes": 54854,
+        "sha256": "24f6eb2a59310ec318e8e42c82ab72a94f17f5f8fb1c6a4f07cf5938310b56d4"
+      },
+      {
+        "sid": "Segment_49",
+        "name": "Segment_49",
+        "filename": "segments/Segment_49.nii.gz",
+        "size_bytes": 69996,
+        "sha256": "0f327249db0342e7579a9bff67b3906c453ae7c2676b128f993de811838388b4"
+      },
+      {
+        "sid": "Segment_50",
+        "name": "Segment_50",
+        "filename": "segments/Segment_50.nii.gz",
+        "size_bytes": 54921,
+        "sha256": "eea52953a4a306cf8d54794e19a770c79db3e67afd1b1a4071edfb404c1e7a65"
+      },
+      {
+        "sid": "Segment_51",
+        "name": "Segment_51",
+        "filename": "segments/Segment_51.nii.gz",
+        "size_bytes": 54925,
+        "sha256": "46d67343d95fe887a7c6a3c4944522921f7698686c03aa4120b2e4042b397971"
+      },
+      {
+        "sid": "Segment_52",
+        "name": "Segment_52",
+        "filename": "segments/Segment_52.nii.gz",
+        "size_bytes": 54971,
+        "sha256": "22b6baf613a17bff4260e31cd851e16ee1ee6c832fa3199f0db7b309c5241a84"
+      },
+      {
+        "sid": "Segment_53",
+        "name": "Segment_53",
+        "filename": "segments/Segment_53.nii.gz",
+        "size_bytes": 55148,
+        "sha256": "0f1d35ddd83bb0c08cd25bcfd502268f60945889891fc270fa7e6c870c52f142"
+      },
+      {
+        "sid": "Segment_54",
+        "name": "Segment_54",
+        "filename": "segments/Segment_54.nii.gz",
+        "size_bytes": 55735,
+        "sha256": "a3d42c25ede3746e8a05da2a3eba9cb81d36dc7a8d7e28fe93642bcdb04f0e95"
+      },
+      {
+        "sid": "Segment_55",
+        "name": "Segment_55",
+        "filename": "segments/Segment_55.nii.gz",
+        "size_bytes": 54848,
+        "sha256": "6ae27054084175e579e4e5e8e8b467f51bd2e86022d6cdff87429f2dbca92c6d"
+      },
+      {
+        "sid": "Segment_56",
+        "name": "Segment_56",
+        "filename": "segments/Segment_56.nii.gz",
+        "size_bytes": 56268,
+        "sha256": "cafd981d309f77a20db660c8818d0fe00a7d7206dcec31f52a2b8e67cae11da2"
+      },
+      {
+        "sid": "Segment_57",
+        "name": "Segment_57",
+        "filename": "segments/Segment_57.nii.gz",
+        "size_bytes": 54869,
+        "sha256": "85533af3283dd436dd28abdbc6a949d8a783f841996df60fcb34cdac2cfc6877"
+      },
+      {
+        "sid": "Segment_58",
+        "name": "Segment_58",
+        "filename": "segments/Segment_58.nii.gz",
+        "size_bytes": 54824,
+        "sha256": "fe90c5dcc60474ee3f2206939ab297ad48914783bb8161eccd457d623dcb04df"
+      },
+      {
+        "sid": "Segment_59",
+        "name": "Segment_59",
+        "filename": "segments/Segment_59.nii.gz",
+        "size_bytes": 56108,
+        "sha256": "be634e033352d1ded9b4c0a8d9b6b358dc7c0fe14ba16fa866f78a5d0e75dd9b"
+      },
+      {
+        "sid": "Segment_60",
+        "name": "Segment_60",
+        "filename": "segments/Segment_60.nii.gz",
+        "size_bytes": 54847,
+        "sha256": "1d7882fed65aa125550a54f6ec4c00d5fdaca771eb67871e41d01288a615fe74"
+      },
+      {
+        "sid": "Segment_61",
+        "name": "Segment_61",
+        "filename": "segments/Segment_61.nii.gz",
+        "size_bytes": 55036,
+        "sha256": "7a0afb27de6a554aab93b06b6988adf69211c08974402fc187a6a78587150119"
+      },
+      {
+        "sid": "Segment_62",
+        "name": "Segment_62",
+        "filename": "segments/Segment_62.nii.gz",
+        "size_bytes": 54869,
+        "sha256": "25f945d3ed0e0d009f9a200c211594b72dfba0fd3d6c1d1657ab23ba1d43c349"
+      },
+      {
+        "sid": "Segment_63",
+        "name": "Segment_63",
+        "filename": "segments/Segment_63.nii.gz",
+        "size_bytes": 55068,
+        "sha256": "05c030a57ce1a58d823bf0aa937b67862092556e98baab8c5118cda756336571"
+      },
+      {
+        "sid": "Segment_64",
+        "name": "Segment_64",
+        "filename": "segments/Segment_64.nii.gz",
+        "size_bytes": 54850,
+        "sha256": "a76d11c39fd3dcecee439e0b114086d79a33570375c76723c158362e0e29eeb4"
+      },
+      {
+        "sid": "Segment_65",
+        "name": "Segment_65",
+        "filename": "segments/Segment_65.nii.gz",
+        "size_bytes": 54838,
+        "sha256": "15afc0138d45cb9c5f6e32765b941b8fb032a05e46dc853db26dc08986921b21"
+      },
+      {
+        "sid": "Segment_66",
+        "name": "Segment_66",
+        "filename": "segments/Segment_66.nii.gz",
+        "size_bytes": 54937,
+        "sha256": "6ec4f42d3af0868f92dbf3d5ea8309ff8957f400844be359557f00acc09aff50"
+      },
+      {
+        "sid": "Segment_67",
+        "name": "Segment_67",
+        "filename": "segments/Segment_67.nii.gz",
+        "size_bytes": 54850,
+        "sha256": "c730f5e7d0bc3d703780b9ff9c36a0ee5894562e63f558aa309fb357b7735e74"
+      },
+      {
+        "sid": "Segment_68",
+        "name": "Segment_68",
+        "filename": "segments/Segment_68.nii.gz",
+        "size_bytes": 54887,
+        "sha256": "fdb27d8286ee4fe3bc1cf583108fbb9092aa3a9387fe3c374331158f76af1af9"
+      },
+      {
+        "sid": "Segment_69",
+        "name": "Segment_69",
+        "filename": "segments/Segment_69.nii.gz",
+        "size_bytes": 54923,
+        "sha256": "d30055418603ca594bc4095641ee4953a94d6656961ca2e43b55c794c24c2fda"
+      },
+      {
+        "sid": "Segment_70",
+        "name": "Segment_70",
+        "filename": "segments/Segment_70.nii.gz",
+        "size_bytes": 54854,
+        "sha256": "277b178d10e005c6dc8dcbf978c8cd0751fce94308a67a3e12d7e0ca0a771c25"
+      },
+      {
+        "sid": "Segment_71",
+        "name": "Segment_71",
+        "filename": "segments/Segment_71.nii.gz",
+        "size_bytes": 54841,
+        "sha256": "13d627aaf29ffac984bc7a08c51a5275df16eda5c0651455148f3a1cf9c5a165"
+      },
+      {
+        "sid": "Segment_72",
+        "name": "Segment_72",
+        "filename": "segments/Segment_72.nii.gz",
+        "size_bytes": 54859,
+        "sha256": "ae1e978ace2f7d163a3962717e572c18f9d52c982754f40089cc749ce53554b1"
+      },
+      {
+        "sid": "Segment_73",
+        "name": "Segment_73",
+        "filename": "segments/Segment_73.nii.gz",
+        "size_bytes": 56768,
+        "sha256": "8385b9a300c6952aef1af24fc7330f48565b613a88e5cfed14184907b212afba"
+      },
+      {
+        "sid": "Segment_74",
+        "name": "Segment_74",
+        "filename": "segments/Segment_74.nii.gz",
+        "size_bytes": 54871,
+        "sha256": "c3fe632d914fb0526ac51a73068296d1f579a0bfad08d31ce632ccaf29ed6da1"
+      },
+      {
+        "sid": "Segment_75",
+        "name": "Segment_75",
+        "filename": "segments/Segment_75.nii.gz",
+        "size_bytes": 54860,
+        "sha256": "7af23de968ee8c75e705aceccf2316d6765c89a5ba61ad5d0d1ba3de8c276b76"
+      },
+      {
+        "sid": "Segment_76",
+        "name": "Segment_76",
+        "filename": "segments/Segment_76.nii.gz",
+        "size_bytes": 54913,
+        "sha256": "d5b1f7922350af3cc1a9d242a1085664f52735735c637ced54d55e4fc82db036"
+      },
+      {
+        "sid": "Segment_77",
+        "name": "Segment_77",
+        "filename": "segments/Segment_77.nii.gz",
+        "size_bytes": 54864,
+        "sha256": "29074016b271c50b93fcc07c04a0154df406a2c603a0ed6b6c8555e0d6dd5e16"
+      },
+      {
+        "sid": "Segment_78",
+        "name": "Segment_78",
+        "filename": "segments/Segment_78.nii.gz",
+        "size_bytes": 69876,
+        "sha256": "4378414e1398f733ee7d5b698be0b3635c494e572d4fd24e4d9701f16828e439"
+      },
+      {
+        "sid": "Segment_79",
+        "name": "Segment_79",
+        "filename": "segments/Segment_79.nii.gz",
+        "size_bytes": 54860,
+        "sha256": "5c9f785d604bbde0fe3f6cf7f54f03c5a463337643fcbd925fe60e9d60e26fd3"
+      },
+      {
+        "sid": "Segment_80",
+        "name": "Segment_80",
+        "filename": "segments/Segment_80.nii.gz",
+        "size_bytes": 54889,
+        "sha256": "2368fdbf5b827dae3c44e0a71c4c9f1c9482db56d823666e526c50d2e863a9b1"
+      }
+    ]
+  },
+  "click_count": 113,
+  "source_runs": [
+    {
+      "dir": "runs/impc_telem",
+      "run_id": "20260518T173505Z_mouse_skull_ff3a53",
+      "label": "mouse_skull",
+      "started_utc": "2026-05-18T17:35:05.493026+00:00",
+      "started_unix": 1779125705.492728,
+      "args": {
+        "volume": "IMPC_sample_data",
+        "reset_first": true,
+        "intensity_percentile": 99.5,
+        "max_candidates": 50000,
+        "max_steps": 2,
+        "min_delta": 50,
+        "patience": 3,
+        "max_explosion_frac": 0.4,
+        "no_new_segment_per_click": false,
+        "no_screenshots": true,
+        "no_export_segmentation": false,
+        "label": "mouse_skull",
+        "out_dir": "runs/impc_telem"
+      },
+      "stop_reason": {
+        "reason": "max_steps",
+        "max_steps": 2
+      },
+      "inputs": {
+        "status": "ok",
+        "volume_id": "vtkMRMLScalarVolumeNode1",
+        "volume_name": "IMPC_sample_data",
+        "shape_kji": [
+          421,
+          258,
+          259
+        ],
+        "dtype": "uint8",
+        "nbytes": 28132062,
+        "spacing_mm": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "origin": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scalar_min": 0.0,
+        "scalar_max": 255.0,
+        "scalar_mean": 10.683694675491616,
+        "sha256_voxels": "e9a958890f6529766f025feea9645e572ba218c73bda185262c40be5bdac5389",
+        "source_filename": "/home/exouser/.cache/slicer.org/Slicer/SlicerIO/IMPC_sample_data.nrrd",
+        "_dt_s": 0.299
+      },
+      "n_events": 18
+    },
+    {
+      "dir": "runs/impc_bright_10click_20260522_074044",
+      "run_id": "20260522T144044Z_mouse_skull_10click_5537d7",
+      "label": "mouse_skull_10click",
+      "started_utc": "2026-05-22T14:40:44.549504+00:00",
+      "started_unix": 1779460844.549344,
+      "args": {
+        "volume": "IMPC_sample_data",
+        "reset_first": true,
+        "intensity_percentile": 99.0,
+        "max_candidates": 100000,
+        "max_steps": 10,
+        "min_delta": 0,
+        "patience": 1000000000,
+        "max_explosion_frac": 1.0,
+        "no_stop_rules": true,
+        "no_new_segment_per_click": false,
+        "no_screenshots": false,
+        "no_export_segmentation": false,
+        "label": "mouse_skull_10click",
+        "out_dir": "runs/impc_bright_10click_20260522_074044"
+      },
+      "stop_reason": {
+        "reason": "max_steps",
+        "max_steps": 10
+      },
+      "inputs": {
+        "status": "ok",
+        "volume_id": "vtkMRMLScalarVolumeNode1",
+        "volume_name": "IMPC_sample_data",
+        "shape_kji": [
+          421,
+          258,
+          259
+        ],
+        "dtype": "uint8",
+        "nbytes": 28132062,
+        "spacing_mm": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "origin": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scalar_min": 0.0,
+        "scalar_max": 255.0,
+        "scalar_mean": 10.683694675491616,
+        "sha256_voxels": "e9a958890f6529766f025feea9645e572ba218c73bda185262c40be5bdac5389",
+        "source_filename": "/home/exouser/.cache/slicer.org/Slicer/SlicerIO/IMPC_sample_data.nrrd",
+        "_dt_s": 0.43
+      },
+      "n_events": 42
+    },
+    {
+      "dir": "runs/impc_bright_10more_20260522_074300",
+      "run_id": "20260522T144300Z_mouse_skull_10more_de58ec",
+      "label": "mouse_skull_10more",
+      "started_utc": "2026-05-22T14:43:00.443107+00:00",
+      "started_unix": 1779460980.442942,
+      "args": {
+        "volume": "IMPC_sample_data",
+        "reset_first": false,
+        "intensity_percentile": 99.0,
+        "max_candidates": 100000,
+        "max_steps": 10,
+        "min_delta": 0,
+        "patience": 1000000000,
+        "max_explosion_frac": 1.0,
+        "no_stop_rules": true,
+        "no_new_segment_per_click": false,
+        "no_screenshots": false,
+        "no_export_segmentation": false,
+        "label": "mouse_skull_10more",
+        "out_dir": "runs/impc_bright_10more_20260522_074300"
+      },
+      "stop_reason": {
+        "reason": "max_steps",
+        "max_steps": 10
+      },
+      "inputs": {
+        "status": "ok",
+        "volume_id": "vtkMRMLScalarVolumeNode1",
+        "volume_name": "IMPC_sample_data",
+        "shape_kji": [
+          421,
+          258,
+          259
+        ],
+        "dtype": "uint8",
+        "nbytes": 28132062,
+        "spacing_mm": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "origin": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scalar_min": 0.0,
+        "scalar_max": 255.0,
+        "scalar_mean": 10.683694675491616,
+        "sha256_voxels": "e9a958890f6529766f025feea9645e572ba218c73bda185262c40be5bdac5389",
+        "source_filename": "/home/exouser/.cache/slicer.org/Slicer/SlicerIO/IMPC_sample_data.nrrd",
+        "_dt_s": 0.363
+      },
+      "n_events": 50
+    },
+    {
+      "dir": "runs/impc_bright_sat_b1_20260522_075107",
+      "run_id": "20260522T145108Z_mouse_skull_saturation_b1_9b1d6a",
+      "label": "mouse_skull_saturation_b1",
+      "started_utc": "2026-05-22T14:51:08.047506+00:00",
+      "started_unix": 1779461468.047362,
+      "args": {
+        "volume": "IMPC_sample_data",
+        "reset_first": false,
+        "intensity_percentile": 99.0,
+        "max_candidates": 100000,
+        "max_steps": 10,
+        "min_delta": 0,
+        "patience": 1000000000,
+        "max_explosion_frac": 1.0,
+        "no_stop_rules": true,
+        "no_new_segment_per_click": false,
+        "no_screenshots": false,
+        "no_export_segmentation": false,
+        "label": "mouse_skull_saturation_b1",
+        "out_dir": "runs/impc_bright_sat_b1_20260522_075107"
+      },
+      "stop_reason": {
+        "reason": "no_more_candidates",
+        "step": 1,
+        "voxels": 302799
+      },
+      "inputs": {
+        "status": "ok",
+        "volume_id": "vtkMRMLScalarVolumeNode1",
+        "volume_name": "IMPC_sample_data",
+        "shape_kji": [
+          421,
+          258,
+          259
+        ],
+        "dtype": "uint8",
+        "nbytes": 28132062,
+        "spacing_mm": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "origin": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scalar_min": 0.0,
+        "scalar_max": 255.0,
+        "scalar_mean": 10.683694675491616,
+        "sha256_voxels": "e9a958890f6529766f025feea9645e572ba218c73bda185262c40be5bdac5389",
+        "source_filename": "/home/exouser/.cache/slicer.org/Slicer/SlicerIO/IMPC_sample_data.nrrd",
+        "_dt_s": 0.343
+      },
+      "n_events": 35
+    },
+    {
+      "dir": "runs/impc_bright_sat_p95_b1_20260522_075305",
+      "run_id": "20260522T145305Z_mouse_skull_sat_p95_b1_1548ab",
+      "label": "mouse_skull_sat_p95_b1",
+      "started_utc": "2026-05-22T14:53:05.278323+00:00",
+      "started_unix": 1779461585.278176,
+      "args": {
+        "volume": "IMPC_sample_data",
+        "reset_first": false,
+        "intensity_percentile": 95.0,
+        "max_candidates": 200000,
+        "max_steps": 10,
+        "min_delta": 0,
+        "patience": 1000000000,
+        "max_explosion_frac": 1.0,
+        "no_stop_rules": true,
+        "no_new_segment_per_click": false,
+        "no_screenshots": false,
+        "no_export_segmentation": false,
+        "label": "mouse_skull_sat_p95_b1",
+        "out_dir": "runs/impc_bright_sat_p95_b1_20260522_075305"
+      },
+      "stop_reason": {
+        "reason": "max_steps",
+        "max_steps": 10
+      },
+      "inputs": {
+        "status": "ok",
+        "volume_id": "vtkMRMLScalarVolumeNode1",
+        "volume_name": "IMPC_sample_data",
+        "shape_kji": [
+          421,
+          258,
+          259
+        ],
+        "dtype": "uint8",
+        "nbytes": 28132062,
+        "spacing_mm": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "origin": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scalar_min": 0.0,
+        "scalar_max": 255.0,
+        "scalar_mean": 10.683694675491616,
+        "sha256_voxels": "e9a958890f6529766f025feea9645e572ba218c73bda185262c40be5bdac5389",
+        "source_filename": "/home/exouser/.cache/slicer.org/Slicer/SlicerIO/IMPC_sample_data.nrrd",
+        "_dt_s": 0.343
+      },
+      "n_events": 61
+    },
+    {
+      "dir": "runs/impc_bright_sat_p95_b2_20260522_075516",
+      "run_id": "20260522T145516Z_mouse_skull_sat_p95_b2_2ae255",
+      "label": "mouse_skull_sat_p95_b2",
+      "started_utc": "2026-05-22T14:55:16.901318+00:00",
+      "started_unix": 1779461716.9011872,
+      "args": {
+        "volume": "IMPC_sample_data",
+        "reset_first": false,
+        "intensity_percentile": 95.0,
+        "max_candidates": 200000,
+        "max_steps": 10,
+        "min_delta": 0,
+        "patience": 1000000000,
+        "max_explosion_frac": 1.0,
+        "no_stop_rules": true,
+        "no_new_segment_per_click": false,
+        "no_screenshots": false,
+        "no_export_segmentation": false,
+        "label": "mouse_skull_sat_p95_b2",
+        "out_dir": "runs/impc_bright_sat_p95_b2_20260522_075516"
+      },
+      "stop_reason": {
+        "reason": "max_steps",
+        "max_steps": 10
+      },
+      "inputs": {
+        "status": "ok",
+        "volume_id": "vtkMRMLScalarVolumeNode1",
+        "volume_name": "IMPC_sample_data",
+        "shape_kji": [
+          421,
+          258,
+          259
+        ],
+        "dtype": "uint8",
+        "nbytes": 28132062,
+        "spacing_mm": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "origin": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scalar_min": 0.0,
+        "scalar_max": 255.0,
+        "scalar_mean": 10.683694675491616,
+        "sha256_voxels": "e9a958890f6529766f025feea9645e572ba218c73bda185262c40be5bdac5389",
+        "source_filename": "/home/exouser/.cache/slicer.org/Slicer/SlicerIO/IMPC_sample_data.nrrd",
+        "_dt_s": 0.459
+      },
+      "n_events": 71
+    },
+    {
+      "dir": "runs/impc_bright_sat_p95_b3_20260522_075802",
+      "run_id": "20260522T145802Z_mouse_skull_sat_p95_b3_8eb7ef",
+      "label": "mouse_skull_sat_p95_b3",
+      "started_utc": "2026-05-22T14:58:02.888548+00:00",
+      "started_unix": 1779461882.888389,
+      "args": {
+        "volume": "IMPC_sample_data",
+        "reset_first": false,
+        "intensity_percentile": 95.0,
+        "max_candidates": 200000,
+        "max_steps": 10,
+        "min_delta": 0,
+        "patience": 1000000000,
+        "max_explosion_frac": 1.0,
+        "no_stop_rules": true,
+        "no_new_segment_per_click": false,
+        "no_screenshots": false,
+        "no_export_segmentation": false,
+        "label": "mouse_skull_sat_p95_b3",
+        "out_dir": "runs/impc_bright_sat_p95_b3_20260522_075802"
+      },
+      "stop_reason": {
+        "reason": "max_steps",
+        "max_steps": 10
+      },
+      "inputs": {
+        "status": "ok",
+        "volume_id": "vtkMRMLScalarVolumeNode1",
+        "volume_name": "IMPC_sample_data",
+        "shape_kji": [
+          421,
+          258,
+          259
+        ],
+        "dtype": "uint8",
+        "nbytes": 28132062,
+        "spacing_mm": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "origin": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scalar_min": 0.0,
+        "scalar_max": 255.0,
+        "scalar_mean": 10.683694675491616,
+        "sha256_voxels": "e9a958890f6529766f025feea9645e572ba218c73bda185262c40be5bdac5389",
+        "source_filename": "/home/exouser/.cache/slicer.org/Slicer/SlicerIO/IMPC_sample_data.nrrd",
+        "_dt_s": 0.379
+      },
+      "n_events": 81
+    },
+    {
+      "dir": "runs/impc_bright_sat_p95_b4_20260522_080140",
+      "run_id": "20260522T150140Z_mouse_skull_sat_p95_b4_bc4a19",
+      "label": "mouse_skull_sat_p95_b4",
+      "started_utc": "2026-05-22T15:01:40.459932+00:00",
+      "started_unix": 1779462100.4597938,
+      "args": {
+        "volume": "IMPC_sample_data",
+        "reset_first": false,
+        "intensity_percentile": 95.0,
+        "max_candidates": 200000,
+        "max_steps": 10,
+        "min_delta": 0,
+        "patience": 1000000000,
+        "max_explosion_frac": 1.0,
+        "no_stop_rules": true,
+        "no_new_segment_per_click": false,
+        "no_screenshots": false,
+        "no_export_segmentation": false,
+        "label": "mouse_skull_sat_p95_b4",
+        "out_dir": "runs/impc_bright_sat_p95_b4_20260522_080140"
+      },
+      "stop_reason": {
+        "reason": "max_steps",
+        "max_steps": 10
+      },
+      "inputs": {
+        "status": "ok",
+        "volume_id": "vtkMRMLScalarVolumeNode1",
+        "volume_name": "IMPC_sample_data",
+        "shape_kji": [
+          421,
+          258,
+          259
+        ],
+        "dtype": "uint8",
+        "nbytes": 28132062,
+        "spacing_mm": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "origin": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scalar_min": 0.0,
+        "scalar_max": 255.0,
+        "scalar_mean": 10.683694675491616,
+        "sha256_voxels": "e9a958890f6529766f025feea9645e572ba218c73bda185262c40be5bdac5389",
+        "source_filename": "/home/exouser/.cache/slicer.org/Slicer/SlicerIO/IMPC_sample_data.nrrd",
+        "_dt_s": 0.342
+      },
+      "n_events": 91
+    },
+    {
+      "dir": "runs/impc_bright_sat_p95_b5_20260522_080609",
+      "run_id": "20260522T150609Z_mouse_skull_sat_p95_b5_97ec25",
+      "label": "mouse_skull_sat_p95_b5",
+      "started_utc": "2026-05-22T15:06:09.433040+00:00",
+      "started_unix": 1779462369.4328902,
+      "args": {
+        "volume": "IMPC_sample_data",
+        "reset_first": false,
+        "intensity_percentile": 95.0,
+        "max_candidates": 200000,
+        "max_steps": 10,
+        "min_delta": 0,
+        "patience": 1000000000,
+        "max_explosion_frac": 1.0,
+        "no_stop_rules": true,
+        "no_new_segment_per_click": false,
+        "no_screenshots": false,
+        "no_export_segmentation": false,
+        "label": "mouse_skull_sat_p95_b5",
+        "out_dir": "runs/impc_bright_sat_p95_b5_20260522_080609"
+      },
+      "stop_reason": {
+        "reason": "max_steps",
+        "max_steps": 10
+      },
+      "inputs": {
+        "status": "ok",
+        "volume_id": "vtkMRMLScalarVolumeNode1",
+        "volume_name": "IMPC_sample_data",
+        "shape_kji": [
+          421,
+          258,
+          259
+        ],
+        "dtype": "uint8",
+        "nbytes": 28132062,
+        "spacing_mm": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "origin": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scalar_min": 0.0,
+        "scalar_max": 255.0,
+        "scalar_mean": 10.683694675491616,
+        "sha256_voxels": "e9a958890f6529766f025feea9645e572ba218c73bda185262c40be5bdac5389",
+        "source_filename": "/home/exouser/.cache/slicer.org/Slicer/SlicerIO/IMPC_sample_data.nrrd",
+        "_dt_s": 0.364
+      },
+      "n_events": 101
+    },
+    {
+      "dir": "runs/impc_bright_sat_p90_b1_20260522_081134",
+      "run_id": "20260522T151134Z_mouse_skull_sat_p90_b1_c443f3",
+      "label": "mouse_skull_sat_p90_b1",
+      "started_utc": "2026-05-22T15:11:34.227293+00:00",
+      "started_unix": 1779462694.227135,
+      "args": {
+        "volume": "IMPC_sample_data",
+        "reset_first": false,
+        "intensity_percentile": 90.0,
+        "max_candidates": 200000,
+        "max_steps": 10,
+        "min_delta": 0,
+        "patience": 1000000000,
+        "max_explosion_frac": 1.0,
+        "no_stop_rules": true,
+        "no_new_segment_per_click": false,
+        "no_screenshots": false,
+        "no_export_segmentation": false,
+        "label": "mouse_skull_sat_p90_b1",
+        "out_dir": "runs/impc_bright_sat_p90_b1_20260522_081134"
+      },
+      "stop_reason": {
+        "reason": "max_steps",
+        "max_steps": 10
+      },
+      "inputs": {
+        "status": "ok",
+        "volume_id": "vtkMRMLScalarVolumeNode1",
+        "volume_name": "IMPC_sample_data",
+        "shape_kji": [
+          421,
+          258,
+          259
+        ],
+        "dtype": "uint8",
+        "nbytes": 28132062,
+        "spacing_mm": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "origin": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scalar_min": 0.0,
+        "scalar_max": 255.0,
+        "scalar_mean": 10.683694675491616,
+        "sha256_voxels": "e9a958890f6529766f025feea9645e572ba218c73bda185262c40be5bdac5389",
+        "source_filename": "/home/exouser/.cache/slicer.org/Slicer/SlicerIO/IMPC_sample_data.nrrd",
+        "_dt_s": 0.338
+      },
+      "n_events": 111
+    },
+    {
+      "dir": "runs/impc_bright_sat_p90_b2_20260522_081810",
+      "run_id": "20260522T151810Z_mouse_skull_sat_p90_b2_c4fd7c",
+      "label": "mouse_skull_sat_p90_b2",
+      "started_utc": "2026-05-22T15:18:10.517323+00:00",
+      "started_unix": 1779463090.5171719,
+      "args": {
+        "volume": "IMPC_sample_data",
+        "reset_first": false,
+        "intensity_percentile": 90.0,
+        "max_candidates": 200000,
+        "max_steps": 10,
+        "min_delta": 0,
+        "patience": 1000000000,
+        "max_explosion_frac": 1.0,
+        "no_stop_rules": true,
+        "no_new_segment_per_click": false,
+        "no_screenshots": false,
+        "no_export_segmentation": false,
+        "label": "mouse_skull_sat_p90_b2",
+        "out_dir": "runs/impc_bright_sat_p90_b2_20260522_081810"
+      },
+      "stop_reason": {
+        "reason": "max_steps",
+        "max_steps": 10
+      },
+      "inputs": {
+        "status": "ok",
+        "volume_id": "vtkMRMLScalarVolumeNode1",
+        "volume_name": "IMPC_sample_data",
+        "shape_kji": [
+          421,
+          258,
+          259
+        ],
+        "dtype": "uint8",
+        "nbytes": 28132062,
+        "spacing_mm": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "origin": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scalar_min": 0.0,
+        "scalar_max": 255.0,
+        "scalar_mean": 10.683694675491616,
+        "sha256_voxels": "e9a958890f6529766f025feea9645e572ba218c73bda185262c40be5bdac5389",
+        "source_filename": "/home/exouser/.cache/slicer.org/Slicer/SlicerIO/IMPC_sample_data.nrrd",
+        "_dt_s": 0.427
+      },
+      "n_events": 31
+    },
+    {
+      "dir": "runs/impc_bright_sat_p90_b3_20260522_082549",
+      "run_id": "20260522T152549Z_mouse_skull_sat_p90_b3_f374f7",
+      "label": "mouse_skull_sat_p90_b3",
+      "started_utc": "2026-05-22T15:25:49.110300+00:00",
+      "started_unix": 1779463549.110063,
+      "args": {
+        "volume": "IMPC_sample_data",
+        "reset_first": false,
+        "intensity_percentile": 90.0,
+        "max_candidates": 200000,
+        "max_steps": 10,
+        "min_delta": 0,
+        "patience": 1000000000,
+        "max_explosion_frac": 1.0,
+        "no_stop_rules": true,
+        "no_new_segment_per_click": false,
+        "no_screenshots": false,
+        "no_export_segmentation": false,
+        "label": "mouse_skull_sat_p90_b3",
+        "out_dir": "runs/impc_bright_sat_p90_b3_20260522_082549"
+      },
+      "stop_reason": {
+        "reason": "max_steps",
+        "max_steps": 10
+      },
+      "inputs": {
+        "status": "ok",
+        "volume_id": "vtkMRMLScalarVolumeNode1",
+        "volume_name": "IMPC_sample_data",
+        "shape_kji": [
+          421,
+          258,
+          259
+        ],
+        "dtype": "uint8",
+        "nbytes": 28132062,
+        "spacing_mm": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "origin": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scalar_min": 0.0,
+        "scalar_max": 255.0,
+        "scalar_mean": 10.683694675491616,
+        "sha256_voxels": "e9a958890f6529766f025feea9645e572ba218c73bda185262c40be5bdac5389",
+        "source_filename": "/home/exouser/.cache/slicer.org/Slicer/SlicerIO/IMPC_sample_data.nrrd",
+        "_dt_s": 0.346
+      },
+      "n_events": 31
+    },
+    {
+      "dir": "runs/impc_bright_sat_p90_b4_20260522_083433",
+      "run_id": "20260522T153433Z_mouse_skull_sat_p90_b4_7a5624",
+      "label": "mouse_skull_sat_p90_b4",
+      "started_utc": "2026-05-22T15:34:33.278935+00:00",
+      "started_unix": 1779464073.2787762,
+      "args": {
+        "volume": "IMPC_sample_data",
+        "reset_first": false,
+        "intensity_percentile": 90.0,
+        "max_candidates": 200000,
+        "max_steps": 10,
+        "min_delta": 0,
+        "patience": 1000000000,
+        "max_explosion_frac": 1.0,
+        "no_stop_rules": true,
+        "no_new_segment_per_click": false,
+        "no_screenshots": false,
+        "no_export_segmentation": false,
+        "label": "mouse_skull_sat_p90_b4",
+        "out_dir": "runs/impc_bright_sat_p90_b4_20260522_083433"
+      },
+      "stop_reason": {
+        "reason": "max_steps",
+        "max_steps": 10
+      },
+      "inputs": {
+        "status": "ok",
+        "volume_id": "vtkMRMLScalarVolumeNode1",
+        "volume_name": "IMPC_sample_data",
+        "shape_kji": [
+          421,
+          258,
+          259
+        ],
+        "dtype": "uint8",
+        "nbytes": 28132062,
+        "spacing_mm": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "origin": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scalar_min": 0.0,
+        "scalar_max": 255.0,
+        "scalar_mean": 10.683694675491616,
+        "sha256_voxels": "e9a958890f6529766f025feea9645e572ba218c73bda185262c40be5bdac5389",
+        "source_filename": "/home/exouser/.cache/slicer.org/Slicer/SlicerIO/IMPC_sample_data.nrrd",
+        "_dt_s": 0.366
+      },
+      "n_events": 31
+    },
+    {
+      "dir": "runs/impc_bright_sat_p90_b5_20260522_084449",
+      "run_id": "20260522T154449Z_mouse_skull_sat_p90_b5_440965",
+      "label": "mouse_skull_sat_p90_b5",
+      "started_utc": "2026-05-22T15:44:49.838435+00:00",
+      "started_unix": 1779464689.838294,
+      "args": {
+        "volume": "IMPC_sample_data",
+        "reset_first": false,
+        "intensity_percentile": 90.0,
+        "max_candidates": 200000,
+        "max_steps": 10,
+        "min_delta": 0,
+        "patience": 1000000000,
+        "max_explosion_frac": 1.0,
+        "no_stop_rules": true,
+        "no_new_segment_per_click": false,
+        "no_screenshots": false,
+        "no_export_segmentation": false,
+        "label": "mouse_skull_sat_p90_b5",
+        "out_dir": "runs/impc_bright_sat_p90_b5_20260522_084449"
+      },
+      "stop_reason": {},
+      "inputs": {
+        "status": "ok",
+        "volume_id": "vtkMRMLScalarVolumeNode1",
+        "volume_name": "IMPC_sample_data",
+        "shape_kji": [
+          421,
+          258,
+          259
+        ],
+        "dtype": "uint8",
+        "nbytes": 28132062,
+        "spacing_mm": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "origin": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scalar_min": 0.0,
+        "scalar_max": 255.0,
+        "scalar_mean": 10.683694675491616,
+        "sha256_voxels": "e9a958890f6529766f025feea9645e572ba218c73bda185262c40be5bdac5389",
+        "source_filename": "/home/exouser/.cache/slicer.org/Slicer/SlicerIO/IMPC_sample_data.nrrd",
+        "_dt_s": 0.329
+      },
+      "n_events": 8
+    }
+  ]
+}

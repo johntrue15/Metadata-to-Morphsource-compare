@@ -420,7 +420,15 @@ try:
         else:
             k, j, i, intensity = picked
             click_positive = bool({click_positive})
-            new_segment = bool({new_segment}) and len(state["history"]) > 0
+            # Honor --new-segment-per-click except for the very first click
+            # of a *fresh* scene (no existing segments → let the plugin
+            # auto-create the first one). On continuation runs there will
+            # already be segments in the scene, so always make a new one
+            # to avoid silently refining the previously-active segment.
+            n_existing_segments = len(segs_before)
+            new_segment = bool({new_segment}) and (
+                len(state["history"]) > 0 or n_existing_segments > 0
+            )
             mod = slicer.modules.slicernninteractive
             plugin = mod.widgetRepresentation().self()
             new_segment_id = None

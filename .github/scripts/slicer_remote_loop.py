@@ -491,13 +491,35 @@ def call_llm(client, model: str, target: str, grid_path: Path,
                             "detail": "high"}},
          ]},
     ]
-    resp = client.chat.completions.create(
+    create_kwargs = dict(
         model=model,
         messages=msgs,
         response_format={"type": "json_object"},
-        max_tokens=400,
-        temperature=0.2,
     )
+    # Newer reasoning-tier models (gpt-5.x, o1, o3) renamed ``max_tokens``
+    # to ``max_completion_tokens`` and refuse a custom ``temperature``.
+    # Heuristic: anything that isn't a vanilla gpt-4* / gpt-3.5* uses the
+    # new contract. Fall back to the old contract on BadRequest.
+    is_reasoning = not (model.startswith("gpt-4") or model.startswith("gpt-3"))
+    if is_reasoning:
+        create_kwargs["max_completion_tokens"] = 1200
+    else:
+        create_kwargs["max_tokens"] = 400
+        create_kwargs["temperature"] = 0.2
+    try:
+        resp = client.chat.completions.create(**create_kwargs)
+    except Exception as e:
+        msg = str(e)
+        if "max_tokens" in msg and "max_completion_tokens" in msg:
+            create_kwargs.pop("max_tokens", None)
+            create_kwargs.pop("temperature", None)
+            create_kwargs["max_completion_tokens"] = 1200
+            resp = client.chat.completions.create(**create_kwargs)
+        elif "temperature" in msg:
+            create_kwargs.pop("temperature", None)
+            resp = client.chat.completions.create(**create_kwargs)
+        else:
+            raise
     raw = resp.choices[0].message.content
     try:
         return json.loads(raw)

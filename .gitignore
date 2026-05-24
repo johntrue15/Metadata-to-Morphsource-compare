@@ -64,7 +64,10 @@ coverage.xml
 *.cover
 .hypothesis/
 
-# MorphoSource downloads (large binary files)
+# MorphoSource downloads (large binary files). The deliberate, committed
+# sample assets in data/sample/ are NOT ignored — only the per-media-id
+# download caches that .github/scripts/stage_morphosource_sample.py
+# writes into.
 data/morphosource-download-*/
 *.zip
 
