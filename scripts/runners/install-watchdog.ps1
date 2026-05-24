@@ -38,13 +38,19 @@ $ErrorActionPreference = 'Stop'
 
 $scriptDir  = Split-Path -Parent $PSCommandPath
 $watchdog   = Join-Path $scriptDir 'runner-watchdog.ps1'
+$launcher   = Join-Path $scriptDir 'runner-watchdog-launcher.vbs'
 if (-not (Test-Path $watchdog)) {
     Write-Error "runner-watchdog.ps1 not found next to install-watchdog.ps1 (looked in $scriptDir)."
+    exit 2
+}
+if (-not (Test-Path $launcher)) {
+    Write-Error "runner-watchdog-launcher.vbs not found next to install-watchdog.ps1 (looked in $scriptDir)."
     exit 2
 }
 
 Write-Host "Installing scheduled task '$TaskName'" -ForegroundColor Cyan
 Write-Host "  watchdog script:  $watchdog"
+Write-Host "  launcher (vbs):   $launcher"
 Write-Host "  interval:         every $IntervalMinutes min + at logon"
 
 # --- remove any existing task with this name (idempotent reinstall) -------
@@ -55,12 +61,15 @@ if ($existing) {
 }
 
 # --- action ---------------------------------------------------------------
-# powershell.exe is used (not pwsh) to avoid requiring PowerShell 7+ on
-# the host. The watchdog itself supports both.
-$powershell = (Get-Command powershell.exe).Source
+# We invoke the .vbs launcher via wscript.exe instead of calling
+# powershell.exe directly. With LogonType=Interactive, `powershell.exe
+# -WindowStyle Hidden` STILL briefly flashes a console window every time
+# the task fires (~100 ms). WScript.Shell.Run with intWindowStyle=0
+# never creates a console at all, so the user sees nothing.
+$wscript = Join-Path $env:WINDIR 'System32\wscript.exe'
 $action = New-ScheduledTaskAction `
-    -Execute $powershell `
-    -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$watchdog`""
+    -Execute $wscript `
+    -Argument "`"$launcher`""
 
 # --- triggers -------------------------------------------------------------
 # Trigger 1: every IntervalMinutes, indefinitely. We start "Once" at the
