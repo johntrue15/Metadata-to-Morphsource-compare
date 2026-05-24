@@ -222,8 +222,13 @@ jobs:
             echo 'HEALTH_EOF'
           } >> "$GITHUB_OUTPUT"
 
+      # Only report XPS health when this run actually exercised the XPS GPU
+      # runner. The default target label is 'gpu', which on this repo is the
+      # XPS box, so schedules + default manual dispatches both qualify.
+      # Dispatches that explicitly target 'slicer' / 'self-hosted' / etc. run
+      # on other hardware and must not pollute the XPS health issue.
       - name: Report health (success)
-        if: success() && github.event_name == 'schedule'
+        if: success() && (github.event.inputs.target_label || 'gpu') == 'gpu'
         uses: ./.github/actions/report-runner-health
         with:
           runner-name: DellXPS-wsl-gpu
@@ -231,7 +236,7 @@ jobs:
           status: success
 
       - name: Report health (failure)
-        if: failure()
+        if: failure() && (github.event.inputs.target_label || 'gpu') == 'gpu'
         uses: ./.github/actions/report-runner-health
         with:
           runner-name: DellXPS-wsl-gpu

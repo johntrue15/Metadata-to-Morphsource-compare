@@ -151,8 +151,12 @@ jobs:
             echo 'HEALTH_EOF'
           } >> "$GITHUB_OUTPUT"
 
+      # We report health for any run that actually executed on the XPS runner
+      # (per the resolved runner_name above), whether it was triggered by the
+      # weekly cron OR by a manual dispatch -- a successful manual re-run is
+      # explicitly how an operator clears a stale alert after a fix.
       - name: Report health (success)
-        if: success() && github.event_name == 'schedule' && steps.whoami.outputs.runner_name == 'DellXPS-wsl-gpu'
+        if: success() && steps.whoami.outputs.runner_name == 'DellXPS-wsl-gpu'
         uses: ./.github/actions/report-runner-health
         with:
           runner-name: DellXPS-wsl-gpu
