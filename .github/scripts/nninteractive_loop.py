@@ -287,23 +287,46 @@ def run_loop(input_path: str, goal: str, output_dir: str,
     z, y, x = seg.image_shape_zyx
     image_shape_xyz = [x, y, z]
 
-    # Save-best tracking: the LLM occasionally trims the mask too aggressively
-    # in late steps or panics into a RESET on the last step, leaving the final
-    # state empty. We keep a snapshot of the largest mask we've seen so we can
-    # restore it at the end if the model torched its own work.
+    # Save-best tracking: keep a snapshot of the *best-so-far* mask so we
+    # can restore it at the end if the LLM torches its own work (RESET on
+    # the last step, over-aggressive negatives, or a single positive that
+    # causes nnInteractive to re-segment everything globally).
+    #
+    # "Best" depends on whether we have a target-size budget:
+    #   * No budget   -> best = largest non-empty mask (legacy behaviour)
+    #   * With budget -> best = closest to expected_voxels (lower is better).
+    #     This matters because nnInteractive sometimes 7x-explodes the mask
+    #     on a single positive point (Felis v3 run 26374270004 step 7:
+    #     451k -> 3.2M voxels). The post-RESET rebuild often lands far
+    #     under budget; the legacy "biggest is best" would restore the
+    #     3.2M leak instead of the 451k near-budget snapshot.
     best_mask_np: Optional[object] = None  # numpy array (kept dep-free here)
     best_voxel_count: int = 0
     best_step: int = 0
+    # Score is lower-is-better. Initialised to +inf so any real snapshot
+    # replaces it.
+    best_score: float = float("inf")
+
+    def _score_for(voxel_count: int) -> float:
+        if expected_voxels and expected_voxels > 0:
+            return float(abs(voxel_count - expected_voxels))
+        return -float(voxel_count)  # bigger is better without a budget
 
     def _snapshot_if_best() -> None:
-        nonlocal best_mask_np, best_voxel_count, best_step
+        nonlocal best_mask_np, best_voxel_count, best_step, best_score
         vc = seg.voxel_count()
-        if vc > best_voxel_count:
+        if vc == 0:
+            return  # never preserve an empty mask as best
+        score = _score_for(vc)
+        if score < best_score:
             best_mask_np = seg.mask_array.copy()
             best_voxel_count = vc
+            best_score = score
             best_step = step
-            log.debug("step %d: new best mask voxel count = %d",
-                      step, vc)
+            log.debug("step %d: new best mask voxel count = %d "
+                      "(score=%.0f, budget=%s)",
+                      step, vc, score,
+                      expected_voxels if expected_voxels else "n/a")
 
     for step in range(1, max_steps + 1):
         last_screens = (
@@ -415,18 +438,32 @@ def run_loop(input_path: str, goal: str, output_dir: str,
         screens = seg.save_orthogonal_previews(name_prefix=f"{media_id}_step{step:02d}")
         history[-1].screenshots = screens
 
-    # Restore best mask if the final state collapsed (e.g. RESET on last step
-    # despite the veto, or a series of over-aggressive negatives near the end).
-    # Threshold: if final < 50% of best AND best > 0, restore the snapshot.
+    # Restore best mask if the final state is worse than a snapshot we
+    # took earlier. "Worse" is defined by the same score the snapshotter
+    # used: distance to expected_voxels when we have a budget, else
+    # negative voxel count (so "more is better").
     final_voxels = seg.voxel_count()
+    final_score = _score_for(final_voxels)
     restored_from_best = False
+    has_budget = bool(expected_voxels and expected_voxels > 0)
+    # Budget mode: any score regression triggers restore (cheap, safe,
+    # and Felis-v3 showed even ~10% drift from the budget hurts dice).
+    # Legacy mode: keep the original 50%-of-best collapse threshold so
+    # we don't undo small intentional trims.
+    if has_budget:
+        should_restore = final_score > best_score
+    else:
+        should_restore = (best_voxel_count > 0
+                          and final_voxels < 0.5 * best_voxel_count)
     if (best_mask_np is not None
             and best_voxel_count > 0
-            and final_voxels < 0.5 * best_voxel_count):
+            and should_restore):
         log.warning(
-            "Final mask has %d voxels but best was %d at step %d - "
-            "restoring best snapshot.",
-            final_voxels, best_voxel_count, best_step,
+            "Final mask voxel_count=%d (score=%.0f) is worse than the "
+            "best snapshot of %d voxels at step %d (score=%.0f) - "
+            "restoring best.",
+            final_voxels, final_score, best_voxel_count, best_step,
+            best_score,
         )
         try:
             import torch  # local import keeps the module importable without torch

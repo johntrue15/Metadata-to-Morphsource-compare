@@ -181,8 +181,12 @@ class SaveBestPolicyTests(unittest.TestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     # -----------------------------------------------------------------
-    def _run(self, voxel_trace, llm_responses, max_steps=12):
-        """Drive ``run_loop`` end-to-end with stubs."""
+    def _run(self, voxel_trace, llm_responses, max_steps=12, **kwargs):
+        """Drive ``run_loop`` end-to-end with stubs.
+
+        Extra ``kwargs`` are forwarded to ``run_loop`` so tests can pass
+        ``expected_voxels=...`` to exercise the budget-aware best path.
+        """
         import nninteractive_loop as mod
 
         fake_seg = FakeSegmenter(voxel_trace=voxel_trace,
@@ -198,6 +202,7 @@ class SaveBestPolicyTests(unittest.TestCase):
                 media_id="000362550",
                 max_steps=max_steps,
                 vision_model="gpt-4o-stub",
+                **kwargs,
             )
         return res, fake_seg
 
@@ -353,6 +358,116 @@ class SaveBestPolicyTests(unittest.TestCase):
         # final ADD_POINT we executed was step 11, which advanced the
         # trace to its 11th entry (index 10) = 620 000.
         self.assertEqual(res["voxel_count"], 620000)
+
+
+class BudgetAwareBestTests(unittest.TestCase):
+    """When ``expected_voxels`` is set, "best" is the snapshot closest
+    to the budget - not the largest mask. This replays the exact Felis v3
+    trace (run 26374270004) which produced dice=0.087 under the old
+    "biggest is best" rule because save-best restored a 459% explosion.
+    With the new rule it should restore step 5 or 6 (451 k voxels = 64%
+    of the 701 499 budget).
+    """
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp())
+        import os
+        os.environ["OPENAI_API_KEY"] = "sk-test-stub"
+
+    def tearDown(self) -> None:
+        import shutil
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _run(self, voxel_trace, llm_responses, max_steps=12, **kwargs):
+        import nninteractive_loop as mod
+        fake_seg = FakeSegmenter(voxel_trace=voxel_trace,
+                                 output_dir=self.tmp)
+        with patch.object(mod, "make_segmenter", return_value=fake_seg), \
+             patch.object(mod, "_call_vision_llm",
+                          new=_scripted_llm(llm_responses)), \
+             patch.dict(sys.modules, {"torch": FakeTorchModule}):
+            return mod.run_loop(
+                input_path=str(self.tmp / "ct.nii.gz"),
+                goal="Segment cranial bone.",
+                output_dir=str(self.tmp),
+                media_id="000362550",
+                max_steps=max_steps,
+                vision_model="gpt-4o-stub",
+                **kwargs,
+            ), fake_seg
+
+    def test_v3_trace_picks_near_budget_not_explosion(self):
+        # Exact Felis v3 trace
+        voxel_trace = [78284, 71549, 283240, 265059, 451462, 450870,
+                       3218555, 0, 63, 4711, 106778, 126401]
+        llm = [
+            {"tool":"ADD_POINT","x":105,"y":112,"z":192,"positive":True},
+            {"tool":"ADD_POINT","x":100,"y":110,"z":192,"positive":True},
+            {"tool":"ADD_POINT","x":110,"y":120,"z":92, "positive":True},
+            {"tool":"ADD_POINT","x":105,"y":112,"z":180,"positive":True},
+            {"tool":"ADD_POINT","x":110,"y":115,"z":140,"positive":True},
+            {"tool":"ADD_POINT","x":105,"y":112,"z":160,"positive":True},
+            {"tool":"ADD_POINT","x":150,"y":112,"z":192,"positive":True},
+            {"tool":"RESET","reason":"explosion"},
+            {"tool":"ADD_POINT","x":110,"y":112,"z":192,"positive":True},
+            {"tool":"ADD_POINT","x":110,"y":112,"z":180,"positive":True},
+            {"tool":"ADD_POINT","x":120,"y":112,"z":140,"positive":True},
+            {"tool":"ADD_POINT","x":110,"y":120,"z":150,"positive":True},
+        ]
+        res, _ = self._run(voxel_trace, llm, max_steps=12,
+                           expected_voxels=701499,
+                           expected_volume_mm3=32035.0)
+
+        # Best should be the closest-to-budget snapshot, NOT the 3.2 M
+        # explosion. Step 5 (451 462) and step 6 (450 870) are
+        # essentially tied; either is acceptable as long as it's the
+        # ~451 k range, not the explosion or the rebuild floor.
+        self.assertIn(res["best_step"], (5, 6),
+                      f"Best step should be 5 or 6 (near-budget), "
+                      f"got step {res['best_step']} "
+                      f"({res['best_voxel_count']} voxels)")
+        self.assertGreaterEqual(res["best_voxel_count"], 400_000)
+        self.assertLessEqual(res["best_voxel_count"], 500_000,
+                             f"Best must be near budget (~451 k); the "
+                             f"3.2 M explosion would be a regression. "
+                             f"Got {res['best_voxel_count']}.")
+        # Final post-RESET rebuild ended at 126 k = far from budget.
+        # We should restore the near-budget snapshot.
+        self.assertTrue(res["restored_from_best"])
+        self.assertEqual(res["voxel_count"], res["best_voxel_count"])
+        self.assertEqual(res["final_voxels_pre_restore"], 126401)
+
+    def test_legacy_no_budget_still_picks_largest(self):
+        """Without ``expected_voxels``, the legacy "biggest is best"
+        behaviour must still apply (used by older callers).
+        """
+        voxel_trace = [100, 5000, 80, 0]
+        llm = [
+            {"tool":"ADD_POINT","x":1,"y":1,"z":1,"positive":True},
+            {"tool":"ADD_POINT","x":1,"y":1,"z":1,"positive":True},
+            {"tool":"ADD_POINT","x":1,"y":1,"z":1,"positive":False},
+            {"tool":"DONE","reason":"x"},
+        ]
+        res, _ = self._run(voxel_trace, llm, max_steps=4)
+        self.assertEqual(res["best_voxel_count"], 5000)
+        self.assertTrue(res["restored_from_best"])
+        self.assertEqual(res["voxel_count"], 5000)
+
+    def test_budget_aware_keeps_under_budget_over_oversized(self):
+        """At-budget should ALWAYS win against far-over even if the
+        oversize is huge."""
+        # 700 voxels (perfectly on a budget of 700) then 50 000 (71x).
+        voxel_trace = [700, 50_000]
+        llm = [
+            {"tool":"ADD_POINT","x":1,"y":1,"z":1,"positive":True},
+            {"tool":"ADD_POINT","x":1,"y":1,"z":1,"positive":True},
+        ]
+        res, _ = self._run(voxel_trace, llm, max_steps=2,
+                           expected_voxels=700)
+        self.assertEqual(res["best_voxel_count"], 700)
+        # Final was 50 000 (way over). Restored from best (700).
+        self.assertTrue(res["restored_from_best"])
+        self.assertEqual(res["voxel_count"], 700)
 
 
 class BudgetHintTests(unittest.TestCase):
