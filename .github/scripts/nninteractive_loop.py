@@ -82,8 +82,14 @@ Rules:
 - Bounding boxes must be 2D for nnInteractive: one of x/y/z must span a
   single voxel, e.g. z:[42,43].
 - A positive point adds tissue similar to that voxel; negative removes.
-- After 1–2 confirmation steps, prefer DONE. Avoid loops.
-- If the mask drifts badly, prefer RESET over many corrective negatives.
+- Once the mask reasonably covers the target, call DONE. Avoid loops.
+- RESET wipes the ENTIRE mask back to 0 voxels. Only call RESET when the
+  mask is essentially wrong (covers <5% of the target) AND you still
+  have at least 4 steps remaining to rebuild. Never call RESET on the
+  last 3 steps - small corrective negative points are always safer.
+- Prefer keeping a slightly imperfect mask over RESET; the pipeline
+  saves the best mask you reach during the loop, so trim conservatively
+  near the end of the step budget.
 - The goal you must achieve is shown in the user message."""
 
 
@@ -268,6 +274,24 @@ def run_loop(input_path: str, goal: str, output_dir: str,
     z, y, x = seg.image_shape_zyx
     image_shape_xyz = [x, y, z]
 
+    # Save-best tracking: the LLM occasionally trims the mask too aggressively
+    # in late steps or panics into a RESET on the last step, leaving the final
+    # state empty. We keep a snapshot of the largest mask we've seen so we can
+    # restore it at the end if the model torched its own work.
+    best_mask_np: Optional[object] = None  # numpy array (kept dep-free here)
+    best_voxel_count: int = 0
+    best_step: int = 0
+
+    def _snapshot_if_best() -> None:
+        nonlocal best_mask_np, best_voxel_count, best_step
+        vc = seg.voxel_count()
+        if vc > best_voxel_count:
+            best_mask_np = seg.mask_array.copy()
+            best_voxel_count = vc
+            best_step = step
+            log.debug("step %d: new best mask voxel count = %d",
+                      step, vc)
+
     for step in range(1, max_steps + 1):
         last_screens = (
             history[-1].screenshots if history else initial
@@ -301,12 +325,30 @@ def run_loop(input_path: str, goal: str, output_dir: str,
             break
 
         if tool == "RESET":
-            seg.reset_segment()
-            history.append(StepRecord(
-                step=step, tool="RESET", args=action,
-                result="segment reset",
-                voxel_count=seg.voxel_count(),
-            ))
+            # Veto destructive RESETs when there is no budget left to rebuild.
+            # The LLM occasionally picks RESET on the last step expecting more
+            # turns; without this guard the saved labelmap ends up empty.
+            steps_remaining = max_steps - step
+            current_voxels = seg.voxel_count()
+            if steps_remaining < 3 and current_voxels > 0:
+                log.warning(
+                    "Vetoing RESET at step %d/%d: only %d step(s) left and "
+                    "current mask has %d voxels (cannot be rebuilt in time)",
+                    step, max_steps, steps_remaining, current_voxels,
+                )
+                history.append(StepRecord(
+                    step=step, tool="RESET_VETOED", args=action,
+                    result=(f"reset vetoed: {steps_remaining} steps left, "
+                            f"would lose {current_voxels} voxels"),
+                    voxel_count=current_voxels,
+                ))
+            else:
+                seg.reset_segment()
+                history.append(StepRecord(
+                    step=step, tool="RESET", args=action,
+                    result="segment reset",
+                    voxel_count=seg.voxel_count(),
+                ))
         elif tool == "ADD_POINT":
             try:
                 seg.add_point(
@@ -351,9 +393,34 @@ def run_loop(input_path: str, goal: str, output_dir: str,
             ))
             break
 
+        # Snapshot the best mask seen so far (cheap numpy copy).
+        _snapshot_if_best()
+
         # Render the new state for the next iteration
         screens = seg.save_orthogonal_previews(name_prefix=f"{media_id}_step{step:02d}")
         history[-1].screenshots = screens
+
+    # Restore best mask if the final state collapsed (e.g. RESET on last step
+    # despite the veto, or a series of over-aggressive negatives near the end).
+    # Threshold: if final < 50% of best AND best > 0, restore the snapshot.
+    final_voxels = seg.voxel_count()
+    restored_from_best = False
+    if (best_mask_np is not None
+            and best_voxel_count > 0
+            and final_voxels < 0.5 * best_voxel_count):
+        log.warning(
+            "Final mask has %d voxels but best was %d at step %d - "
+            "restoring best snapshot.",
+            final_voxels, best_voxel_count, best_step,
+        )
+        try:
+            import torch  # local import keeps the module importable without torch
+            seg.target[:] = torch.from_numpy(
+                best_mask_np.astype("uint8")
+            ).to(seg.target.device, dtype=seg.target.dtype)
+            restored_from_best = True
+        except Exception as exc:
+            log.error("Failed to restore best mask: %s", exc)
 
     # Finalise — dump labelmap, summary, and a markdown report.
     labelmap_path = seg.save_labelmap()
@@ -362,12 +429,21 @@ def run_loop(input_path: str, goal: str, output_dir: str,
         "vision_model": vision_model,
         "labelmap_path": labelmap_path,
         "history": [_record_to_dict(r) for r in history],
+        "best_mask": {
+            "voxel_count": best_voxel_count,
+            "step": best_step,
+        },
+        "restored_from_best": restored_from_best,
+        "final_voxels_pre_restore": final_voxels,
     })
     report_path = _write_report(output, media_id, goal, history,
                                 seg, labelmap_path)
 
-    log.info("Done. %d steps, final mask: %d voxels (%.2f mm^3)",
-             len(history), seg.voxel_count(), seg.volume_mm3())
+    log.info("Done. %d steps, final mask: %d voxels (%.2f mm^3)"
+             "%s",
+             len(history), seg.voxel_count(), seg.volume_mm3(),
+             (f" [restored from best={best_voxel_count} @ step "
+              f"{best_step}]" if restored_from_best else ""))
 
     return {
         "success": True,
@@ -380,6 +456,10 @@ def run_loop(input_path: str, goal: str, output_dir: str,
         "summary_path": summary_path,
         "report_path": report_path,
         "history": [_record_to_dict(r) for r in history],
+        "best_voxel_count": best_voxel_count,
+        "best_step": best_step,
+        "restored_from_best": restored_from_best,
+        "final_voxels_pre_restore": final_voxels,
     }
 
 
