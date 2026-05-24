@@ -1,16 +1,20 @@
 name: Runner liveness
 
-# Out-of-band API-side check that the Dell XPS self-hosted runner is `online`
-# in GitHub's eyes. The on-host watchdog and the systemd Restart= drop-in
-# catch process- and service-level failures, and the scheduled
-# `runner-smoke.yml` catches GPU/Slicer/nnInteractive drift. None of them
-# can catch the case where the runner is fully gone from GitHub's POV
-# (auth lapsed, host hung, network partition) — a self-hosted job would
-# just queue forever without any visible failure.
+# Out-of-band check that the Dell XPS self-hosted runner can actually pick
+# up jobs. Two jobs run in parallel:
 #
-# This workflow runs on `ubuntu-latest` (cheap, always available), polls
-# the Actions runners API every 30 min, and opens / updates / closes the
-# single sticky "Runner health" issue.
+#   * `ping` queues a 5-second no-op on [self-hosted, gpu]. It only finishes
+#     if the runner is online and listening.
+#   * `watcher` runs on ubuntu-latest and polls the GitHub API every 10 s
+#     for the ping job's state. If `ping` stays in `queued` for more than
+#     4 minutes, the runner is effectively offline and we update the sticky
+#     issue.
+#
+# Why not just call /actions/runners directly? That endpoint requires the
+# `administration:read` scope, which is NOT in the workflow GITHUB_TOKEN
+# allow-list. So we infer liveness from observable job behavior instead —
+# which is arguably better, because it tests end-to-end dispatch (auth +
+# routing + runner pickup) rather than the runner's self-reported status.
 
 on:
   schedule:
@@ -20,79 +24,104 @@ on:
 permissions:
   contents: read
   issues: write
-  # `administration:read` is what /repos/.../actions/runners actually
-  # requires (GitHub returns the required scope in the
-  # `x-accepted-github-permissions` response header). `actions:read` is
-  # for the /runs and /jobs endpoints, NOT runners — using it here
-  # yields a 403 "Resource not accessible by integration".
-  administration: read
+  # `actions: write` so we can both query the current workflow run's job
+  # states AND cancel the still-queued ping if we detect offline.
+  actions: write
 
 concurrency:
-  # One liveness check at a time; if cron fires while a previous run is
-  # somehow still in flight, cancel the earlier (we only care about now).
+  # Each new schedule trigger cancels any still-in-flight previous run —
+  # in particular it reaps a `ping` job that's been queued forever because
+  # the runner is offline.
   group: runner-liveness
   cancel-in-progress: true
 
 jobs:
-  check:
-    name: Probe runner status via API
+  ping:
+    name: Self-hosted ping
+    runs-on:
+      - self-hosted
+      - gpu
+    timeout-minutes: 2
+    steps:
+      - name: Pong
+        shell: bash
+        run: |
+          echo "pong from runner: ${RUNNER_NAME:-unknown}"
+          echo "host: $(hostname)"
+          echo "uname: $(uname -a)"
+
+  watcher:
+    name: Watcher (ubuntu) — verifies pickup
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-    env:
-      RUNNER_NAME: DellXPS-wsl-gpu
+    timeout-minutes: 6
     steps:
       - name: Checkout (for composite action)
         uses: actions/checkout@v5
         with:
           fetch-depth: 1
 
-      - name: Query runner status
-        id: probe
-        uses: actions/github-script@v8
+      - name: Poll for ping job state
+        id: poll
         env:
-          RUNNER_NAME: ${{ env.RUNNER_NAME }}
-        with:
-          script: |
-            const target = process.env.RUNNER_NAME;
-            const resp = await github.rest.actions.listSelfHostedRunnersForRepo({
-              ...context.repo,
-              per_page: 100,
-            });
-            const runner = resp.data.runners.find(r => r.name === target);
-            if (!runner) {
-              core.setOutput('exists', 'false');
-              core.setOutput('status', 'missing');
-              core.setOutput('busy', 'false');
-              core.warning(`Runner '${target}' is NOT registered with this repo.`);
-              return;
-            }
-            core.setOutput('exists', 'true');
-            core.setOutput('status', runner.status);  // 'online' | 'offline'
-            core.setOutput('busy', String(runner.busy));
-            core.setOutput('labels', (runner.labels || []).map(l => l.name).join(','));
-            core.info(`Runner '${target}': status=${runner.status} busy=${runner.busy}`);
-            await core.summary
-              .addHeading(`Runner '${target}'`, 2)
-              .addTable([
-                [{data: 'field', header: true}, {data: 'value', header: true}],
-                ['status', runner.status],
-                ['busy', String(runner.busy)],
-                ['os', runner.os || '—'],
-                ['labels', (runner.labels || []).map(l => l.name).join(', ') || '—'],
-              ])
-              .write();
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          # Wait up to 4 min for `ping` to leave 'queued'. We don't need
+          # it to finish — just to start, which proves dispatch worked.
+          max_iters=24
+          interval=10
+          picked_up=false
+          status=queued
+          conclusion=
+          for i in $(seq 1 $max_iters); do
+            sleep $interval
+            json=$(gh api \
+              "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" \
+              --jq '.jobs[] | select(.name=="Self-hosted ping")' || echo '{}')
+            status=$(echo "$json" | jq -r '.status // "unknown"')
+            conclusion=$(echo "$json" | jq -r '.conclusion // ""')
+            echo "[$i/$max_iters] ping status=$status conclusion=$conclusion"
+            if [ "$status" = "in_progress" ] || [ "$status" = "completed" ]; then
+              picked_up=true
+              break
+            fi
+          done
+          {
+            echo "picked_up=$picked_up"
+            echo "status=$status"
+            echo "conclusion=$conclusion"
+          } >> "$GITHUB_OUTPUT"
 
-      - name: Report health — offline / missing
-        if: ${{ steps.probe.outputs.status == 'offline' || steps.probe.outputs.status == 'missing' }}
+      - name: Cancel hung ping job (if offline)
+        if: steps.poll.outputs.picked_up == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh api -X POST \
+            "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/cancel" \
+            || true
+
+      - name: Report health — online (recovered)
+        if: steps.poll.outputs.picked_up == 'true'
         uses: ./.github/actions/report-runner-health
         with:
-          runner-name: ${{ env.RUNNER_NAME }}
+          runner-name: DellXPS-wsl-gpu
+          probe-name: liveness
+          status: recovered
+
+      - name: Report health — offline
+        if: steps.poll.outputs.picked_up == 'false'
+        uses: ./.github/actions/report-runner-health
+        with:
+          runner-name: DellXPS-wsl-gpu
           probe-name: liveness
           status: offline
           context: |
-            API reports runner `${{ env.RUNNER_NAME }}` as **${{ steps.probe.outputs.status }}**
-            (`exists=${{ steps.probe.outputs.exists }}`,
-             `busy=${{ steps.probe.outputs.busy }}`).
+            The `Self-hosted ping` job stayed in `queued` for >4 minutes
+            (final observed status: `${{ steps.poll.outputs.status }}`).
+            That means GitHub had no online runner to dispatch to under
+            the labels `[self-hosted, gpu]`.
 
             On-host recovery:
 
@@ -101,11 +130,3 @@ jobs:
             pwsh scripts\runners\runner-ctl.ps1 restart
             pwsh scripts\runners\runner-ctl.ps1 watchdog status
             ```
-
-      - name: Report health — online (recovered)
-        if: ${{ steps.probe.outputs.status == 'online' }}
-        uses: ./.github/actions/report-runner-health
-        with:
-          runner-name: ${{ env.RUNNER_NAME }}
-          probe-name: liveness
-          status: recovered
