@@ -20,8 +20,12 @@ on:
 permissions:
   contents: read
   issues: write
-  # `actions:read` to list self-hosted runners on the repo.
-  actions: read
+  # `administration:read` is what /repos/.../actions/runners actually
+  # requires (GitHub returns the required scope in the
+  # `x-accepted-github-permissions` response header). `actions:read` is
+  # for the /runs and /jobs endpoints, NOT runners — using it here
+  # yields a 403 "Resource not accessible by integration".
+  administration: read
 
 concurrency:
   # One liveness check at a time; if cron fires while a previous run is
