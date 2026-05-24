@@ -229,7 +229,20 @@ def _parse_action(text: str) -> dict:
 
 def run_loop(input_path: str, goal: str, output_dir: str,
              media_id: str = "unknown", max_steps: int = 12,
-             vision_model: str = "") -> dict:
+             vision_model: str = "",
+             expected_voxels: Optional[int] = None,
+             expected_volume_mm3: Optional[float] = None) -> dict:
+    """Drive the LLM-in-the-loop paint loop.
+
+    Parameters
+    ----------
+    expected_voxels, expected_volume_mm3 : optional
+        Approximate size of the target structure (typically the GT
+        labelmap voxel count + foreground volume). When set, the LLM is
+        told its budget every step so it stops growing the mask once it
+        is roughly the right size. Without this, models tend to over-
+        segment - the cat-skull Felis run (3b6d7fa) reached 2.2x GT.
+    """
     output = Path(output_dir)
     output.mkdir(parents=True, exist_ok=True)
 
@@ -305,6 +318,8 @@ def run_loop(input_path: str, goal: str, output_dir: str,
             voxel_count=seg.voxel_count(),
             volume_mm3=seg.volume_mm3(),
             history=history,
+            expected_voxels=expected_voxels,
+            expected_volume_mm3=expected_volume_mm3,
         )
 
         log.info("Step %d/%d — asking LLM (%d voxels currently in mask)",
@@ -466,7 +481,9 @@ def run_loop(input_path: str, goal: str, output_dir: str,
 def _build_state_text(*, goal: str, step: int, max_steps: int,
                       image_shape_xyz: list, spacing_xyz: list,
                       voxel_count: int, volume_mm3: float,
-                      history: list[StepRecord]) -> str:
+                      history: list[StepRecord],
+                      expected_voxels: Optional[int] = None,
+                      expected_volume_mm3: Optional[float] = None) -> str:
     lines = [
         f"GOAL: {goal}",
         "",
@@ -475,6 +492,48 @@ def _build_state_text(*, goal: str, step: int, max_steps: int,
         f"voxel_spacing_mm_xyz: {[round(s, 4) for s in spacing_xyz]}",
         f"current_mask_voxels: {voxel_count}",
         f"current_mask_volume_mm3: {round(volume_mm3, 2)}",
+    ]
+
+    # Inject the size budget when we have one. This is the strongest
+    # signal we can give the model about correctness - it has no other
+    # way to know what fraction of the target it has covered.
+    if expected_voxels is not None and expected_voxels > 0:
+        ratio = (voxel_count / expected_voxels) if expected_voxels else 0.0
+        # Heuristic action guide tied to the budget
+        if voxel_count == 0:
+            guidance = "Mask is EMPTY. Add positive points inside the target."
+        elif ratio < 0.5:
+            guidance = ("Mask is UNDER-sized (<50% of budget). Prefer "
+                        "ADD_POINT positive at unsegmented parts of the "
+                        "target.")
+        elif ratio < 0.9:
+            guidance = ("Mask is APPROACHING budget. Add at most one or "
+                        "two more positives near unsegmented regions, "
+                        "then consider DONE.")
+        elif ratio <= 1.3:
+            guidance = ("Mask is at TARGET size (90-130% of budget). "
+                        "Prefer DONE unless there is a clear leak; small "
+                        "negatives only.")
+        elif ratio <= 1.8:
+            guidance = ("Mask is OVER-sized (130-180% of budget). Trim "
+                        "with negative points at obviously non-target "
+                        "regions; do NOT add positives.")
+        else:
+            guidance = ("Mask is far OVER-sized (>180% of budget). "
+                        "Heavy over-segmentation - prefer negatives or "
+                        "RESET if you still have >=4 steps left, then "
+                        "rebuild with sparse positives.")
+        lines += [
+            "",
+            "BUDGET (from rasterized GT mesh):",
+            f"  expected_voxels: {expected_voxels:,}",
+            (f"  expected_volume_mm3: {round(expected_volume_mm3, 2)}"
+             if expected_volume_mm3 else
+             "  expected_volume_mm3: (unknown)"),
+            f"  current_vs_expected_ratio: {ratio:.2f}",
+            f"  guidance: {guidance}",
+        ]
+    lines += [
         "",
         "Previous actions (most recent last):",
     ]
@@ -553,6 +612,15 @@ def _parse_args():
     p.add_argument("--max-steps", type=int, default=12)
     p.add_argument("--vision-model", default="",
                    help="OpenAI vision model (default: $NNINTERACTIVE_VISION_MODEL or gpt-4o)")
+    p.add_argument("--expected-voxels", type=int, default=0,
+                   help="Approximate voxel count of the target structure "
+                        "(typically the voxelized GT mesh). When set, the "
+                        "LLM is told its size budget each step. Strongly "
+                        "recommended for whole-organ goals; without it "
+                        "models tend to over-segment by ~2x.")
+    p.add_argument("--expected-volume-mm3", type=float, default=0.0,
+                   help="Approximate target volume in mm^3 (companion to "
+                        "--expected-voxels; informational only).")
     return p.parse_args()
 
 
@@ -566,6 +634,8 @@ def main() -> int:
         media_id=args.media_id,
         max_steps=args.max_steps,
         vision_model=args.vision_model,
+        expected_voxels=(args.expected_voxels or None),
+        expected_volume_mm3=(args.expected_volume_mm3 or None),
     )
     result["duration_s"] = round(time.time() - t0, 1)
     print(json.dumps({k: v for k, v in result.items() if k != "history"},

@@ -355,5 +355,62 @@ class SaveBestPolicyTests(unittest.TestCase):
         self.assertEqual(res["voxel_count"], 620000)
 
 
+class BudgetHintTests(unittest.TestCase):
+    """The volume-budget hint added to ``_build_state_text`` should appear
+    in the prompt and emit guidance that varies with current/expected
+    ratio.
+    """
+
+    def _build(self, voxels, expected=701499):
+        from nninteractive_loop import _build_state_text
+        return _build_state_text(
+            goal="Segment cranial bone.",
+            step=2, max_steps=12,
+            image_shape_xyz=[211, 224, 384],
+            spacing_xyz=[0.357, 0.357, 0.357],
+            voxel_count=voxels, volume_mm3=voxels * 0.045,
+            history=[],
+            expected_voxels=expected,
+            expected_volume_mm3=32035.0,
+        )
+
+    def test_no_hint_when_no_budget(self):
+        from nninteractive_loop import _build_state_text
+        s = _build_state_text(
+            goal="x", step=1, max_steps=4,
+            image_shape_xyz=[10, 10, 10], spacing_xyz=[1, 1, 1],
+            voxel_count=0, volume_mm3=0, history=[],
+        )
+        self.assertNotIn("BUDGET", s)
+
+    def test_empty_mask_guidance(self):
+        s = self._build(0)
+        self.assertIn("expected_voxels: 701,499", s)
+        self.assertIn("EMPTY", s)
+
+    def test_under_size_guidance(self):
+        s = self._build(200_000)  # 28% of budget
+        self.assertIn("UNDER-sized", s)
+
+    def test_approaching_budget_guidance(self):
+        s = self._build(500_000)  # 71% of budget
+        self.assertIn("APPROACHING", s)
+
+    def test_target_size_guidance_prefers_done(self):
+        s = self._build(700_000)  # 99% of budget
+        self.assertIn("TARGET size", s)
+        self.assertIn("DONE", s)
+
+    def test_over_size_guidance_prefers_negatives(self):
+        s = self._build(1_100_000)  # 157% of budget
+        self.assertIn("OVER-sized", s)
+        self.assertIn("negative", s)
+
+    def test_far_over_size_guidance_mentions_reset(self):
+        s = self._build(1_554_372)  # the Felis-v2 outcome: 221% of budget
+        self.assertIn("OVER-sized", s)
+        self.assertIn("RESET", s)
+
+
 if __name__ == "__main__":
     unittest.main()

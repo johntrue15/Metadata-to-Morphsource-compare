@@ -532,8 +532,60 @@ def _crop_volume(reference_volume: Path, mesh: Path,
         else {"error": "Crop produced no output"}
 
 
+def _count_nonzero_voxels(labelmap: Path) -> Optional[int]:
+    """Best-effort voxel-count read of a labelmap via the nnInteractive
+    venv (which has SimpleITK installed). Returns ``None`` if the read
+    fails - the paint loop just won't get a size budget that run, no
+    crash."""
+    if not NNI_PYTHON.exists() or not labelmap.exists():
+        return None
+    script = (
+        "import sys, SimpleITK as sitk, numpy as np\n"
+        "img = sitk.ReadImage(sys.argv[1])\n"
+        "arr = sitk.GetArrayFromImage(img)\n"
+        "print(int((arr > 0).sum()))\n"
+    )
+    try:
+        proc = subprocess.run(
+            [str(NNI_PYTHON), "-c", script, str(labelmap)],
+            capture_output=True, text=True, timeout=60,
+        )
+        if proc.returncode == 0 and proc.stdout.strip().isdigit():
+            return int(proc.stdout.strip())
+    except (subprocess.SubprocessError, OSError) as exc:
+        log.debug("_count_nonzero_voxels failed for %s: %s", labelmap, exc)
+    return None
+
+
+def _volume_mm3_of(labelmap: Path) -> Optional[float]:
+    """Best-effort foreground volume of a labelmap via the nnInteractive
+    venv. Returns None on any failure."""
+    if not NNI_PYTHON.exists() or not labelmap.exists():
+        return None
+    script = (
+        "import sys, SimpleITK as sitk, numpy as np\n"
+        "img = sitk.ReadImage(sys.argv[1])\n"
+        "sx, sy, sz = img.GetSpacing()\n"
+        "arr = sitk.GetArrayFromImage(img)\n"
+        "n = int((arr > 0).sum())\n"
+        "print(n * sx * sy * sz)\n"
+    )
+    try:
+        proc = subprocess.run(
+            [str(NNI_PYTHON), "-c", script, str(labelmap)],
+            capture_output=True, text=True, timeout=60,
+        )
+        if proc.returncode == 0:
+            return float(proc.stdout.strip())
+    except (subprocess.SubprocessError, OSError, ValueError) as exc:
+        log.debug("_volume_mm3_of failed for %s: %s", labelmap, exc)
+    return None
+
+
 def _run_paint_loop(input_volume: Path, goal: str, output_dir: Path,
-                     media_id: str, max_steps: int) -> dict:
+                     media_id: str, max_steps: int,
+                     expected_voxels: Optional[int] = None,
+                     expected_volume_mm3: Optional[float] = None) -> dict:
     """Run nninteractive_loop.py.
 
     Backend selection:
@@ -576,6 +628,14 @@ def _run_paint_loop(input_volume: Path, goal: str, output_dir: Path,
         "--output-dir", str(output_dir),
         "--max-steps", str(max_steps),
     ]
+    # Provide the LLM with a target-size budget when we know it. Without
+    # this hint the model has no anchor for "how big should the mask be"
+    # and tends to over-segment (Felis run 26373115227 saw the mask grow
+    # to 2.2x the GT size while precision dropped to 9.8%).
+    if expected_voxels is not None and expected_voxels > 0:
+        cmd += ["--expected-voxels", str(int(expected_voxels))]
+    if expected_volume_mm3 is not None and expected_volume_mm3 > 0:
+        cmd += ["--expected-volume-mm3", f"{float(expected_volume_mm3):.3f}"]
     env = os.environ.copy()
     env.setdefault("NNINTERACTIVE_HOME", str(NNI_HOME))
     # nnInteractive's nnU-Net backbone hits ops that aren't implemented
@@ -946,9 +1006,17 @@ def run_comparison(ct_media_id: str, gt_media_id: str, goal: str,
         }
 
     # ---- 4. Run paint loop on the (cropped) CT volume ----
+    # After cropping + voxelization we know exactly how big the target is.
+    # Pass that as a budget to the paint loop so the LLM stops adding
+    # positives once the mask is close to the right size.
+    gt_voxels = _count_nonzero_voxels(gt_labelmap)
+    gt_volume_mm3 = _volume_mm3_of(gt_labelmap)
     nni_dir = pair_dir / "nninteractive"
-    nni_result = _run_paint_loop(cropped_ct, goal, nni_dir, ct_media_id,
-                                 max_steps)
+    nni_result = _run_paint_loop(
+        cropped_ct, goal, nni_dir, ct_media_id, max_steps,
+        expected_voxels=gt_voxels,
+        expected_volume_mm3=gt_volume_mm3,
+    )
     if "error" in nni_result:
         return {"success": False, "stage": "paint_loop", "result": nni_result}
     pred_labelmap = Path(nni_result.get("labelmap_path", ""))
