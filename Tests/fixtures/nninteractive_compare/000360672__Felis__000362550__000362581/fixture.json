@@ -1,0 +1,15 @@
+{
+  "ct_media_id": "000362550",
+  "gt_media_id": "000362581",
+  "goal": "Segment the cranial bone (skull) of this Felis specimen (3DAS:00001). The bone is the dense bright tissue in the CT.",
+  "max_steps": 12,
+  "voxelize_backend": "vtk",
+  "crop_around_mesh_mm": 5.0,
+  "max_voxel_axis": 384,
+  "files": {
+    "ct.nii.gz": "/tmp/nni_compare_fixtures/ct.nii.gz",
+    "gt_voxelized.nii.gz": "/tmp/nni_compare_fixtures/gt_voxelized.nii.gz",
+    "pred.nii.gz": "/tmp/nni_compare_fixtures/pred.nii.gz",
+    "baseline_metrics.json": "/tmp/nni_compare_fixtures/baseline_metrics.json"
+  }
+}

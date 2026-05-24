@@ -103,6 +103,38 @@ def _run(cmd: list[str], *, check: bool = True, capture: bool = True,
                           text=True, timeout=timeout)
 
 
+def _to_local_path(p: Path | str) -> str:
+    """Translate a path to the form expected by the *local OS we're shelling
+    to*. When the orchestrator runs in WSL but invokes the Windows ``gh.exe``,
+    a path like ``/mnt/c/foo`` is meaningless to gh; it must become
+    ``C:\\foo``. On native Linux/macOS or when the script runs in Windows
+    Python, the path is returned unchanged.
+    """
+    s = str(p)
+    if sys.platform != "linux":
+        return s
+    # In WSL, ``platform.uname().release`` contains "WSL"; detect cheaply via
+    # /proc/version which is always populated on Linux.
+    try:
+        with open("/proc/version") as fh:
+            kver = fh.read()
+    except OSError:
+        kver = ""
+    is_wsl = "microsoft" in kver.lower() or "wsl" in kver.lower()
+    if not is_wsl:
+        return s
+    if not s.startswith("/mnt/"):
+        # Not a Windows-mounted path; leave alone (gh.exe will probably fail
+        # but we don't have a sensible translation for native Linux paths).
+        return s
+    try:
+        cp = subprocess.run(["wslpath", "-w", s], capture_output=True,
+                            text=True, check=True)
+        return cp.stdout.strip()
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return s
+
+
 def gh_repo() -> str:
     return os.environ.get("GH_REPO", "johntrue15/MorphoClaw")
 
@@ -181,7 +213,7 @@ def gh_download_artifact(gh: str, run_id: str, dest: Path) -> None:
         gh, "run", "download", run_id,
         "--repo", gh_repo(),
         "--name", ARTIFACT_NAME,
-        "--dir", str(dest),
+        "--dir", _to_local_path(dest),
     ])
 
 
