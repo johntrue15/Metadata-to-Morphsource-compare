@@ -145,6 +145,11 @@ jobs:
           NNINTERACTIVE_VISION_MODEL: gpt-4o
         working-directory: .github/scripts
         run: |
+          # Wipe any stale fixture bundle from a previous job on this
+          # self-hosted runner. Without this, a failed run uploads the
+          # *previous* run's fixture and the orchestrator commits it
+          # under the new specimen's slug (silent data corruption).
+          rm -rf /tmp/nni_compare_fixtures /tmp/nni_compare
           mkdir -p /tmp/nni_compare
           ARGS=()
           if [ -n "${{ inputs.ct_media_id }}" ]; then
@@ -205,8 +210,15 @@ jobs:
       # the comparison via `--from-fixture` (cropped CT, GT labelmap, optional
       # prediction labelmap, baseline metrics.json, and fixture metadata).
       # Used to seed committed fixtures for the PR-level smoke workflow.
+      #
+      # CRITICAL: only upload when the comparison SUCCEEDED. The previous
+      # `if: always()` policy meant a failed run uploaded whatever happened
+      # to be sitting in /tmp/nni_compare_fixtures/ - typically the
+      # PREVIOUS successful run's fixture from this self-hosted runner -
+      # under the new specimen's artifact name. That's silent data
+      # corruption: the orchestrator commits Felis data labelled Lacerta.
       - name: Upload fixture bundle
-        if: always()
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: nninteractive-fixtures

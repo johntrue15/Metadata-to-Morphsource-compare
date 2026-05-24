@@ -170,11 +170,17 @@ def _find_mesh(directory: Path) -> Optional[FilePick]:
     return matches[0] if matches else None
 
 
-def _download(media_id: str, dest: Path) -> dict:
+def _download(media_id: str, dest: Path, *, max_retries: int = 3) -> dict:
     """Fetch a MorphoSource media bundle, skipping the network if already
     cached. A cache hit requires both the original .zip and at least one
     sibling extracted directory (the marker that ``extract_archives`` was
-    able to unpack the bundle)."""
+    able to unpack the bundle).
+
+    Transient HTTP failures (``IncompleteRead``, ``ChunkedEncodingError``,
+    timeouts, etc.) are common on MorphoSource for large CTs - we retry
+    with exponential backoff and clean up partial downloads between
+    attempts so the next try starts fresh.
+    """
     dest.mkdir(parents=True, exist_ok=True)
     cached_zips = list(dest.glob("morphosource_media-id-*.zip"))
     cached_extracted = [p for p in cached_zips
@@ -194,8 +200,50 @@ def _download(media_id: str, dest: Path) -> dict:
         }
 
     from morphosource_api_download import download_media
-    log.info("Downloading media %s → %s", media_id, dest)
-    return download_media(media_id, str(dest))
+
+    last_err: Optional[str] = None
+    for attempt in range(1, max_retries + 1):
+        log.info("Downloading media %s -> %s (attempt %d/%d)",
+                 media_id, dest, attempt, max_retries)
+        result = download_media(media_id, str(dest))
+        if result.get("success"):
+            return result
+
+        last_err = result.get("error") or "unknown download error"
+        # Heuristically classify the failure. Retry on network-ish failures
+        # only; ineligible media (auth required, 404) should fail fast.
+        transient = any(needle in last_err.lower() for needle in (
+            "incompleteread", "connection broken", "timed out", "timeout",
+            "remotedisconnected", "chunkedencodingerror", "max retries",
+            "temporary failure", "connection reset", "broken pipe",
+            "read operation timed out", "503", "502", "504",
+        ))
+        if not transient:
+            log.warning("Download failed non-transiently for %s: %s",
+                        media_id, last_err)
+            return result
+
+        if attempt < max_retries:
+            # Clean up partial zips so the next attempt starts fresh.
+            for p in dest.glob("morphosource_media-id-*.zip*"):
+                try:
+                    p.unlink()
+                except OSError:
+                    pass
+            backoff_s = 5 * (2 ** (attempt - 1))  # 5s, 10s, 20s
+            log.warning("Transient download error for %s: %s. "
+                        "Retrying in %d s (%d/%d).",
+                        media_id, last_err, backoff_s,
+                        attempt + 1, max_retries)
+            time.sleep(backoff_s)
+
+    log.error("Download for %s gave up after %d attempts. Last error: %s",
+              media_id, max_retries, last_err)
+    return {
+        "success": False,
+        "media_id": media_id,
+        "error": f"Download error after {max_retries} attempts: {last_err}",
+    }
 
 
 def _tiff_stack_to_nifti(tiff_dir: Path, output: Path,
