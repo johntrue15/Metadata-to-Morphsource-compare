@@ -304,16 +304,42 @@ def search_literature(
     layer1_data: Optional[dict] = None,
     max_pubmed: int = 15,
     max_scholar: int = 8,
+    seed_dois: Optional[List[str]] = None,
 ) -> List[Paper]:
     """Run a comprehensive literature search using PubMed and Google Scholar.
 
+    *seed_dois* are resolved via CrossRef first (e.g. from MorphoSource records).
     Returns a deduplicated, relevance-scored list of papers.
     """
+    all_papers: List[Paper] = []
+    seen_titles: set[str] = set()
+    seen_dois: set[str] = set()
+
+    if seed_dois:
+        try:
+            from citation_extractor import fetch_crossref_metadata, _parse_crossref
+        except ImportError:
+            fetch_crossref_metadata = None  # type: ignore
+        if fetch_crossref_metadata is not None:
+            for doi in seed_dois:
+                doi = doi.strip()
+                if not doi or doi in seen_dois:
+                    continue
+                seen_dois.add(doi)
+                cr = fetch_crossref_metadata(doi)
+                if not cr:
+                    continue
+                p = _parse_crossref(cr, doi, source_field="seed_doi")
+                key = p.title.lower().strip()[:80]
+                if key and key not in seen_titles:
+                    seen_titles.add(key)
+                    p.relevance_score = 1.5
+                    p.source = "crossref_seed"
+                    all_papers.append(p)
+            log.info("Seeded literature search with %d CrossRef papers", len(all_papers))
+
     queries = build_queries(taxon, anatomy_terms, research_topic, layer1_data)
     log.info("Literature search with %d queries", len(queries))
-
-    all_papers: List[Paper] = []
-    seen_titles = set()
 
     for i, query in enumerate(queries):
         log.info("Query %d/%d: %s", i + 1, len(queries), query)

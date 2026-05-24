@@ -28,10 +28,17 @@
 #          NNI_REMOTE_URL) just to exercise the validation paths.
 #          The actual remote isn't contacted in dry-run.
 #
+#   4. offline replay (set RUN_REPLAY=1):
+#        - stages synthetic CT/mesh/GT fixtures from
+#          Tests/fixtures/jetstream_replay/cached_specimens.json
+#        - replays recorded (or stub) Slicer HTTP transcripts — no
+#          MorphoSource downloads, no live Jetstream GPU
+#
 # Usage:
 #   Tests/test_eval_project358382.sh
 #   RUN_DISCOVERY=1 Tests/test_eval_project358382.sh
 #   RUN_DRY=1 RUN_DISCOVERY=1 Tests/test_eval_project358382.sh
+#   RUN_REPLAY=1 Tests/test_eval_project358382.sh
 #
 # Exits 0 only when every requested tier passes.
 # ---------------------------------------------------------------------------
@@ -180,6 +187,104 @@ if [[ "${RUN_DRY:-0}" == "1" ]]; then
 else
     echo
     echo "=== Tier 3: skipped (set RUN_DRY=1 to enable) ==="
+fi
+
+# ----------------------------------------------------------------- tier 4
+if [[ "${RUN_REPLAY:-0}" == "1" ]]; then
+    echo
+    echo "=== Tier 4: offline cached-specimens replay ==="
+    MANIFEST="$REPO_ROOT/Tests/fixtures/jetstream_replay/cached_specimens.json"
+    FIXTURE_SESSIONS="$REPO_ROOT/Tests/fixtures/jetstream_replay/sessions"
+    REPLAY_OUT="$OUT_ROOT/replay_$(date +%Y%m%dT%H%M%S)"
+    mkdir -p "$FIXTURE_SESSIONS"
+
+  # Ensure at least one JSONL transcript exists (stub or recorded).
+    if ! ls "$FIXTURE_SESSIONS"/*.jsonl >/dev/null 2>&1; then
+        echo "  no session fixtures found; generating stub transcripts..."
+        "$PY" -m metadata_to_morphsource.jetstream_replay.build_replay_bundle \
+            --manifest "$MANIFEST" \
+            --out-dir "$REPLAY_OUT/_bundle_seed" \
+            --seed 0
+        cp "$REPLAY_OUT/_bundle_seed/sessions/"*.jsonl "$FIXTURE_SESSIONS/"
+    fi
+
+    "$PY" -m metadata_to_morphsource.jetstream_replay.build_replay_bundle \
+        --manifest "$MANIFEST" \
+        --out-dir "$REPLAY_OUT" \
+        --seed 0 \
+        --use-existing-sessions "$FIXTURE_SESSIONS"
+
+    export SLICER_WEBSERVER_URL="${SLICER_WEBSERVER_URL:-http://127.0.0.1:2016/}"
+    export NNI_REMOTE_URL="${NNI_REMOTE_URL:-$SLICER_WEBSERVER_URL}"
+
+    "$PY" .github/scripts/eval_project358382_pilot.py \
+        --project-id 000358382 \
+        --project-query "Colors of Skull Anatomy" \
+        --cached-specimens "$MANIFEST" \
+        --replay-from "$REPLAY_OUT/sessions" \
+        --no-download \
+        --specimens 1 \
+        --budgets 10 \
+        --max-steps 10 \
+        --no-screenshots \
+        --out-dir "$REPLAY_OUT"
+    REPLAY_EXIT=$?
+    # Synthetic stub fixtures cover only the first few protocol calls,
+    # so the orchestrator may fail when the transcript is exhausted.
+    # We still assert the run got far enough to write its manifest +
+    # event stream, which is what catches regressions in the
+    # offline-replay plumbing itself.
+    test -f "$REPLAY_OUT/manifest.json" \
+        || { echo "FAIL: manifest.json missing"; exit 5; }
+    test -f "$REPLAY_OUT/events.jsonl"  \
+        || { echo "FAIL: events.jsonl missing"; exit 5; }
+    if [[ $REPLAY_EXIT -ne 0 ]]; then
+        echo "  orchestrator exit=$REPLAY_EXIT (expected for stub transcripts; "
+        echo "  bundle artifacts were still written)"
+    fi
+    echo "  replay output -> $REPLAY_OUT"
+else
+    echo
+    echo "=== Tier 4: skipped (set RUN_REPLAY=1 to enable) ==="
+fi
+
+# ----------------------------------------------------------------- tier 5
+if [[ "${RUN_RECORD:-0}" == "1" ]]; then
+    echo
+    echo "=== Tier 5: re-record JSONL fixtures (mock-Slicer or live) ==="
+    # Two flavours, controlled by RECORD_TARGET:
+    #   mock (default) - run against the in-process mock_slicer_server,
+    #                    producing committable fixtures with no Jetstream.
+    #   live           - run against \$SLICER_WEBSERVER_URL; requires a real
+    #                    Jetstream2 with an active Slicer + nnInteractive.
+    RECORD_TARGET="${RECORD_TARGET:-mock}"
+    if [[ "$RECORD_TARGET" == "mock" ]]; then
+        "$PY" -m metadata_to_morphsource.jetstream_replay.record_fixtures \
+            || { echo "FAIL: record_fixtures returned non-zero"; exit 6; }
+        echo "  mock-recorded fixtures -> Tests/fixtures/jetstream_replay/sessions/"
+    else
+        if [[ -z "${SLICER_WEBSERVER_URL:-}${NNI_REMOTE_URL:-}" ]]; then
+            echo "ERROR: live recording needs SLICER_WEBSERVER_URL / NNI_REMOTE_URL"
+            exit 6
+        fi
+        REC_OUT="$OUT_ROOT/record_$(date +%Y%m%dT%H%M%S)"
+        "$PY" .github/scripts/eval_project358382_pilot.py \
+            --project-id 000358382 \
+            --project-query "Colors of Skull Anatomy" \
+            --cached-specimens "$REPO_ROOT/Tests/fixtures/jetstream_replay/cached_specimens.json" \
+            --record-to "$REPO_ROOT/Tests/fixtures/jetstream_replay/sessions" \
+            --no-download \
+            --specimens 1 \
+            --budgets 10 \
+            --max-steps 10 \
+            --no-screenshots \
+            --out-dir "$REC_OUT" \
+            || { echo "FAIL: live recording exited non-zero"; exit 6; }
+        echo "  live-recorded fixtures -> Tests/fixtures/jetstream_replay/sessions/"
+    fi
+else
+    echo
+    echo "=== Tier 5: skipped (set RUN_RECORD=1 to enable) ==="
 fi
 
 echo

@@ -85,7 +85,8 @@ def _call_vision(images: list[Path], prompt: str, max_tokens: int = 2000) -> str
 # ---------------------------------------------------------------------------
 
 
-def find_relevant_papers(layer1: dict, research_topic: str) -> list[Paper]:
+def find_relevant_papers(layer1: dict, research_topic: str,
+                         seed_dois: Optional[List[str]] = None) -> list[Paper]:
     specimen = layer1.get("specimen", {})
     taxon = specimen.get("taxonomy", "")
     element = specimen.get("element", "")
@@ -96,6 +97,11 @@ def find_relevant_papers(layer1: dict, research_topic: str) -> list[Paper]:
     if "landmark" in research_topic.lower():
         anatomy_terms.append("landmarks")
 
+    if seed_dois is None:
+        env_dois = os.environ.get("RESEARCH_SEED_DOIS", "").strip()
+        if env_dois:
+            seed_dois = [d.strip() for d in env_dois.split(",") if d.strip()]
+
     log.info("Searching literature for %s + %s", taxon, anatomy_terms)
 
     papers = search_literature(
@@ -105,6 +111,7 @@ def find_relevant_papers(layer1: dict, research_topic: str) -> list[Paper]:
         layer1_data=layer1,
         max_pubmed=15,
         max_scholar=8,
+        seed_dois=seed_dois,
     )
     return papers
 

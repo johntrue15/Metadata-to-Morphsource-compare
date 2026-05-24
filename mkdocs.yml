@@ -150,6 +150,8 @@ nav:
   - Research Pipeline:
       - Architecture: architecture.md
       - Iterative Segmentation: ITERATIVE_SEGMENTATION.md
+      - Project 358382 Replay: PROJECT358382_REPLAY.md
+      - Jetstream Unshelve: JETSTREAM_UNSHELVE.md
       - Issue Automation: ISSUE_AUTOMATION.md
       - Integrity Verifier: INTEGRITY_VERIFIER.md
       - Query System: QUERY_SYSTEM_GUIDE.md

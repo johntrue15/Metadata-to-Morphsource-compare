@@ -34,11 +34,29 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import sys
 import time
 import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any, Optional
+
+
+# Add repo root so the optional jetstream_replay package is importable.
+# When neither JETSTREAM_RECORD nor JETSTREAM_REPLAY is set, the
+# session is a thin pass-through and behaviour is byte-for-byte
+# identical to a raw ``urllib.request.urlopen`` call.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+try:
+    from metadata_to_morphsource.jetstream_replay.recorder import (  # noqa: E402
+        urlopen_via_session,
+    )
+except Exception:  # pragma: no cover
+    def urlopen_via_session(request, data=None, timeout=60):
+        return urllib.request.urlopen(request, data=data, timeout=timeout)
 
 
 # ---------------------------------------------------------------------------
@@ -54,7 +72,7 @@ def _post_python(base_url: str, source: str, timeout: float = 600) -> dict:
     )
     t0 = time.time()
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urlopen_via_session(req, timeout=timeout) as resp:
             content = resp.read()
             status = resp.status
     except urllib.error.HTTPError as e:

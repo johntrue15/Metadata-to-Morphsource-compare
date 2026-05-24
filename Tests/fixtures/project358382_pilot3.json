@@ -1,0 +1,44 @@
+[
+  {
+    "physical_object_id": "000408235",
+    "physical_object_title": "uf:herp:191369",
+    "taxonomy": "Chamaeleo calyptratus",
+    "ct_media_id": "000408242",
+    "ct_title": "Head [CTImageSeries] [CT]",
+    "ct_media_type": "volumetric image series",
+    "ct_file_size": 1345485284,
+    "mesh_media_id": "000769445",
+    "mesh_title": "Skull",
+    "mesh_media_type": "mesh",
+    "mesh_file_size": 117539838,
+    "project_query": "Colors of Skull Anatomy"
+  },
+  {
+    "physical_object_id": "000445108",
+    "physical_object_title": "UF:Herp:52552",
+    "taxonomy": "Crotalus intermedius",
+    "ct_media_id": "000445159",
+    "ct_title": "Head [CTImageSeries] [CT]",
+    "ct_media_type": "volumetric image series",
+    "ct_file_size": 387798579,
+    "mesh_media_id": "000691954",
+    "mesh_title": "Skull [Mesh] [CT]",
+    "mesh_media_type": "mesh",
+    "mesh_file_size": null,
+    "project_query": "Colors of Skull Anatomy"
+  },
+  {
+    "physical_object_id": "000649626",
+    "physical_object_title": "Typhlonectes natans",
+    "taxonomy": "Typhlonectes natans",
+    "ct_media_id": "000649675",
+    "ct_title": "Head [CTImageSeries] [CT]",
+    "ct_media_type": "volumetric image series",
+    "ct_file_size": null,
+    "mesh_media_id": "000677539",
+    "mesh_title": "Skull [Mesh] [CT]",
+    "mesh_media_type": "mesh",
+    "mesh_file_size": null,
+    "project_query": "Colors of Skull Anatomy"
+  }
+]

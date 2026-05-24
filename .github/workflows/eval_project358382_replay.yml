@@ -1,0 +1,55 @@
+name: Project 358382 offline replay
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - '.github/scripts/eval_project358382_pilot.py'
+      - '.github/scripts/remote_volume_io.py'
+      - '.github/scripts/slicer_remote_bright_seed.py'
+      - 'metadata_to_morphsource/jetstream_replay/**'
+      - 'Tests/fixtures/jetstream_replay/**'
+      - 'Tests/test_eval_project358382.sh'
+      - 'Tests/test_eval_project358382_offline.py'
+      - 'Tests/test_jetstream_replay*.py'
+      - 'Tests/test_mesh_ct_alignment.py'
+      - '.github/workflows/eval_project358382_replay.yml'
+  workflow_dispatch:
+
+jobs:
+  replay-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install nnInteractive stack (SimpleITK, VTK, numpy)
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy scipy SimpleITK vtk pytest
+          pip install -r requirements-test.txt
+
+      - name: Tier 1 + offline replay (RUN_REPLAY=1)
+        env:
+          RUN_REPLAY: '1'
+          SLICER_WEBSERVER_URL: http://127.0.0.1:2016/
+          NNI_REMOTE_URL: http://127.0.0.1:2016/
+          NNI_PY_BIN: python
+        run: |
+          Tests/test_eval_project358382.sh
+
+      - name: Unit tests (alignment, replay wiring, offline flags)
+        run: |
+          pytest Tests/test_mesh_ct_alignment.py \
+                 Tests/test_eval_project358382_offline.py \
+                 Tests/test_jetstream_replay_recorder.py \
+                 Tests/test_jetstream_replay_wiring.py \
+                 Tests/test_jetstream_replay_cache_index.py \
+                 -v --tb=short

@@ -40,6 +40,14 @@ SimpleITK / VTK / matplotlib / numpy installed). Run::
         --budgets 10,25,50,100 \\
         --out-dir runs/pilot_chameleon
 
+Pin specimens with a manifest (skips auto-discovery)::
+
+    python3 .github/scripts/eval_project358382_pilot.py \\
+        --specimens-manifest Tests/fixtures/project358382_pilot3.json \\
+        --specimens 3 \\
+        --budgets 10,25,50,100 \\
+        --out-dir runs/pilot_chameleon
+
 The script is idempotent: a partially-completed run can be resumed by
 pointing at the same ``--out-dir``; cached downloads, crops, voxelized
 GTs, and per-segment NIfTIs are reused.
@@ -61,6 +69,13 @@ from typing import Any, Iterable, Optional
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
+
+# Add repo root so the optional jetstream_replay package is importable.
+# The package is opt-in: nothing changes when neither
+# JETSTREAM_RECORD nor JETSTREAM_REPLAY is set.
+_REPO_ROOT = SCRIPT_DIR.parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
 # Set MPLCONFIGDIR before matplotlib first-import to silence its warning.
 # Falls back to /tmp/<user>/matplotlib if the home cache dir isn't writable
@@ -393,15 +408,41 @@ def _import_heavy():
     _HEAVY_IMPORTS_DONE = True
 
 
-def download_pair(pair: SpecimenPair, out_dir: Path) -> dict:
-    """Download CT + mesh archives. Returns a dict of local download dirs."""
-    out_dir.mkdir(parents=True, exist_ok=True)
-    from morphosource_api_download import download_media
+class NoDownloadError(RuntimeError):
+    """Raised when ``--no-download`` is set but the cache is missing artefacts."""
 
+
+def download_pair(pair: SpecimenPair, out_dir: Path,
+                   *, no_download: bool = False,
+                   specimen_dir: Optional[Path] = None) -> dict:
+    """Download CT + mesh archives. Returns a dict of local download dirs.
+
+    When *no_download* is true, the function refuses to call MorphoSource
+    and instead requires that either:
+    1. ``out_dir/ct_download`` and ``out_dir/mesh_download`` already
+       hold extracted archives, OR
+    2. *specimen_dir* (the per-specimen run dir) already contains a
+       fully prepared offline bundle:
+       - ``ct_volume.nii.gz`` (the prepared CT)
+       - ``preprocessing/ct_cropped.nii.gz``
+       - ``preprocessing/gt_voxelized.nii.gz``
+       - some mesh file under ``out_dir/mesh_download/`` so the
+         downstream ``find_mesh`` call still resolves.
+
+    In case (2) we synthesise a minimal stub download_dir layout so the
+    rest of the orchestrator's pipeline keeps working unchanged.
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
     ct_dir = out_dir / "ct_download"
     mesh_dir = out_dir / "mesh_download"
     ct_dir.mkdir(parents=True, exist_ok=True)
     mesh_dir.mkdir(parents=True, exist_ok=True)
+
+    def _has_extracted(target: Path) -> bool:
+        for sub in target.glob("morphosource_media-id-*"):
+            if sub.is_dir() and any(sub.iterdir()):
+                return True
+        return False
 
     def _need_download(target: Path) -> bool:
         zips = list(target.glob("morphosource_media-id-*.zip"))
@@ -410,6 +451,53 @@ def download_pair(pair: SpecimenPair, out_dir: Path) -> dict:
             if extracted.is_dir() and any(extracted.iterdir()):
                 return False
         return True
+
+    if no_download:
+        prepared_ct = (
+            specimen_dir is not None
+            and (specimen_dir / "ct_volume.nii.gz").exists()
+        )
+        cached_ct = _has_extracted(ct_dir)
+        cached_mesh = _has_extracted(mesh_dir) or any(
+            mesh_dir.rglob("*.ply"))  or any(mesh_dir.rglob("*.stl")) \
+            or any(mesh_dir.rglob("*.obj"))
+        if not (prepared_ct or cached_ct):
+            raise NoDownloadError(
+                f"--no-download but neither cached CT extract nor "
+                f"prepared CT found under {ct_dir} / "
+                f"{specimen_dir}/ct_volume.nii.gz"
+            )
+        if not cached_mesh:
+            # Synthesise a stub mesh placeholder if the mesh download
+            # dir is empty and the per-specimen dir has a prepared
+            # mesh. ``find_mesh`` later just needs *something* with a
+            # mesh extension.
+            stub = (specimen_dir / "mesh.ply") if specimen_dir else None
+            if stub and stub.exists():
+                target_dir = mesh_dir / f"morphosource_media-id-{pair.mesh_media_id}_offline"
+                target_dir.mkdir(parents=True, exist_ok=True)
+                stub_link = target_dir / stub.name
+                if not stub_link.exists():
+                    stub_link.write_bytes(stub.read_bytes())
+            else:
+                raise NoDownloadError(
+                    f"--no-download but no cached mesh under {mesh_dir} "
+                    f"and no {specimen_dir}/mesh.ply to stage"
+                )
+        log.info("--no-download: using cached CT %s and mesh %s",
+                 ct_dir, mesh_dir)
+        return {
+            "ct": {"success": True, "media_id": pair.ct_media_id,
+                   "from_cache": True, "download_dir": str(ct_dir),
+                   "no_download": True},
+            "mesh": {"success": True, "media_id": pair.mesh_media_id,
+                     "from_cache": True, "download_dir": str(mesh_dir),
+                     "no_download": True},
+            "ct_dir": str(ct_dir), "mesh_dir": str(mesh_dir),
+            "no_download": True,
+        }
+
+    from morphosource_api_download import download_media
 
     ct_result: dict
     if _need_download(ct_dir):
@@ -498,13 +586,29 @@ def crop_and_voxelize(ct_path: Path, mesh_path: Path, out_dir: Path,
     out_dir.mkdir(parents=True, exist_ok=True)
     cropped = out_dir / "ct_cropped.nii.gz"
     voxelized = out_dir / "gt_voxelized.nii.gz"
+    aligned_mesh = out_dir / f"mesh_aligned{mesh_path.suffix.lower()}"
+
+    mesh_for_crop = mesh_path
+    if not (aligned_mesh.exists() and aligned_mesh.stat().st_size > 0):
+        from mesh_ct_alignment import align_mesh_to_reference_volume
+        align_summary = align_mesh_to_reference_volume(
+            mesh_path, ct_path, aligned_mesh,
+        )
+        if align_summary.get("error"):
+            return {"error": "mesh_align_failed", "details": align_summary}
+        mesh_for_crop = aligned_mesh
+        log.info("Mesh alignment: %s", align_summary.get(
+            "mesh_M_label", align_summary.get("skipped_reorientation", "cached")))
+    else:
+        mesh_for_crop = aligned_mesh
+        log.info("Cached aligned mesh at %s", aligned_mesh)
 
     if cropped.exists() and cropped.stat().st_size > 0:
         log.info("Cached cropped CT at %s", cropped)
         crop_summary = {"output_path": str(cropped), "from_cache": True}
     else:
         crop_summary = crop_volume_around_mesh(
-            reference_volume=ct_path, mesh=mesh_path,
+            reference_volume=ct_path, mesh=mesh_for_crop,
             output=cropped, margin_mm=margin_mm,
         )
         if "error" in crop_summary:
@@ -515,7 +619,7 @@ def crop_and_voxelize(ct_path: Path, mesh_path: Path, out_dir: Path,
         vox_summary = {"output_path": str(voxelized), "from_cache": True}
     else:
         vox_summary = voxelize_mesh_to_labelmap(
-            reference_volume=cropped, mesh=mesh_path,
+            reference_volume=cropped, mesh=mesh_for_crop,
             output=voxelized, fill_value=1, backend="vtk",
         )
         if "error" in vox_summary:
@@ -823,7 +927,8 @@ def run_specimen(pair: SpecimenPair, specimen_dir: Path,
                  parent_logger: RunLogger,
                  max_voxel_axis: Optional[int] = 384,
                  no_screenshots: bool = False,
-                 dry_run: bool = False) -> SpecimenResult:
+                 dry_run: bool = False,
+                 no_download: bool = False) -> SpecimenResult:
     """Run the full per-specimen pipeline.
 
     Errors at any stage are captured and the partial result is returned;
@@ -862,7 +967,9 @@ def run_specimen(pair: SpecimenPair, specimen_dir: Path,
 
     # 1. Download
     try:
-        dl = download_pair(pair, specimen_dir / "downloads")
+        dl = download_pair(pair, specimen_dir / "downloads",
+                            no_download=no_download,
+                            specimen_dir=specimen_dir)
     except Exception as exc:
         result.error = f"download_failed: {exc!r}"
         parent_logger.log(f"  download FAILED: {exc!r}")
@@ -1354,10 +1461,30 @@ def _parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
                         "...) are recorded in events.jsonl and the run "
                         "continues with the next candidate.")
     p.add_argument("--specimens-manifest", type=Path, default=None,
-                   help="Optional JSON file pinning specific (CT, mesh) IDs. "
-                        "Format: a JSON list of objects matching SpecimenPair "
-                        "(at minimum: physical_object_id, ct_media_id, "
-                        "mesh_media_id, taxonomy).")
+                   help="JSON list of SpecimenPair objects (see "
+                        "Tests/fixtures/project358382_pilot3.json). "
+                        "Skips MorphoSource discovery when set.")
+    p.add_argument("--cached-specimens", type=Path, default=None,
+                   help="Alias for --specimens-manifest that also accepts "
+                        "the offline replay manifest format "
+                        "({'specimens': [...], 'ct_provider': ...}). "
+                        "When set, --no-download is implied unless explicitly "
+                        "disabled.")
+    p.add_argument("--replay-from", type=Path, default=None,
+                   help="Directory of recorded HTTP fixtures (one JSONL per "
+                        "specimen, named <ct_media_id>.jsonl). Per-specimen "
+                        "the orchestrator sets JETSTREAM_REPLAY=<DIR>/<id>.jsonl "
+                        "before running, so all Slicer-side calls are served "
+                        "from the fixture instead of hitting Jetstream.")
+    p.add_argument("--record-to", type=Path, default=None,
+                   help="Capture every HTTP round-trip to <DIR>/<ct_media_id>.jsonl. "
+                        "Mutually exclusive with --replay-from. Use this to "
+                        "regenerate the recorded fixtures.")
+    p.add_argument("--no-download", action="store_true",
+                   help="Refuse to call MorphoSource. Each specimen must "
+                        "already have its CT extract / prepared volume and "
+                        "mesh present locally; the pilot will fail loudly "
+                        "if anything's missing.")
     p.add_argument("--budgets", type=_parse_budgets, default=[10, 25, 50, 100],
                    help="Comma-separated click budgets (default: 10,25,50,100)")
     p.add_argument("--max-steps", type=int, default=None,
@@ -1422,15 +1549,44 @@ def main(argv: Optional[list[str]] = None) -> int:
     parent_logger.log(f"git commit    : {local_env.get('git_commit')}  "
                        f"dirty={local_env.get('git_dirty')}")
 
+    # ---- Mutual exclusion + replay/record env hygiene ----
+    if args.replay_from and args.record_to:
+        parent_logger.log("FAILED: --replay-from and --record-to are mutually exclusive")
+        parent_logger.finalize(stop_reason={"reason": "bad_flags",
+                                              "detail": "replay_and_record"})
+        return 2
+    if args.cached_specimens and args.specimens_manifest:
+        parent_logger.log("FAILED: pass either --cached-specimens or "
+                           "--specimens-manifest, not both")
+        parent_logger.finalize(stop_reason={"reason": "bad_flags",
+                                              "detail": "cached_and_manifest"})
+        return 2
+    if args.cached_specimens:
+        args.no_download = True
+    # --cached-specimens implies --no-download by default; user can still
+    # override by *not* setting --cached-specimens.
+    manifest_path: Optional[Path] = (
+        args.specimens_manifest or args.cached_specimens
+    )
+
     # ---- Specimen selection ----
-    if args.specimens_manifest:
+    if manifest_path:
         try:
-            manifest_data = json.loads(args.specimens_manifest.read_text())
+            manifest_raw = json.loads(manifest_path.read_text())
         except Exception as exc:
-            parent_logger.log(f"FAILED to read manifest {args.specimens_manifest}: {exc!r}")
+            parent_logger.log(f"FAILED to read manifest {manifest_path}: {exc!r}")
             parent_logger.finalize(stop_reason={"reason": "bad_manifest",
                                                   "error": repr(exc)})
             return 2
+        # The plain --specimens-manifest format is a JSON list. The
+        # newer --cached-specimens format wraps the list in a dict
+        # under the ``specimens`` key, which lets us carry extra
+        # metadata (ct_provider, expected_dice ranges, etc.) without
+        # breaking older fixtures.
+        if isinstance(manifest_raw, dict):
+            manifest_data = manifest_raw.get("specimens", [])
+        else:
+            manifest_data = manifest_raw
         chosen: list[SpecimenPair] = []
         for entry in manifest_data:
             try:
@@ -1455,7 +1611,8 @@ def main(argv: Optional[list[str]] = None) -> int:
                 return 2
         if args.specimens > 0:
             chosen = chosen[:args.specimens]
-        parent_logger.log(f"manifest pinned {len(chosen)} specimens")
+        parent_logger.log(f"manifest pinned {len(chosen)} specimens "
+                           f"(source={manifest_path})")
     else:
         client = MorphoSourceClient()
         all_pairs = discover_pairs(
@@ -1513,7 +1670,18 @@ def main(argv: Optional[list[str]] = None) -> int:
     n_succeeded = 0
     specimens_root = args.out_dir / "specimens"
     specimens_root.mkdir(parents=True, exist_ok=True)
-    target = args.specimens if not args.specimens_manifest else len(chosen)
+    target = args.specimens if not manifest_path else len(chosen)
+
+    # Optional offline-replay machinery. Reset the active session
+    # between specimens so each one reads its own per-specimen JSONL.
+    try:
+        from metadata_to_morphsource.jetstream_replay.recorder import (
+            reset_active_session,
+        )
+    except Exception:
+        def reset_active_session() -> None:
+            return None
+
     for i, pair in enumerate(chosen, 1):
         if not args.dry_run and n_succeeded >= target:
             parent_logger.log(f"hit target {target} successes after "
@@ -1523,6 +1691,31 @@ def main(argv: Optional[list[str]] = None) -> int:
                                   attempts=i - 1, target=target)
             break
         spec_dir = specimens_root / pair.slug
+
+        # Configure record/replay for this specimen. We key the JSONL
+        # filename on ct_media_id since it's stable per specimen and
+        # already appears in the run-id slug.
+        if args.replay_from:
+            jsonl = args.replay_from / f"{pair.ct_media_id}.jsonl"
+            if not jsonl.exists():
+                # Try slug as a fallback so users can name fixtures
+                # however they prefer.
+                slug_jsonl = args.replay_from / f"{pair.slug}.jsonl"
+                jsonl = slug_jsonl if slug_jsonl.exists() else jsonl
+            os.environ["JETSTREAM_REPLAY"] = str(jsonl)
+            os.environ.pop("JETSTREAM_RECORD", None)
+            parent_logger.log(f"  JETSTREAM_REPLAY={jsonl}")
+        elif args.record_to:
+            args.record_to.mkdir(parents=True, exist_ok=True)
+            jsonl = args.record_to / f"{pair.ct_media_id}.jsonl"
+            os.environ["JETSTREAM_RECORD"] = str(jsonl)
+            os.environ.pop("JETSTREAM_REPLAY", None)
+            parent_logger.log(f"  JETSTREAM_RECORD={jsonl}")
+        else:
+            os.environ.pop("JETSTREAM_REPLAY", None)
+            os.environ.pop("JETSTREAM_RECORD", None)
+        reset_active_session()
+
         try:
             r = run_specimen(
                 pair=pair, specimen_dir=spec_dir,
@@ -1535,6 +1728,7 @@ def main(argv: Optional[list[str]] = None) -> int:
                 max_voxel_axis=args.max_voxel_axis,
                 no_screenshots=args.no_screenshots,
                 dry_run=args.dry_run,
+                no_download=args.no_download,
             )
         except Exception as exc:
             parent_logger.log(f"  catastrophic failure on specimen "

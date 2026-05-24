@@ -194,12 +194,22 @@ class KnowledgeGraph:
                         taxon_institutions[taxon].add(e2.target)
         shared_taxa = {t: list(insts) for t, insts in taxon_institutions.items() if len(insts) > 1}
 
+        specimen_nodes = {n.id for n in self.nodes.values() if n.type == "Specimen"}
+        specimen_institutions = defaultdict(set)
+        for e in self.edges:
+            if e.relation == "HELD_BY" and e.source in specimen_nodes:
+                specimen_institutions[e.source].add(e.target)
+        duplicate_specimens = {
+            s: list(insts) for s, insts in specimen_institutions.items() if len(insts) > 1
+        }
+
         return {
             "total_nodes": len(self.nodes),
             "total_edges": len(self.edges),
             "orphaned_media": list(orphaned),
             "multi_reference_papers": multi_ref_papers,
             "taxa_shared_across_institutions": shared_taxa,
+            "duplicate_specimens_across_institutions": duplicate_specimens,
             "node_counts": dict(Counter(n.type for n in self.nodes.values())),
             "edge_counts": dict(Counter(e.relation for e in self.edges)),
         }

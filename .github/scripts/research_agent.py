@@ -771,18 +771,27 @@ def _run_specimen_analysis(media_id, topic):
 # ---------------------------------------------------------------------------
 
 
-def run_single_cycle(topic, cycle, total_depth, memory, seed_context=None, program=""):
+def run_single_cycle(topic, cycle, total_depth, memory, seed_context=None, program="",
+                     kg_summary=None):
     """One fast cycle: decompose -> search -> refine -> evaluate -> [analyze specimen] -> memory."""
     t0 = time.time()
     log.info("--- Cycle %d/%d ---", cycle, total_depth)
 
     memory_context = _format_memory_for_llm(memory) if memory else None
+    if kg_summary:
+        memory_context = (memory_context or "") + f"\n\nKnowledge graph state: {kg_summary}"
 
     queries = decompose_topic(
         topic,
         seed_context=seed_context if cycle == 1 else None,
         memory_context=memory_context,
     )
+    try:
+        from ontology_search import enrich_query_with_ontology
+        for q in queries:
+            q["query"] = enrich_query_with_ontology(q["query"])
+    except ImportError:
+        pass
     if _run_logger:
         _run_logger.event(cycle, "decompose", queries=[q["query"] for q in queries])
 
@@ -819,6 +828,10 @@ def run_single_cycle(topic, cycle, total_depth, memory, seed_context=None, progr
             _run_logger.event(cycle, "specimen_download",
                               media_id=specimen["media_id"],
                               title=specimen.get("title", ""))
+
+        seed_dois = (memory or {}).get("seed_dois") or []
+        if seed_dois:
+            os.environ["RESEARCH_SEED_DOIS"] = ",".join(seed_dois[-20:])
 
         specimen_result = _run_specimen_analysis(specimen["media_id"], topic)
 
@@ -1160,6 +1173,7 @@ def run_research_program(topic, research_depth=10, github_issues=3,
         result, memory, _raw = run_single_cycle(
             topic, cycle, research_depth, memory,
             seed_context=seed_context, program=program,
+            kg_summary=kg.summary() if kg else None,
         )
         all_cycle_results.append(result)
         pending_cycles.append(result)
@@ -1181,8 +1195,18 @@ def run_research_program(topic, research_depth=10, github_issues=3,
                         if c.doi:
                             kg.add_citation(c.doi, title=c.title, authors=c.authors,
                                             year=c.year, journal=c.journal)
+                            memory.setdefault("seed_dois", [])
+                            if c.doi not in memory["seed_dois"]:
+                                memory["seed_dois"].append(c.doi)
                 except Exception as exc:
                     log.debug("Citation extraction error: %s", exc)
+
+            spec = result.get("specimen_analyzed")
+            if spec and spec.get("success"):
+                kg.add_analysis_data(
+                    spec["media_id"],
+                    spec.get("analysis", {}),
+                )
 
             if _run_logger and cycle % 5 == 0:
                 _run_logger.event(cycle, "knowledge_graph", **kg.stats())
@@ -1257,6 +1281,10 @@ def run_research_program(topic, research_depth=10, github_issues=3,
                 kg_section += "\n**Taxa shared across institutions:**\n"
                 for t, insts in verification["taxa_shared_across_institutions"].items():
                     kg_section += f"- {t}: {', '.join(insts)}\n"
+            if verification.get("duplicate_specimens_across_institutions"):
+                kg_section += "\n**Specimens linked to multiple institutions:**\n"
+                for s, insts in verification["duplicate_specimens_across_institutions"].items():
+                    kg_section += f"- {s}: {', '.join(insts)}\n"
 
         cost_section = (
             f"\n### API Usage & Cost\n\n"

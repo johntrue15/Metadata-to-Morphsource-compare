@@ -55,13 +55,30 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+_SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(_SCRIPT_DIR))
+# Add repo root so the optional jetstream_replay package is importable
+# without changing the consumer's invocation contract. The package
+# only kicks in when JETSTREAM_RECORD / JETSTREAM_REPLAY are set;
+# otherwise it's a thin pass-through.
+_REPO_ROOT = _SCRIPT_DIR.parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
 from run_telemetry import (  # noqa: E402  (sibling module)
     CAPTURE_REMOTE_ENV_SRC,
     EXPORT_SEGMENTATION_SRC,
     HASH_ACTIVE_VOLUME_SRC,
     RunLogger,
 )
+
+try:
+    from metadata_to_morphsource.jetstream_replay.recorder import (  # noqa: E402
+        urlopen_via_session,
+    )
+except Exception:  # pragma: no cover  (offline-replay package optional)
+    def urlopen_via_session(request, data=None, timeout=60):
+        return urllib.request.urlopen(request, data=data, timeout=timeout)
 
 
 # ---------------------------------------------------------------------------
@@ -83,7 +100,7 @@ def _read_url() -> str:
 
 
 def http_get(url: str, timeout: float = 20) -> bytes:
-    with urllib.request.urlopen(url, timeout=timeout) as resp:
+    with urlopen_via_session(url, timeout=timeout) as resp:
         if resp.status != 200:
             raise RuntimeError(f"GET {url} -> HTTP {resp.status}")
         return resp.read()
@@ -97,7 +114,7 @@ def post_python(base_url: str, source: str, timeout: float = 240) -> dict:
     )
     t0 = time.time()
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urlopen_via_session(req, timeout=timeout) as resp:
             content = resp.read()
             status = resp.status
     except urllib.error.HTTPError as e:

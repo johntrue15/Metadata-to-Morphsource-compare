@@ -28,8 +28,12 @@ Implementation notes:
   slice is cropped in XY and stride-downsampled to keep the largest axis
   ``<= --max-axis`` voxels (default 512). For a tuatara skull at 30 µm
   this yields a ~30–80 MB gzipped NRRD.
-- The mesh is voxelized onto the *same* downsampled grid with VTK
-  (``vtkPolyDataToImageStencil``), so the labelmap and CT overlay exactly.
+- The mesh is voxelized onto the *same* downsampled grid using the
+  ``trimesh`` rtree-accelerated ray-caster (``mesh.contains()``), which
+  is robust on the multi-million-polygon MorphoSource meshes that stall
+  ``vtkPolyDataToImageStencil``. Pass ``--voxelize-backend vtk_stencil``
+  to use VTK instead (only practical after ``--mesh-decimate-to`` cuts
+  the polygon count below ~500 K).
 - Two coordinate-frame mismatches are auto-corrected:
     1. **Origin convention** — the script tries both ``(0, 0, 0)`` (TIFF
        voxel-corner) and ``-0.5 * (N-1) * spacing`` (volume-centered).
@@ -49,6 +53,7 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import gc
 import hashlib
 import itertools
 import json
@@ -56,9 +61,29 @@ import logging
 import os
 import sys
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Sequence, Tuple
+
+
+@contextmanager
+def _gc_disabled():
+    """Temporarily disable Python's cyclic garbage collector.
+
+    trimesh's ``mesh.contains()`` builds an AABB tree of triangles that
+    holds millions of small Python objects; with the default GC
+    thresholds the collector walks the whole heap every few seconds
+    during a long contains() call, easily turning a 30 s job into a
+    multi-hour one.
+    """
+    was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        yield
+    finally:
+        if was_enabled:
+            gc.enable()
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -82,6 +107,7 @@ def _import_deps():
         import vtk
         from vtk.util import numpy_support
         from PIL import Image
+        import trimesh
     except ImportError as exc:
         print(
             f"Missing dependency: {exc}. Run inside the nnInteractive venv "
@@ -90,7 +116,7 @@ def _import_deps():
         )
         sys.exit(1)
     Image.MAX_IMAGE_PIXELS = None
-    return np, sitk, vtk, numpy_support, Image
+    return np, sitk, vtk, numpy_support, Image, trimesh
 
 
 # ---------------------------------------------------------------------------
@@ -131,7 +157,8 @@ def _voxel_spacing_from_meta(meta: dict) -> Optional[Tuple[float, float, float]]
 # ---------------------------------------------------------------------------
 
 
-def _download_cached(media_id: str, dest_dir: Path, force: bool = False) -> dict:
+def _download_cached(media_id: str, dest_dir: Path, force: bool = False,
+                     retries: int = 4) -> dict:
     dest_dir.mkdir(parents=True, exist_ok=True)
     if not force:
         zips = list(dest_dir.glob("morphosource_media-id-*.zip"))
@@ -147,8 +174,34 @@ def _download_cached(media_id: str, dest_dir: Path, force: bool = False) -> dict
                 "download_dir": str(dest_dir),
                 "from_cache": True,
             }
-    log.info("Downloading media %s -> %s", media_id, dest_dir)
-    return download_media(media_id, str(dest_dir))
+
+    last_err = "no attempt"
+    for attempt in range(1, retries + 1):
+        # Wipe any partial zip from a previous broken attempt so the next
+        # one starts fresh; ``morphosource_api_download.download_file``
+        # opens the destination with ``"wb"`` so re-runs would clobber
+        # anyway, but explicit cleanup keeps the dest dir tidy and avoids
+        # confusing the cache-hit check above on a future invocation.
+        for stale in dest_dir.glob("morphosource_media-id-*.zip"):
+            try:
+                stale.unlink()
+            except OSError:
+                pass
+
+        log.info("Downloading media %s -> %s (attempt %d/%d)",
+                 media_id, dest_dir, attempt, retries)
+        result = download_media(media_id, str(dest_dir))
+        if result.get("success"):
+            return result
+        last_err = result.get("error", "unknown error")
+        log.warning("Download attempt %d failed: %s", attempt, last_err)
+        if attempt < retries:
+            wait_s = min(60, 5 * 2 ** (attempt - 1))
+            log.info("Retrying in %d s...", wait_s)
+            time.sleep(wait_s)
+
+    return {"success": False, "media_id": media_id,
+            "error": f"All {retries} download attempts failed. Last error: {last_err}"}
 
 
 # ---------------------------------------------------------------------------
@@ -205,7 +258,7 @@ def _find_mesh(root: Path) -> Path:
 
 
 def _read_mesh_bounds_and_poly(mesh_path: Path):
-    _, _, vtk, _, _ = _import_deps()
+    _, _, vtk, _, _, _ = _import_deps()
     suffix = mesh_path.suffix.lower()
     if suffix == ".ply":
         reader = vtk.vtkPLYReader()
@@ -248,116 +301,38 @@ class GridSpec:
 
 
 # ---------------------------------------------------------------------------
-# Mesh orientation auto-detection
+# Mesh orientation auto-detection (shared with mesh_ct_alignment.py)
 # ---------------------------------------------------------------------------
 
-
-def _signed_permutations(np):
-    """Yield (label, 3x3 np.int8 matrix) for the 48 signed-permutation
-    rotation/reflection matrices of an axis-aligned cube."""
-    axis_chars = "xyz"
-    for perm in itertools.permutations(range(3)):
-        for signs in itertools.product((-1, 1), repeat=3):
-            M = np.zeros((3, 3), dtype=np.int8)
-            for i_out, j_in in enumerate(perm):
-                M[i_out, j_in] = signs[i_out]
-            label = "".join(
-                ("+" if signs[i] > 0 else "-") + axis_chars[perm[i]]
-                for i in range(3)
-            )
-            yield label, M
-
-
-def _transform_bbox(np, M, bounds_xyzxyz):
-    """Apply a 3x3 signed-permutation matrix to a (xmin,xmax,ymin,ymax,zmin,zmax)
-    axis-aligned bbox; result is still axis-aligned."""
-    xmin, xmax, ymin, ymax, zmin, zmax = bounds_xyzxyz
-    corners = np.array([
-        [xmin, ymin, zmin], [xmax, ymin, zmin],
-        [xmin, ymax, zmin], [xmax, ymax, zmin],
-        [xmin, ymin, zmax], [xmax, ymin, zmax],
-        [xmin, ymax, zmax], [xmax, ymax, zmax],
-    ], dtype=np.float64)
-    new = corners @ np.asarray(M, dtype=np.float64).T
-    return (float(new[:, 0].min()), float(new[:, 0].max()),
-            float(new[:, 1].min()), float(new[:, 1].max()),
-            float(new[:, 2].min()), float(new[:, 2].max()))
-
-
-def _bbox_overlap_vol(b1, b2) -> float:
-    ix = max(0.0, min(b1[1], b2[1]) - max(b1[0], b2[0]))
-    iy = max(0.0, min(b1[3], b2[3]) - max(b1[2], b2[2]))
-    iz = max(0.0, min(b1[5], b2[5]) - max(b1[4], b2[4]))
-    return ix * iy * iz
-
-
-def _bbox_volume(b) -> float:
-    return (max(0.0, b[1] - b[0])
-            * max(0.0, b[3] - b[2])
-            * max(0.0, b[5] - b[4]))
-
-
-def _ct_world_extent(origin, size, spacing):
-    return (origin[0], origin[0] + (size[0] - 1) * spacing[0],
-            origin[1], origin[1] + (size[1] - 1) * spacing[1],
-            origin[2], origin[2] + (size[2] - 1) * spacing[2])
+from mesh_ct_alignment import (  # noqa: E402
+    find_best_mesh_orientation,
+    signed_permutations as _signed_permutations,
+    transform_bbox as _transform_bbox,
+    bbox_overlap_vol as _bbox_overlap_vol,
+    bbox_volume as _bbox_volume,
+    ct_world_extent as _ct_world_extent,
+)
 
 
 def _find_best_orientation(np, mesh_bounds, full_size_xyz, spacing_xyz,
                            origin_convention: str,
                            mesh_axis_perm: str = "auto"):
-    """Pick the (signed-permutation, origin-convention) pair that maximizes
-    overlap of the transformed mesh bbox with the CT world extent.
-
-    Returns (M_3x3, label, origin_convention, origin_xyz, overlap_ratio,
-    transformed_bounds).
-    """
-    nx, ny, nz = full_size_xyz
-    sx, sy, sz = spacing_xyz
-    origins = []
-    if origin_convention in ("auto", "zero"):
-        origins.append(("zero", (0.0, 0.0, 0.0)))
-    if origin_convention in ("auto", "centered"):
-        origins.append((
-            "centered",
-            (-0.5 * (nx - 1) * sx,
-             -0.5 * (ny - 1) * sy,
-             -0.5 * (nz - 1) * sz),
-        ))
-
-    if mesh_axis_perm == "auto":
-        candidates = list(_signed_permutations(np))
-    else:
-        # Find exact match.
-        match = None
-        for label, M in _signed_permutations(np):
-            if label == mesh_axis_perm:
-                match = (label, M)
-                break
-        if match is None:
-            raise ValueError(
-                f"Unknown --mesh-axis-perm value: {mesh_axis_perm!r}. "
-                "Use e.g. '+x+y+z' (identity) or '+x+z+y' (swap Y/Z)."
-            )
-        candidates = [match]
-
-    mesh_vol = _bbox_volume(mesh_bounds)
-    if mesh_vol <= 0:
-        raise RuntimeError(f"Mesh bbox has zero volume: {mesh_bounds}")
-
-    best = None  # (overlap_ratio, label, M, origin_label, origin, new_bounds)
-    for origin_label, origin in origins:
-        ct_extent = _ct_world_extent(origin, full_size_xyz, spacing_xyz)
-        for label, M in candidates:
-            new_bounds = _transform_bbox(np, M, mesh_bounds)
-            new_vol = _bbox_volume(new_bounds)
-            overlap = _bbox_overlap_vol(new_bounds, ct_extent)
-            ratio = overlap / new_vol if new_vol > 0 else 0.0
-            if best is None or ratio > best[0]:
-                best = (ratio, label, M, origin_label, origin, new_bounds)
-
-    assert best is not None
-    return best
+    """Pick orientation; returns tuple for ``_compute_grid`` compatibility."""
+    orient = find_best_mesh_orientation(
+        tuple(mesh_bounds), full_size_xyz, spacing_xyz,
+        volume_origin=None,
+        origin_convention=origin_convention,
+        mesh_axis_perm=mesh_axis_perm,
+    )
+    M = np.array(orient["mesh_M"], dtype=np.int8)
+    return (
+        orient["overlap_ratio"],
+        orient["mesh_M_label"],
+        M,
+        orient["origin_convention"],
+        tuple(orient["volume_origin"]),
+        tuple(orient["transformed_bounds"]),
+    )
 
 
 def _apply_signed_permutation_to_poly(np, vtk, poly, M):
@@ -376,6 +351,50 @@ def _apply_signed_permutation_to_poly(np, vtk, poly, M):
     return tf.GetOutput()
 
 
+def _decimate_poly(vtk, poly, target_triangles: int) -> "vtk.vtkPolyData":  # type: ignore
+    """Reduce mesh to ~target_triangles using vtkQuadricDecimation.
+
+    MorphoSource ``.ply`` meshes are commonly multi-million-polygon dense
+    iso-surfaces. ``vtkPolyDataToImageStencil`` is roughly
+    ``O(n_polys * n_grid_lines)`` and stalls indefinitely on meshes with
+    >~500 K polygons against a 200³+ grid. At our typical staged voxel
+    size (~0.1 mm) and skull dimensions (~30–50 mm), a 200 K-triangle
+    decimation is visually indistinguishable from the original.
+    """
+    n_in = poly.GetNumberOfPolys() or poly.GetNumberOfCells()
+    if n_in <= target_triangles or target_triangles <= 0:
+        log.info("Mesh has %d polys — below target %d, skipping decimation",
+                 n_in, target_triangles)
+        return poly
+
+    log.info("Decimating mesh from %d -> ~%d triangles "
+             "(vtkQuadricDecimation, this may take ~30-90 s)",
+             n_in, target_triangles)
+    # vtkQuadricDecimation needs triangles, so we triangle-fan first to be safe.
+    tri = vtk.vtkTriangleFilter()
+    tri.SetInputData(poly)
+    tri.PassLinesOff()
+    tri.PassVertsOff()
+    tri.Update()
+    poly_tri = tri.GetOutput()
+    n_tri = poly_tri.GetNumberOfPolys() or poly_tri.GetNumberOfCells()
+    if n_tri <= target_triangles:
+        return poly_tri
+
+    reduction = 1.0 - (target_triangles / float(n_tri))
+    reduction = max(0.0, min(0.999, reduction))
+    dec = vtk.vtkQuadricDecimation()
+    dec.SetInputData(poly_tri)
+    dec.SetTargetReduction(reduction)
+    dec.VolumePreservationOn()
+    dec.Update()
+    out = dec.GetOutput()
+    n_out = out.GetNumberOfPolys() or out.GetNumberOfCells()
+    log.info("Decimation done: %d -> %d triangles (reduction=%.4f)",
+             n_tri, n_out, reduction)
+    return out
+
+
 def _compute_grid(full_size_xyz: Tuple[int, int, int],
                   spacing_xyz: Tuple[float, float, float],
                   mesh_bounds: Sequence[float],
@@ -387,7 +406,7 @@ def _compute_grid(full_size_xyz: Tuple[int, int, int],
     """Pick the mesh-axis-permutation + origin-convention pair that lands
     the mesh inside the CT extent, then derive crop indices + downsample
     stride."""
-    np, _, _, _, _ = _import_deps()
+    np, _, _, _, _, _ = _import_deps()
 
     nx, ny, nz = full_size_xyz
     sx, sy, sz = spacing_xyz
@@ -472,7 +491,7 @@ def _peek_tiff_dims(Image, tiff_files: list[Path], np) -> Tuple[int, int, str]:
 
 
 def _stream_load_volume(tiff_files: list[Path], grid: GridSpec) -> "np.ndarray":  # type: ignore
-    np, _, _, _, Image = _import_deps()
+    np, _, _, _, Image, _ = _import_deps()
     ix0, iy0, iz0 = grid.crop_index_min
     ix1, iy1, iz1 = grid.crop_index_max
     stride = grid.stride
@@ -525,9 +544,133 @@ def _write_nrrd(np, sitk, volume_zyx, spacing_xyz, origin_xyz,
 # ---------------------------------------------------------------------------
 
 
+def _vtk_poly_to_trimesh(poly, trimesh, np, numpy_support):
+    """Convert a (triangulated) vtkPolyData into a ``trimesh.Trimesh``.
+
+    Calls ``process=True`` so trimesh dedups vertices, drops degenerate
+    faces, and rebuilds the indexing. vtkQuadricDecimation emits its
+    output without vertex sharing (e.g. 600K vertices for 200K
+    triangles), which makes trimesh's AABB tree 3× larger and the
+    ray-caster proportionally slower.
+    """
+    pts_vtk = poly.GetPoints()
+    if pts_vtk is None:
+        raise RuntimeError("vtkPolyData has no points")
+    pts = numpy_support.vtk_to_numpy(pts_vtk.GetData()).reshape(-1, 3).astype(
+        np.float64)
+
+    polys_arr = poly.GetPolys()
+    n_polys = poly.GetNumberOfPolys()
+    if n_polys == 0:
+        raise RuntimeError("vtkPolyData has no polygons (Polys() empty)")
+    cells = numpy_support.vtk_to_numpy(polys_arr.GetData())
+    if cells.size != n_polys * 4:
+        # Mixed cell sizes — fall back to per-cell iteration.
+        faces = np.empty((n_polys, 3), dtype=np.int64)
+        for i in range(n_polys):
+            cell = poly.GetCell(i)
+            ids = cell.GetPointIds()
+            if ids.GetNumberOfIds() != 3:
+                raise RuntimeError(
+                    f"Cell {i} is not a triangle "
+                    f"(n_ids={ids.GetNumberOfIds()})"
+                )
+            faces[i] = (ids.GetId(0), ids.GetId(1), ids.GetId(2))
+    else:
+        faces = cells.reshape(n_polys, 4)[:, 1:].astype(np.int64)
+    return trimesh.Trimesh(vertices=pts, faces=faces, process=True)
+
+
+def _voxelize_onto_grid_trimesh(poly, grid: GridSpec, output_path: Path,
+                                fill_value: int = 1) -> dict:
+    """Voxelize a mesh onto ``grid`` using trimesh's rtree-accelerated
+    ``mesh.contains()`` ray-caster.
+
+    The mesh is queried at voxel centers, in z-slabs of 32 slices, only
+    inside the mesh's bounding box. Outside the bbox the labelmap is
+    guaranteed 0, so we skip those queries.
+    """
+    np, sitk, _, numpy_support, _, trimesh = _import_deps()
+
+    mesh = _vtk_poly_to_trimesh(poly, trimesh, np, numpy_support)
+    log.info("trimesh: vertices=%d  faces=%d  is_watertight=%s",
+             len(mesh.vertices), len(mesh.faces), bool(mesh.is_watertight))
+
+    nx, ny, nz = grid.size_xyz
+    sx, sy, sz = grid.spacing_xyz
+    ox, oy, oz = grid.origin_xyz
+
+    # Mesh bbox in voxel-index coords (clamped to grid extent).
+    mesh_min, mesh_max = mesh.bounds  # shape (3,) each
+    ix_min = max(0, int(np.floor((mesh_min[0] - ox) / sx)))
+    ix_max = min(nx - 1, int(np.ceil((mesh_max[0] - ox) / sx)))
+    iy_min = max(0, int(np.floor((mesh_min[1] - oy) / sy)))
+    iy_max = min(ny - 1, int(np.ceil((mesh_max[1] - oy) / sy)))
+    iz_min = max(0, int(np.floor((mesh_min[2] - oz) / sz)))
+    iz_max = min(nz - 1, int(np.ceil((mesh_max[2] - oz) / sz)))
+    log.info("Mesh voxel-index bbox: x=[%d, %d]  y=[%d, %d]  z=[%d, %d]",
+             ix_min, ix_max, iy_min, iy_max, iz_min, iz_max)
+
+    out = np.zeros((nz, ny, nx), dtype=np.uint8)
+
+    bbox_nx = ix_max - ix_min + 1
+    bbox_ny = iy_max - iy_min + 1
+    if bbox_nx <= 0 or bbox_ny <= 0:
+        log.warning("Mesh bbox does not overlap grid in XY — empty labelmap")
+        # Fallthrough: out stays zero
+    else:
+        xs = ox + np.arange(ix_min, ix_max + 1) * sx
+        ys = oy + np.arange(iy_min, iy_max + 1) * sy
+        yy, xx = np.meshgrid(ys, xs, indexing="ij")  # shape (bbox_ny, bbox_nx)
+
+        slab = 8
+        t_start = time.time()
+        total_z = iz_max - iz_min + 1
+        with _gc_disabled():
+            for z0 in range(iz_min, iz_max + 1, slab):
+                z1 = min(iz_max + 1, z0 + slab)
+                n_slab = z1 - z0
+                zs = oz + np.arange(z0, z1) * sz
+                pts = np.empty((n_slab, bbox_ny, bbox_nx, 3), dtype=np.float64)
+                pts[..., 0] = xx[None, :, :]
+                pts[..., 1] = yy[None, :, :]
+                pts[..., 2] = zs[:, None, None]
+                inside = mesh.contains(pts.reshape(-1, 3))
+                out[z0:z1, iy_min:iy_max + 1, ix_min:ix_max + 1] = (
+                    inside.reshape(n_slab, bbox_ny, bbox_nx).astype(np.uint8)
+                    * int(fill_value)
+                )
+                done_z = z1 - iz_min
+                elapsed = time.time() - t_start
+                eta = elapsed * (total_z - done_z) / max(1, done_z)
+                log.info("  voxelize z=[%d, %d)  (%d/%d slices, elapsed=%.1fs, eta=%.1fs)",
+                         z0, z1, done_z, total_z, elapsed, eta)
+
+    direction = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+    img = sitk.GetImageFromArray(out)
+    img.SetOrigin((ox, oy, oz))
+    img.SetSpacing(grid.spacing_xyz)
+    img.SetDirection(direction)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    sitk.WriteImage(img, str(output_path), useCompression=True)
+
+    fg = int((out > 0).sum())
+    voxel_volume = float(sx * sy * sz)
+    log.info("Foreground voxels: %d (%.2f mm³), file size %.1f MB",
+             fg, fg * voxel_volume,
+             output_path.stat().st_size / 1e6)
+    return {
+        "output_path": str(output_path),
+        "foreground_voxels": fg,
+        "foreground_volume_mm3": round(fg * voxel_volume, 4),
+        "fill_value": int(fill_value),
+        "backend": "trimesh",
+    }
+
+
 def _voxelize_onto_grid(poly, grid: GridSpec,
                         output_path: Path, fill_value: int = 1) -> dict:
-    np, sitk, vtk, numpy_support, _ = _import_deps()
+    np, sitk, vtk, numpy_support, _, _ = _import_deps()
 
     size = grid.size_xyz
     spacing = grid.spacing_xyz
@@ -599,6 +742,7 @@ def _voxelize_onto_grid(poly, grid: GridSpec,
         "foreground_voxels": fg,
         "foreground_volume_mm3": round(fg * voxel_volume, 4),
         "fill_value": int(fill_value),
+        "backend": "vtk_stencil",
     }
 
 
@@ -621,9 +765,11 @@ def _sha256(path: Path, chunk: int = 1 << 20) -> str:
 def stage_sample(ct_media_id: str, mesh_media_id: str, out_dir: Path,
                  slug: str, max_axis: int, margin_mm: float,
                  origin_convention: str, mesh_axis_perm: str,
-                 ct_dtype: str, force_download: bool,
+                 ct_dtype: str, mesh_decimate_to: int,
+                 voxelize_backend: str,
+                 force_download: bool,
                  download_root: Path) -> dict:
-    np, sitk, vtk, _, Image = _import_deps()
+    np, sitk, vtk, _, Image, trimesh = _import_deps()
     client = MorphoSourceClient()
 
     log.info("Resolving metadata for CT %s and mesh %s",
@@ -693,6 +839,21 @@ def stage_sample(ct_media_id: str, mesh_media_id: str, out_dir: Path,
     else:
         poly_oriented = poly
 
+    # Decimate before voxelization. `vtk_stencil` backend scales linearly in
+    # polygon count and stalls on the multi-million-triangle MorphoSource
+    # meshes. `trimesh` backend uses rtree-accelerated ray-casting so the
+    # only reason to decimate there is for slightly smaller per-query
+    # overhead.
+    n_poly_in = poly_oriented.GetNumberOfPolys() or poly_oriented.GetNumberOfCells()
+    if voxelize_backend == "vtk_stencil" and mesh_decimate_to > 0:
+        poly_for_voxelize = _decimate_poly(vtk, poly_oriented, mesh_decimate_to)
+    elif voxelize_backend == "trimesh" and mesh_decimate_to > 0 and n_poly_in > mesh_decimate_to:
+        poly_for_voxelize = _decimate_poly(vtk, poly_oriented, mesh_decimate_to)
+    else:
+        poly_for_voxelize = poly_oriented
+    n_poly_out = (poly_for_voxelize.GetNumberOfPolys()
+                  or poly_for_voxelize.GetNumberOfCells())
+
     # Stream CT slices into a small numpy volume.
     volume_zyx = _stream_load_volume(tiff_files, grid)
     if ct_dtype == "uint8":
@@ -725,7 +886,17 @@ def stage_sample(ct_media_id: str, mesh_media_id: str, out_dir: Path,
 
     # Voxelize mesh onto the same downsampled grid.
     gt_path = out_dir / f"{slug}_gt_labelmap.nrrd"
-    vox_summary = _voxelize_onto_grid(poly_oriented, grid, gt_path, fill_value=1)
+    log.info("Voxelizing mesh onto grid using backend=%s", voxelize_backend)
+    if voxelize_backend == "trimesh":
+        vox_summary = _voxelize_onto_grid_trimesh(
+            poly_for_voxelize, grid, gt_path, fill_value=1)
+    elif voxelize_backend == "vtk_stencil":
+        vox_summary = _voxelize_onto_grid(
+            poly_for_voxelize, grid, gt_path, fill_value=1)
+    else:
+        raise ValueError(f"Unknown --voxelize-backend: {voxelize_backend!r}")
+    vox_summary["mesh_n_polys_input"] = int(n_poly_in)
+    vox_summary["mesh_n_polys_voxelized"] = int(n_poly_out)
 
     # Provenance.
     provenance = {
@@ -827,6 +998,19 @@ def _parse_args():
                    choices=["uint16", "int16", "uint8"],
                    help="Output dtype for the CT NRRD. uint8 is much smaller "
                         "but lossy (8-bit window over the 0.5/99.5 percentile).")
+    p.add_argument("--mesh-decimate-to", type=int, default=200_000,
+                   help="Decimate the mesh to ~N triangles before voxelizing. "
+                        "Required for --voxelize-backend=vtk_stencil on large "
+                        "MorphoSource meshes; optional speedup for trimesh. "
+                        "Set to 0 to disable.")
+    p.add_argument("--voxelize-backend", default="trimesh",
+                   choices=["trimesh", "vtk_stencil"],
+                   help="Algorithm to rasterize the mesh into a labelmap. "
+                        "'trimesh' uses rtree-accelerated ray-casting and is "
+                        "robust on multi-million-poly MorphoSource meshes. "
+                        "'vtk_stencil' uses vtkPolyDataToImageStencil and is "
+                        "faster on small clean meshes but can stall on large "
+                        "or non-manifold ones.")
     p.add_argument("--download-root", default="data",
                    help="Where to cache MorphoSource downloads (gitignored).")
     p.add_argument("--force-download", action="store_true",
@@ -858,6 +1042,8 @@ def main() -> int:
             origin_convention=args.origin_convention,
             mesh_axis_perm=args.mesh_axis_perm,
             ct_dtype=args.ct_dtype,
+            mesh_decimate_to=args.mesh_decimate_to,
+            voxelize_backend=args.voxelize_backend,
             force_download=args.force_download,
             download_root=Path(args.download_root),
         )
