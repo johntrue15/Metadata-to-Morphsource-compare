@@ -117,6 +117,7 @@ def gh_dispatch(gh: str, pair: "PairSpec", args: argparse.Namespace) -> str:
         f"voxelize_backend={args.voxelize_backend}",
         f"crop_around_mesh_mm={args.crop_around_mesh_mm}",
         f"max_voxel_axis={args.max_voxel_axis}",
+        f"align_mesh_to_ct={args.align_mesh_to_ct}",
     ]
     cmd = [
         gh, "workflow", "run", WORKFLOW_FILE,
@@ -501,6 +502,10 @@ def main() -> int:
                    help="Re-run pairs that already have a cached fixture locally")
     p.add_argument("--crop-around-mesh-mm", type=float, default=5.0)
     p.add_argument("--max-voxel-axis", type=int, default=384)
+    p.add_argument("--align-mesh-to-ct", default="centroid",
+                   choices=["", "centroid", "auto"],
+                   help="Apply mesh->CT translation before crop/voxelize. "
+                        "Required for project 358382. Default 'centroid'.")
     p.add_argument("--voxelize-backend", default="vtk",
                    choices=["vtk", "slicer", "auto"])
     p.add_argument("--max-steps", type=int, default=12)

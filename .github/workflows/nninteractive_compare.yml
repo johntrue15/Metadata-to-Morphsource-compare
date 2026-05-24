@@ -74,6 +74,12 @@ on:
         required: false
         type: number
         default: 0
+      align_mesh_to_ct:
+        description: 'Translate mesh into CT frame before crop/voxelize. centroid=always, auto=only when bboxes do not overlap, empty=disabled. Required for derivative-mesh projects (358382 etc).'
+        required: false
+        type: choice
+        options: ['', 'centroid', 'auto']
+        default: ''
 
 jobs:
   compare:
@@ -167,6 +173,9 @@ jobs:
           fi
           if [ "${{ inputs.max_voxel_axis || 0 }}" != "0" ]; then
             ARGS+=(--max-voxel-axis "${{ inputs.max_voxel_axis }}")
+          fi
+          if [ -n "${{ inputs.align_mesh_to_ct }}" ]; then
+            ARGS+=(--align-mesh-to-ct "${{ inputs.align_mesh_to_ct }}")
           fi
           ARGS+=(--output-dir /tmp/nni_compare)
           ARGS+=(--export-fixture-dir /tmp/nni_compare_fixtures)

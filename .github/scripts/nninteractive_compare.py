@@ -618,6 +618,177 @@ def _compute_metrics(prediction: Path, ground_truth: Path,
 # ---------------------------------------------------------------------------
 
 
+def _read_mesh_world_bbox(mesh_path: Path):
+    """Return (min_xyz, max_xyz, centroid_xyz, n_points) as numpy arrays."""
+    import numpy as np
+    suffix = mesh_path.suffix.lower()
+    try:
+        import vtk
+    except ImportError:
+        vtk = None
+    if vtk is not None and suffix in {".ply", ".stl", ".obj"}:
+        if suffix == ".ply":
+            r = vtk.vtkPLYReader()
+        elif suffix == ".stl":
+            r = vtk.vtkSTLReader()
+        else:
+            r = vtk.vtkOBJReader()
+        r.SetFileName(str(mesh_path))
+        r.Update()
+        poly = r.GetOutput()
+        b = poly.GetBounds()  # (xmin,xmax,ymin,ymax,zmin,zmax)
+        n = poly.GetNumberOfPoints()
+        mins = np.array([b[0], b[2], b[4]])
+        maxs = np.array([b[1], b[3], b[5]])
+        return mins, maxs, (mins + maxs) / 2.0, n
+
+    import trimesh
+    mesh = trimesh.load(str(mesh_path), force="mesh")
+    verts = mesh.vertices
+    mins = verts.min(axis=0)
+    maxs = verts.max(axis=0)
+    return (mins.astype(float), maxs.astype(float),
+            ((mins + maxs) / 2.0).astype(float), int(verts.shape[0]))
+
+
+def _read_ct_world_bbox(volume_path: Path):
+    """Return (min_xyz, max_xyz, centroid_xyz) as numpy arrays."""
+    import SimpleITK as sitk
+    import numpy as np
+    img = sitk.ReadImage(str(volume_path))
+    size = img.GetSize()
+    corners = []
+    for i in (0, size[0] - 1):
+        for j in (0, size[1] - 1):
+            for k in (0, size[2] - 1):
+                corners.append(img.TransformIndexToPhysicalPoint((i, j, k)))
+    arr = np.array(corners)
+    return arr.min(axis=0), arr.max(axis=0), (arr.min(axis=0) + arr.max(axis=0)) / 2.0
+
+
+def _align_mesh_to_volume(mesh_path: Path, volume_path: Path,
+                          out_path: Path, method: str = "centroid") -> dict:
+    """Apply a coordinate transform to ``mesh_path`` so it overlaps ``volume_path``.
+
+    Many MorphoSource derivative-mesh projects (e.g. "Colors of Skull Anatomy",
+    project 000358382) ship .ply / .stl files in the modeller's local frame —
+    the mesh is centered at the origin of *its own* bbox instead of preserving
+    the CT scanner's world coordinates. Bare voxelization fails because the
+    mesh sits entirely outside the CT volume in world space.
+
+    This function detects that situation (mesh bbox has zero overlap with
+    CT bbox) and applies a corrective transform. Supported methods:
+
+    - ``"centroid"`` : translate the mesh so its bbox centroid coincides
+      with the CT bbox centroid. Cheap, works whenever the mesh and CT
+      represent the same object at the same scale/orientation.
+    - ``"auto"``     : pass-through when bboxes already overlap by >50%
+      of the smaller bbox volume; otherwise fall through to ``centroid``.
+
+    Returns a dict with ``method``, ``applied`` (bool), ``translation`` (mm),
+    ``mesh_bbox_before/after``, ``ct_bbox``, ``output_path``.
+    """
+    import numpy as np
+    import vtk
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    m_min, m_max, m_center, n_pts = _read_mesh_world_bbox(mesh_path)
+    c_min, c_max, c_center = _read_ct_world_bbox(volume_path)
+
+    # Overlap test (axis-aligned bbox intersection volume / min volume)
+    inter_min = np.maximum(m_min, c_min)
+    inter_max = np.minimum(m_max, c_max)
+    inter_size = np.maximum(inter_max - inter_min, 0.0)
+    inter_vol = float(inter_size.prod())
+    mesh_vol = float((m_max - m_min).prod())
+    ct_vol = float((c_max - c_min).prod())
+    overlap_frac = inter_vol / max(min(mesh_vol, ct_vol), 1e-9)
+
+    summary = {
+        "method": method,
+        "applied": False,
+        "ct_bbox": {"min": c_min.tolist(), "max": c_max.tolist(),
+                     "center": c_center.tolist()},
+        "mesh_bbox_before": {"min": m_min.tolist(), "max": m_max.tolist(),
+                              "center": m_center.tolist()},
+        "overlap_frac_before": overlap_frac,
+        "mesh_n_points": n_pts,
+        "output_path": str(out_path),
+    }
+
+    if method == "auto" and overlap_frac > 0.5:
+        log.info("Mesh already overlaps CT (frac=%.2f); skipping alignment",
+                 overlap_frac)
+        # Pass-through: copy original mesh to out_path so callers can always
+        # use out_path uniformly.
+        import shutil
+        shutil.copy2(mesh_path, out_path)
+        return summary
+
+    effective = "centroid" if method in {"centroid", "auto"} else method
+    if effective != "centroid":
+        return {**summary, "error": f"unknown alignment method: {method}"}
+
+    translation = (c_center - m_center).astype(float)
+    log.info("Aligning mesh %s -> %s by centroid translation %s",
+             mesh_path.name, out_path.name, translation.tolist())
+
+    # Apply VTK transform and write
+    suffix = mesh_path.suffix.lower()
+    if suffix == ".ply":
+        reader = vtk.vtkPLYReader()
+    elif suffix == ".stl":
+        reader = vtk.vtkSTLReader()
+    elif suffix == ".obj":
+        reader = vtk.vtkOBJReader()
+    else:
+        return {**summary, "error": f"unsupported mesh format for alignment: {suffix}"}
+    reader.SetFileName(str(mesh_path))
+    reader.Update()
+
+    tf = vtk.vtkTransform()
+    tf.Translate(float(translation[0]), float(translation[1]),
+                 float(translation[2]))
+    tff = vtk.vtkTransformPolyDataFilter()
+    tff.SetTransform(tf)
+    tff.SetInputData(reader.GetOutput())
+    tff.Update()
+
+    out_suffix = out_path.suffix.lower()
+    if out_suffix == ".ply":
+        writer = vtk.vtkPLYWriter()
+        writer.SetFileTypeToBinary()
+    else:
+        writer = vtk.vtkSTLWriter()
+        writer.SetFileTypeToBinary()
+    writer.SetFileName(str(out_path))
+    writer.SetInputData(tff.GetOutput())
+    writer.Write()
+
+    poly = tff.GetOutput()
+    b = poly.GetBounds()
+    after_min = np.array([b[0], b[2], b[4]])
+    after_max = np.array([b[1], b[3], b[5]])
+    summary["applied"] = True
+    summary["translation"] = translation.tolist()
+    summary["mesh_bbox_after"] = {
+        "min": after_min.tolist(), "max": after_max.tolist(),
+        "center": ((after_min + after_max) / 2.0).tolist(),
+    }
+    new_inter_min = np.maximum(after_min, c_min)
+    new_inter_max = np.minimum(after_max, c_max)
+    new_inter_vol = float(np.maximum(new_inter_max - new_inter_min, 0.0).prod())
+    new_mesh_vol = float((after_max - after_min).prod())
+    summary["overlap_frac_after"] = (
+        new_inter_vol / max(min(new_mesh_vol, ct_vol), 1e-9)
+    )
+    log.info("After alignment: overlap_frac=%.3f mesh_bbox=%s..%s",
+             summary["overlap_frac_after"],
+             after_min.tolist(), after_max.tolist())
+    return summary
+
+
 def _resample_cap_axis(ct_path: Path, gt_path: Path,
                        max_axis: int) -> Optional[dict]:
     """Resample ``ct_path`` and ``gt_path`` in place so no axis exceeds ``max_axis``.
@@ -688,6 +859,7 @@ def run_comparison(ct_media_id: str, gt_media_id: str, goal: str,
                    voxelize_backend: str = "auto",
                    crop_around_mesh_mm: float = 0.0,
                    max_voxel_axis: int = 0,
+                   align_mesh_to_ct: str = "",
                    skip_paint_loop: bool = False,
                    export_fixture_dir: Optional[Path] = None) -> dict:
     """End-to-end comparison.
@@ -698,6 +870,11 @@ def run_comparison(ct_media_id: str, gt_media_id: str, goal: str,
     max_voxel_axis      > 0 to resample the (cropped) CT + voxelized GT so no
                          axis exceeds this many voxels. Keeps fixture bundles
                          under control on whole-skull specimens. 0 disables.
+    align_mesh_to_ct    "" | "centroid" | "auto" — apply a translation to
+                         the mesh BEFORE crop/voxelize so its bbox overlaps
+                         the CT. Necessary for derivative-mesh projects
+                         (e.g. 358382 "Colors of Skull Anatomy") where the
+                         .ply/.stl is in the modeller's local frame.
     skip_paint_loop     stop after voxelization + alignment report. Useful as
                         a dry run to verify coordinate alignment of the GT mesh
                         against the CT volume *before* spending OpenAI quota
@@ -742,6 +919,10 @@ def run_comparison(ct_media_id: str, gt_media_id: str, goal: str,
             "error": f"No mesh (PLY/STL/OBJ) under {gt_dir}",
         }
     log.info("Selected GT mesh: %s", mesh_pick.display)
+    # ``mesh_path_used`` may be replaced below by an aligned copy. It is the
+    # file passed to crop + voxelize. ``mesh_pick.path`` always points at the
+    # original download for provenance.
+    mesh_path_used = mesh_pick.path
 
     # ---- 2b. Normalize the CT input to a single NIfTI on disk ----
     ct_path = ct_pick.path
@@ -769,13 +950,38 @@ def run_comparison(ct_media_id: str, gt_media_id: str, goal: str,
                  tiff_result.get("spacing"),
                  tiff_result.get("spacing_source"))
 
+    # ---- 2c1. Optional: align mesh to CT frame (translation only) ----
+    # Derivative-mesh projects (e.g. 358382 "Colors of Skull Anatomy") ship
+    # meshes in the modeller's local frame. Without alignment the mesh sits
+    # entirely outside the CT in world space, so both cropping and voxelization
+    # silently emit nothing useful.
+    alignment_summary = None
+    if align_mesh_to_ct in {"centroid", "auto"}:
+        aligned_mesh = pair_dir / f"mesh_aligned{mesh_pick.path.suffix}"
+        try:
+            alignment_summary = _align_mesh_to_volume(
+                mesh_path=mesh_pick.path,
+                volume_path=ct_path,
+                out_path=aligned_mesh,
+                method=align_mesh_to_ct,
+            )
+        except Exception as exc:
+            log.exception("Mesh alignment failed")
+            return {"success": False, "stage": "align_mesh",
+                    "error": repr(exc)}
+        if "error" in alignment_summary:
+            return {"success": False, "stage": "align_mesh",
+                    "result": alignment_summary}
+        if alignment_summary.get("applied") or aligned_mesh.exists():
+            mesh_path_used = aligned_mesh
+
     # ---- 2c. Optional: crop to GT mesh bbox + margin (faster + tractable) ----
     cropped_ct = ct_path
     cropped_summary = None
     if crop_around_mesh_mm and crop_around_mesh_mm > 0:
         cropped_ct = pair_dir / f"ct_{ct_media_id}_cropped.nii.gz"
         cropped_summary = _crop_volume(
-            reference_volume=ct_path, mesh=mesh_pick.path,
+            reference_volume=ct_path, mesh=mesh_path_used,
             output=cropped_ct, margin_mm=crop_around_mesh_mm,
         )
         if "error" in cropped_summary:
@@ -785,7 +991,7 @@ def run_comparison(ct_media_id: str, gt_media_id: str, goal: str,
 
     # ---- 3. Voxelize GT mesh onto (cropped) CT grid ----
     gt_labelmap = pair_dir / "gt_voxelized.nii.gz"
-    voxelize_result = _voxelize(cropped_ct, mesh_pick.path, gt_labelmap,
+    voxelize_result = _voxelize(cropped_ct, mesh_path_used, gt_labelmap,
                                 backend=voxelize_backend)
     if "error" in voxelize_result:
         return {"success": False, "stage": "voxelize", "result": voxelize_result}
@@ -895,6 +1101,7 @@ def run_comparison(ct_media_id: str, gt_media_id: str, goal: str,
         "report_path": str(report_path),
         "voxelize_backend": voxelize_result.get("backend",
                                                 voxelize_backend),
+        "alignment_summary": alignment_summary,
         "crop_summary": cropped_summary,
         "resample_summary": resample_summary,
         "metrics": metrics,
@@ -1403,6 +1610,14 @@ def _parse_args():
                         "interpolation; GT labelmap uses nearest-neighbour. "
                         "Keeps fixture sizes manageable on whole-skull "
                         "specimens. Default 0 (disabled).")
+    p.add_argument("--align-mesh-to-ct", default="",
+                   choices=["", "centroid", "auto"],
+                   help="Apply a translation to the mesh so it overlaps the "
+                        "CT in world coordinates before crop/voxelize. "
+                        "'centroid' always aligns bbox centroids; 'auto' "
+                        "skips when bboxes already overlap. Necessary for "
+                        "derivative-mesh projects (358382, etc) whose .ply "
+                        "files are in the modeller's local frame.")
     p.add_argument("--preset", default="", choices=[""] + list(PRESETS.keys()),
                    help="Pre-canned test pair. Overrides individual fields "
                         "but per-flag arguments still win if explicitly set.")
@@ -1552,6 +1767,7 @@ def main() -> int:
         voxelize_backend=voxelize_backend,
         crop_around_mesh_mm=crop_mm,
         max_voxel_axis=args.max_voxel_axis,
+        align_mesh_to_ct=args.align_mesh_to_ct,
         skip_paint_loop=args.skip_paint_loop,
         export_fixture_dir=(Path(args.export_fixture_dir)
                             if args.export_fixture_dir else None),
