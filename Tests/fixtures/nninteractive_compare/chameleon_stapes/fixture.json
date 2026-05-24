@@ -4,7 +4,7 @@
   "goal": "Segment the right stapes (small middle-ear bone). It is a tiny irregular bone in the inner ear region.",
   "max_steps": 6,
   "voxelize_backend": "vtk",
-  "crop_around_mesh_mm": 1.5,
+  "crop_around_mesh_mm": 4.0,
   "files": {
     "ct.nii.gz": "/tmp/nni_compare_fixtures/ct.nii.gz",
     "gt_voxelized.nii.gz": "/tmp/nni_compare_fixtures/gt_voxelized.nii.gz",

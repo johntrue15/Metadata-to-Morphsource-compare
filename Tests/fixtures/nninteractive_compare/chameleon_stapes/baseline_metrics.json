@@ -1,29 +1,29 @@
 {
-  "voxel_count_pred": 0,
+  "voxel_count_pred": 6361,
   "voxel_count_gt": 4685,
-  "volume_mm3_pred": 0.0,
+  "volume_mm3_pred": 0.785,
   "volume_mm3_gt": 0.578,
-  "volume_difference_pct": 100.0,
-  "intersection_voxels": 0,
-  "union_voxels": 4685,
-  "dice": 0.0,
-  "iou": 0.0,
-  "precision": 0.0,
-  "recall": 0.0,
-  "false_positive_rate": 0.0,
-  "false_negative_rate": 1.0,
-  "hausdorff_mm": null,
-  "hausdorff_95_mm": null,
-  "average_surface_dist_mm": null,
-  "centroid_distance_mm": null,
+  "volume_difference_pct": 35.774,
+  "intersection_voxels": 4539,
+  "union_voxels": 6507,
+  "dice": 0.821836,
+  "iou": 0.697556,
+  "precision": 0.713567,
+  "recall": 0.968837,
+  "false_positive_rate": 0.286433,
+  "false_negative_rate": 0.031163,
+  "hausdorff_mm": 0.5477,
+  "hausdorff_95_mm": 0.0704,
+  "average_surface_dist_mm": 0.0235,
+  "centroid_distance_mm": 0.0894,
   "spacing_xyz_mm": [
     0.049788,
     0.049788,
     0.049788
   ],
   "image_shape_zyx": [
-    128,
-    119,
-    119
+    228,
+    219,
+    219
   ]
 }
