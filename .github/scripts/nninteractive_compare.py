@@ -618,10 +618,76 @@ def _compute_metrics(prediction: Path, ground_truth: Path,
 # ---------------------------------------------------------------------------
 
 
+def _resample_cap_axis(ct_path: Path, gt_path: Path,
+                       max_axis: int) -> Optional[dict]:
+    """Resample ``ct_path`` and ``gt_path`` in place so no axis exceeds ``max_axis``.
+
+    Adapted from ``eval_project358382_pilot._resample_cap_axis``. Used to keep
+    fixture sizes manageable when running the full-skull batch of project 358382
+    specimens — a 50 mm skull at 0.05 mm spacing would otherwise produce a
+    1200^3 cropped grid (~250 MB nii.gz per specimen).
+
+    The CT is resampled with linear interpolation; the GT labelmap with
+    nearest-neighbour to keep its binary value space exact. Both end up on
+    the same grid (origin/direction preserved, spacing scaled to compensate).
+    Returns a summary dict or ``None`` if the cap is disabled.
+    """
+    if not max_axis or max_axis <= 0:
+        return None
+    import SimpleITK as sitk
+    img = sitk.ReadImage(str(ct_path))
+    size = img.GetSize()
+    if max(size) <= max_axis:
+        log.info("Cropped CT %s: max axis %d <= cap %d (no resample)",
+                 ct_path.name, max(size), max_axis)
+        return {"resampled": False, "size_before": list(size),
+                "max_axis_cap": max_axis}
+
+    scale = max_axis / float(max(size))
+    new_size = [max(1, int(round(s * scale))) for s in size]
+    spacing = img.GetSpacing()
+    new_spacing = [
+        spacing[i] * (size[i] / float(new_size[i])) for i in range(3)
+    ]
+    log.info("Resampling CT %s: %s spacing=%s -> %s spacing=%s "
+             "(cap=%d, scale=%.3f)",
+             ct_path.name, list(size), [round(s, 5) for s in spacing],
+             new_size, [round(s, 5) for s in new_spacing],
+             max_axis, scale)
+
+    def _resample(src, interp):
+        ref = sitk.Image(new_size, src.GetPixelID())
+        ref.SetSpacing(new_spacing)
+        ref.SetOrigin(src.GetOrigin())
+        ref.SetDirection(src.GetDirection())
+        return sitk.Resample(src, ref, sitk.Transform(), interp,
+                             0, src.GetPixelID())
+
+    ct_new = _resample(img, sitk.sitkLinear)
+    sitk.WriteImage(ct_new, str(ct_path))
+    log.info("  wrote %s (%d bytes)", ct_path.name, ct_path.stat().st_size)
+
+    gt = sitk.ReadImage(str(gt_path))
+    gt_new = _resample(gt, sitk.sitkNearestNeighbor)
+    sitk.WriteImage(gt_new, str(gt_path))
+    log.info("  wrote %s (%d bytes)", gt_path.name, gt_path.stat().st_size)
+
+    return {
+        "resampled": True,
+        "size_before": list(size),
+        "size_after": list(new_size),
+        "spacing_before": [float(s) for s in spacing],
+        "spacing_after": [float(s) for s in new_spacing],
+        "max_axis_cap": max_axis,
+        "scale": scale,
+    }
+
+
 def run_comparison(ct_media_id: str, gt_media_id: str, goal: str,
                    output_dir: Path, max_steps: int = 12,
                    voxelize_backend: str = "auto",
                    crop_around_mesh_mm: float = 0.0,
+                   max_voxel_axis: int = 0,
                    skip_paint_loop: bool = False,
                    export_fixture_dir: Optional[Path] = None) -> dict:
     """End-to-end comparison.
@@ -629,6 +695,9 @@ def run_comparison(ct_media_id: str, gt_media_id: str, goal: str,
     voxelize_backend  "auto" | "slicer" | "vtk"   (auto = Slicer first, VTK fallback)
     crop_around_mesh_mm  > 0 to crop CT to the GT mesh bbox + margin (mm)
                          before running the paint loop. 0 disables cropping.
+    max_voxel_axis      > 0 to resample the (cropped) CT + voxelized GT so no
+                         axis exceeds this many voxels. Keeps fixture bundles
+                         under control on whole-skull specimens. 0 disables.
     skip_paint_loop     stop after voxelization + alignment report. Useful as
                         a dry run to verify coordinate alignment of the GT mesh
                         against the CT volume *before* spending OpenAI quota
@@ -721,6 +790,22 @@ def run_comparison(ct_media_id: str, gt_media_id: str, goal: str,
     if "error" in voxelize_result:
         return {"success": False, "stage": "voxelize", "result": voxelize_result}
 
+    # ---- 3a. Optional: resample so no axis exceeds max_voxel_axis ----
+    # This keeps the fixture bundle (and runtime memory) manageable when running
+    # whole-skull specimens. The CT goes linear; the GT labelmap goes nearest
+    # neighbour so its binary value space stays exact. Both end on the same grid.
+    resample_summary = None
+    if max_voxel_axis and max_voxel_axis > 0 and cropped_ct != ct_path:
+        # Only resample when we actually cropped; resampling the full untouched
+        # CT volume would be both surprising and unhelpful.
+        resample_summary = _resample_cap_axis(cropped_ct, gt_labelmap,
+                                              max_voxel_axis)
+    elif max_voxel_axis and max_voxel_axis > 0:
+        # User asked for the cap but didn't crop. Still apply it so they get
+        # the size guarantee they requested.
+        resample_summary = _resample_cap_axis(cropped_ct, gt_labelmap,
+                                              max_voxel_axis)
+
     # ---- 3b. Optional dry-run: stop here, write alignment report ----
     if skip_paint_loop:
         align_report_path = pair_dir / "alignment_report.md"
@@ -788,6 +873,7 @@ def run_comparison(ct_media_id: str, gt_media_id: str, goal: str,
             max_steps=max_steps,
             voxelize_backend=voxelize_result.get("backend", voxelize_backend),
             crop_around_mesh_mm=crop_around_mesh_mm,
+            max_voxel_axis=max_voxel_axis,
             ct_used=cropped_ct,
             gt_labelmap=gt_labelmap,
             pred_labelmap=pred_labelmap,
@@ -810,6 +896,7 @@ def run_comparison(ct_media_id: str, gt_media_id: str, goal: str,
         "voxelize_backend": voxelize_result.get("backend",
                                                 voxelize_backend),
         "crop_summary": cropped_summary,
+        "resample_summary": resample_summary,
         "metrics": metrics,
         "duration_s": round(time.time() - t0, 1),
         "fixture_export": fixture_summary,
@@ -828,7 +915,8 @@ def _export_fixture(export_fixture_dir: Path,
                     crop_around_mesh_mm: float,
                     ct_used: Path, gt_labelmap: Path,
                     pred_labelmap: Optional[Path],
-                    metrics_path: Optional[Path]) -> dict:
+                    metrics_path: Optional[Path],
+                    max_voxel_axis: int = 0) -> dict:
     """Copy the small subset of files needed for ``--from-fixture`` re-runs.
 
     Layout written:
@@ -863,6 +951,7 @@ def _export_fixture(export_fixture_dir: Path,
         "max_steps": max_steps,
         "voxelize_backend": voxelize_backend,
         "crop_around_mesh_mm": crop_around_mesh_mm,
+        "max_voxel_axis": max_voxel_axis,
         "files": copied,
     }
     (export_fixture_dir / "fixture.json").write_text(
@@ -1308,6 +1397,12 @@ def _parse_args():
                    help="If >0, crop the CT to the GT mesh bbox + margin "
                         "(in mm) before running the paint loop. Useful for "
                         "small parts (e.g. a stapes inside a whole-head CT).")
+    p.add_argument("--max-voxel-axis", type=int, default=0,
+                   help="If >0, resample the (cropped) CT + voxelized GT so "
+                        "no axis exceeds this many voxels. CT uses linear "
+                        "interpolation; GT labelmap uses nearest-neighbour. "
+                        "Keeps fixture sizes manageable on whole-skull "
+                        "specimens. Default 0 (disabled).")
     p.add_argument("--preset", default="", choices=[""] + list(PRESETS.keys()),
                    help="Pre-canned test pair. Overrides individual fields "
                         "but per-flag arguments still win if explicitly set.")
@@ -1456,6 +1551,7 @@ def main() -> int:
         max_steps=max_steps,
         voxelize_backend=voxelize_backend,
         crop_around_mesh_mm=crop_mm,
+        max_voxel_axis=args.max_voxel_axis,
         skip_paint_loop=args.skip_paint_loop,
         export_fixture_dir=(Path(args.export_fixture_dir)
                             if args.export_fixture_dir else None),

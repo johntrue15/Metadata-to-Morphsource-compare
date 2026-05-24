@@ -69,6 +69,11 @@ on:
         required: false
         type: number
         default: 0
+      max_voxel_axis:
+        description: 'If >0, resample the cropped CT + voxelized GT so no axis exceeds this many voxels. Recommended 384 for whole-skull specimens (keeps fixture <50 MB).'
+        required: false
+        type: number
+        default: 0
 
 jobs:
   compare:
@@ -159,6 +164,9 @@ jobs:
           ARGS+=(--voxelize-backend "${{ inputs.voxelize_backend || 'vtk' }}")
           if [ "${{ inputs.crop_around_mesh_mm || 0 }}" != "0" ]; then
             ARGS+=(--crop-around-mesh-mm "${{ inputs.crop_around_mesh_mm }}")
+          fi
+          if [ "${{ inputs.max_voxel_axis || 0 }}" != "0" ]; then
+            ARGS+=(--max-voxel-axis "${{ inputs.max_voxel_axis }}")
           fi
           ARGS+=(--output-dir /tmp/nni_compare)
           ARGS+=(--export-fixture-dir /tmp/nni_compare_fixtures)
