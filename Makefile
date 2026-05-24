@@ -1,7 +1,7 @@
 # Makefile for Metadata-to-Morphsource-Compare
 # Provides convenient shortcuts for common development tasks
 
-.PHONY: help install install-dev test test-cov test-seg-train test-seg-train-full test-seg-train-live lint format clean pre-commit all
+.PHONY: help install install-dev test test-cov test-seg-train test-seg-train-full test-seg-train-live nni-smoke lint format clean pre-commit all
 
 # Default target - show help
 help:
@@ -15,6 +15,7 @@ help:
 	@echo "  make test-seg-train      - Run iterative segmentation smoke tests"
 	@echo "  make test-seg-train-full - Same as above, including numpy-marked tests"
 	@echo "  make test-seg-train-live - Real end-to-end on chameleon stapes (~10 min)"
+	@echo "  make nni-smoke     - Cached-fixture smoke for nninteractive_compare.py (~2s, no GPU)"
 	@echo "  make lint          - Run linting checks (flake8, mypy, bandit)"
 	@echo "  make format        - Format code (black, isort)"
 	@echo "  make format-check  - Check code formatting without changes"
@@ -58,6 +59,13 @@ test-seg-train-full:
 # OPENAI_API_KEY and a bootstrapped nnInteractive venv. Takes ~5–15 min.
 test-seg-train-live:
 	bash Tests/test_chameleon_stapes_iterative.sh
+
+# Cached-fixture smoke for the nnInteractive comparison pipeline. Runs the
+# same code path the nninteractive_smoke.yml PR gate runs on ubuntu-latest,
+# but locally against committed fixtures. ~2s, no GPU, no MorphoSource,
+# no OpenAI. Use while iterating on .github/scripts/nninteractive_compare.py.
+nni-smoke:
+	bash Tests/smoke_nninteractive_compare.sh
 
 # Run linting checks
 lint:
