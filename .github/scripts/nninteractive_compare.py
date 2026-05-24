@@ -618,240 +618,98 @@ def _compute_metrics(prediction: Path, ground_truth: Path,
 # ---------------------------------------------------------------------------
 
 
-def _read_mesh_world_bbox(mesh_path: Path):
-    """Return (min_xyz, max_xyz, centroid_xyz, n_points) as numpy arrays."""
-    import numpy as np
-    suffix = mesh_path.suffix.lower()
-    try:
-        import vtk
-    except ImportError:
-        vtk = None
-    if vtk is not None and suffix in {".ply", ".stl", ".obj"}:
-        if suffix == ".ply":
-            r = vtk.vtkPLYReader()
-        elif suffix == ".stl":
-            r = vtk.vtkSTLReader()
-        else:
-            r = vtk.vtkOBJReader()
-        r.SetFileName(str(mesh_path))
-        r.Update()
-        poly = r.GetOutput()
-        b = poly.GetBounds()  # (xmin,xmax,ymin,ymax,zmin,zmax)
-        n = poly.GetNumberOfPoints()
-        mins = np.array([b[0], b[2], b[4]])
-        maxs = np.array([b[1], b[3], b[5]])
-        return mins, maxs, (mins + maxs) / 2.0, n
-
-    import trimesh
-    mesh = trimesh.load(str(mesh_path), force="mesh")
-    verts = mesh.vertices
-    mins = verts.min(axis=0)
-    maxs = verts.max(axis=0)
-    return (mins.astype(float), maxs.astype(float),
-            ((mins + maxs) / 2.0).astype(float), int(verts.shape[0]))
-
-
-def _read_ct_world_bbox(volume_path: Path):
-    """Return (min_xyz, max_xyz, centroid_xyz) as numpy arrays."""
-    import SimpleITK as sitk
-    import numpy as np
-    img = sitk.ReadImage(str(volume_path))
-    size = img.GetSize()
-    corners = []
-    for i in (0, size[0] - 1):
-        for j in (0, size[1] - 1):
-            for k in (0, size[2] - 1):
-                corners.append(img.TransformIndexToPhysicalPoint((i, j, k)))
-    arr = np.array(corners)
-    return arr.min(axis=0), arr.max(axis=0), (arr.min(axis=0) + arr.max(axis=0)) / 2.0
-
-
 def _align_mesh_to_volume(mesh_path: Path, volume_path: Path,
                           out_path: Path, method: str = "centroid") -> dict:
-    """Apply a coordinate transform to ``mesh_path`` so it overlaps ``volume_path``.
+    """Translate ``mesh_path`` into ``volume_path``'s world frame.
 
-    Many MorphoSource derivative-mesh projects (e.g. "Colors of Skull Anatomy",
-    project 000358382) ship .ply / .stl files in the modeller's local frame —
-    the mesh is centered at the origin of *its own* bbox instead of preserving
-    the CT scanner's world coordinates. Bare voxelization fails because the
-    mesh sits entirely outside the CT volume in world space.
+    Many MorphoSource derivative-mesh projects (e.g. 358382 "Colors of Skull
+    Anatomy") ship .ply / .stl files in the modeller's local frame — the
+    mesh is centered at its own bbox instead of the CT scanner's world
+    coordinates. Bare voxelization then fails because the mesh sits
+    entirely outside the CT volume.
 
-    This function detects that situation (mesh bbox has zero overlap with
-    CT bbox) and applies a corrective transform. Supported methods:
+    Methods:
+      - ``"centroid"`` : translate so bbox centroids coincide.
+      - ``"auto"``     : skip when bboxes already overlap by >50% of the
+                          smaller bbox; otherwise apply ``centroid``.
 
-    - ``"centroid"`` : translate the mesh so its bbox centroid coincides
-      with the CT bbox centroid. Cheap, works whenever the mesh and CT
-      represent the same object at the same scale/orientation.
-    - ``"auto"``     : pass-through when bboxes already overlap by >50%
-      of the smaller bbox volume; otherwise fall through to ``centroid``.
-
-    Returns a dict with ``method``, ``applied`` (bool), ``translation`` (mm),
-    ``mesh_bbox_before/after``, ``ct_bbox``, ``output_path``.
+    Runs as a subprocess into the nnInteractive venv (needs vtk + SimpleITK
+    + numpy, which the system python on the runner does not have).
     """
-    import numpy as np
-    import vtk
-
+    if not NNI_PYTHON.exists():
+        return {"error": f"nnInteractive venv missing at {NNI_PYTHON}"}
     out_path.parent.mkdir(parents=True, exist_ok=True)
-
-    m_min, m_max, m_center, n_pts = _read_mesh_world_bbox(mesh_path)
-    c_min, c_max, c_center = _read_ct_world_bbox(volume_path)
-
-    # Overlap test (axis-aligned bbox intersection volume / min volume)
-    inter_min = np.maximum(m_min, c_min)
-    inter_max = np.minimum(m_max, c_max)
-    inter_size = np.maximum(inter_max - inter_min, 0.0)
-    inter_vol = float(inter_size.prod())
-    mesh_vol = float((m_max - m_min).prod())
-    ct_vol = float((c_max - c_min).prod())
-    overlap_frac = inter_vol / max(min(mesh_vol, ct_vol), 1e-9)
-
-    summary = {
-        "method": method,
-        "applied": False,
-        "ct_bbox": {"min": c_min.tolist(), "max": c_max.tolist(),
-                     "center": c_center.tolist()},
-        "mesh_bbox_before": {"min": m_min.tolist(), "max": m_max.tolist(),
-                              "center": m_center.tolist()},
-        "overlap_frac_before": overlap_frac,
-        "mesh_n_points": n_pts,
-        "output_path": str(out_path),
-    }
-
-    if method == "auto" and overlap_frac > 0.5:
-        log.info("Mesh already overlaps CT (frac=%.2f); skipping alignment",
-                 overlap_frac)
-        # Pass-through: copy original mesh to out_path so callers can always
-        # use out_path uniformly.
-        import shutil
-        shutil.copy2(mesh_path, out_path)
-        return summary
-
-    effective = "centroid" if method in {"centroid", "auto"} else method
-    if effective != "centroid":
-        return {**summary, "error": f"unknown alignment method: {method}"}
-
-    translation = (c_center - m_center).astype(float)
-    log.info("Aligning mesh %s -> %s by centroid translation %s",
-             mesh_path.name, out_path.name, translation.tolist())
-
-    # Apply VTK transform and write
-    suffix = mesh_path.suffix.lower()
-    if suffix == ".ply":
-        reader = vtk.vtkPLYReader()
-    elif suffix == ".stl":
-        reader = vtk.vtkSTLReader()
-    elif suffix == ".obj":
-        reader = vtk.vtkOBJReader()
-    else:
-        return {**summary, "error": f"unsupported mesh format for alignment: {suffix}"}
-    reader.SetFileName(str(mesh_path))
-    reader.Update()
-
-    tf = vtk.vtkTransform()
-    tf.Translate(float(translation[0]), float(translation[1]),
-                 float(translation[2]))
-    tff = vtk.vtkTransformPolyDataFilter()
-    tff.SetTransform(tf)
-    tff.SetInputData(reader.GetOutput())
-    tff.Update()
-
-    out_suffix = out_path.suffix.lower()
-    if out_suffix == ".ply":
-        writer = vtk.vtkPLYWriter()
-        writer.SetFileTypeToBinary()
-    else:
-        writer = vtk.vtkSTLWriter()
-        writer.SetFileTypeToBinary()
-    writer.SetFileName(str(out_path))
-    writer.SetInputData(tff.GetOutput())
-    writer.Write()
-
-    poly = tff.GetOutput()
-    b = poly.GetBounds()
-    after_min = np.array([b[0], b[2], b[4]])
-    after_max = np.array([b[1], b[3], b[5]])
-    summary["applied"] = True
-    summary["translation"] = translation.tolist()
-    summary["mesh_bbox_after"] = {
-        "min": after_min.tolist(), "max": after_max.tolist(),
-        "center": ((after_min + after_max) / 2.0).tolist(),
-    }
-    new_inter_min = np.maximum(after_min, c_min)
-    new_inter_max = np.minimum(after_max, c_max)
-    new_inter_vol = float(np.maximum(new_inter_max - new_inter_min, 0.0).prod())
-    new_mesh_vol = float((after_max - after_min).prod())
-    summary["overlap_frac_after"] = (
-        new_inter_vol / max(min(new_mesh_vol, ct_vol), 1e-9)
-    )
-    log.info("After alignment: overlap_frac=%.3f mesh_bbox=%s..%s",
-             summary["overlap_frac_after"],
-             after_min.tolist(), after_max.tolist())
-    return summary
+    summary_path = out_path.with_suffix("").with_suffix(".align.json")
+    cmd = [
+        str(NNI_PYTHON),
+        str(SCRIPT_DIR / "align_mesh_to_volume.py"),
+        "--reference-volume", str(volume_path),
+        "--mesh", str(mesh_path),
+        "--output", str(out_path),
+        "--method", method,
+        "--summary", str(summary_path),
+    ]
+    log.info("Aligning mesh to CT frame (method=%s)", method)
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    except subprocess.TimeoutExpired:
+        return {"error": "mesh alignment timed out"}
+    if proc.stdout:
+        for line in proc.stdout.strip().split("\n")[-10:]:
+            log.info("  align: %s", line)
+    if proc.returncode != 0:
+        return {"error": f"alignment exit {proc.returncode}",
+                "stderr_tail": (proc.stderr or "")[-400:]}
+    if summary_path.exists():
+        try:
+            return json.loads(summary_path.read_text())
+        except json.JSONDecodeError:
+            pass
+    return {"output_path": str(out_path)} if out_path.exists() \
+        else {"error": "alignment produced no output"}
 
 
 def _resample_cap_axis(ct_path: Path, gt_path: Path,
                        max_axis: int) -> Optional[dict]:
     """Resample ``ct_path`` and ``gt_path`` in place so no axis exceeds ``max_axis``.
 
-    Adapted from ``eval_project358382_pilot._resample_cap_axis``. Used to keep
-    fixture sizes manageable when running the full-skull batch of project 358382
-    specimens — a 50 mm skull at 0.05 mm spacing would otherwise produce a
-    1200^3 cropped grid (~250 MB nii.gz per specimen).
+    Keeps fixture bundles manageable on whole-skull specimens. CT goes
+    through linear interpolation; GT labelmap goes nearest-neighbour.
 
-    The CT is resampled with linear interpolation; the GT labelmap with
-    nearest-neighbour to keep its binary value space exact. Both end up on
-    the same grid (origin/direction preserved, spacing scaled to compensate).
-    Returns a summary dict or ``None`` if the cap is disabled.
+    Runs as a subprocess into the nnInteractive venv (needs SimpleITK +
+    numpy, which the system python on the runner does not have).
     """
     if not max_axis or max_axis <= 0:
         return None
-    import SimpleITK as sitk
-    img = sitk.ReadImage(str(ct_path))
-    size = img.GetSize()
-    if max(size) <= max_axis:
-        log.info("Cropped CT %s: max axis %d <= cap %d (no resample)",
-                 ct_path.name, max(size), max_axis)
-        return {"resampled": False, "size_before": list(size),
-                "max_axis_cap": max_axis}
-
-    scale = max_axis / float(max(size))
-    new_size = [max(1, int(round(s * scale))) for s in size]
-    spacing = img.GetSpacing()
-    new_spacing = [
-        spacing[i] * (size[i] / float(new_size[i])) for i in range(3)
+    if not NNI_PYTHON.exists():
+        return {"error": f"nnInteractive venv missing at {NNI_PYTHON}"}
+    summary_path = ct_path.with_name(ct_path.name + ".resample.json")
+    cmd = [
+        str(NNI_PYTHON),
+        str(SCRIPT_DIR / "resample_volume_pair.py"),
+        "--ct", str(ct_path),
+        "--gt", str(gt_path),
+        "--max-axis", str(int(max_axis)),
+        "--summary", str(summary_path),
     ]
-    log.info("Resampling CT %s: %s spacing=%s -> %s spacing=%s "
-             "(cap=%d, scale=%.3f)",
-             ct_path.name, list(size), [round(s, 5) for s in spacing],
-             new_size, [round(s, 5) for s in new_spacing],
-             max_axis, scale)
-
-    def _resample(src, interp):
-        ref = sitk.Image(new_size, src.GetPixelID())
-        ref.SetSpacing(new_spacing)
-        ref.SetOrigin(src.GetOrigin())
-        ref.SetDirection(src.GetDirection())
-        return sitk.Resample(src, ref, sitk.Transform(), interp,
-                             0, src.GetPixelID())
-
-    ct_new = _resample(img, sitk.sitkLinear)
-    sitk.WriteImage(ct_new, str(ct_path))
-    log.info("  wrote %s (%d bytes)", ct_path.name, ct_path.stat().st_size)
-
-    gt = sitk.ReadImage(str(gt_path))
-    gt_new = _resample(gt, sitk.sitkNearestNeighbor)
-    sitk.WriteImage(gt_new, str(gt_path))
-    log.info("  wrote %s (%d bytes)", gt_path.name, gt_path.stat().st_size)
-
-    return {
-        "resampled": True,
-        "size_before": list(size),
-        "size_after": list(new_size),
-        "spacing_before": [float(s) for s in spacing],
-        "spacing_after": [float(s) for s in new_spacing],
-        "max_axis_cap": max_axis,
-        "scale": scale,
-    }
+    log.info("Resampling (CT, GT) pair to max_axis=%d", max_axis)
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+    except subprocess.TimeoutExpired:
+        return {"error": "resample timed out"}
+    if proc.stdout:
+        for line in proc.stdout.strip().split("\n")[-10:]:
+            log.info("  resample: %s", line)
+    if proc.returncode != 0:
+        return {"error": f"resample exit {proc.returncode}",
+                "stderr_tail": (proc.stderr or "")[-400:]}
+    if summary_path.exists():
+        try:
+            return json.loads(summary_path.read_text())
+        except json.JSONDecodeError:
+            pass
+    return {"resampled": True, "max_axis_cap": max_axis,
+            "ct_path": str(ct_path), "gt_path": str(gt_path)}
 
 
 def run_comparison(ct_media_id: str, gt_media_id: str, goal: str,
