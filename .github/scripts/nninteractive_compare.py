@@ -170,7 +170,7 @@ def _find_mesh(directory: Path) -> Optional[FilePick]:
     return matches[0] if matches else None
 
 
-def _download(media_id: str, dest: Path, *, max_retries: int = 3) -> dict:
+def _download(media_id: str, dest: Path, *, max_retries: int = 5) -> dict:
     """Fetch a MorphoSource media bundle, skipping the network if already
     cached. A cache hit requires both the original .zip and at least one
     sibling extracted directory (the marker that ``extract_archives`` was
@@ -230,7 +230,11 @@ def _download(media_id: str, dest: Path, *, max_retries: int = 3) -> dict:
                     p.unlink()
                 except OSError:
                     pass
-            backoff_s = 5 * (2 ** (attempt - 1))  # 5s, 10s, 20s
+            # 5s, 15s, 45s, 135s - capped at 300s. Total budget across 5
+            # attempts is up to ~7 min, which is enough to ride out the
+            # short MorphoSource S3 outages we saw on 2026-05-25 (3-attempt
+            # / 35s budget was burning runs in <1 min).
+            backoff_s = min(300, 5 * (3 ** (attempt - 1)))
             log.warning("Transient download error for %s: %s. "
                         "Retrying in %d s (%d/%d).",
                         media_id, last_err, backoff_s,

@@ -90,8 +90,11 @@ class DownloadRetryTests(unittest.TestCase):
         self.assertTrue(res["success"], res)
         self.assertEqual(len(calls), 3,
                          f"Expected 3 attempts, got {len(calls)}")
-        # Exponential backoff: 5s, 10s
-        self.assertEqual(slept, [5, 10])
+        # Exponential backoff: 5s, 15s (3x ratio, capped at 300s).
+        # Bumped from 5/10/20 after Felis v8 (run 26384239367/...278910)
+        # showed MorphoSource S3 outages can last >1 min and we were
+        # giving up too fast.
+        self.assertEqual(slept, [5, 15])
 
     # --- Give up after max_retries -----------------------------------
     def test_gives_up_after_max_retries(self):
@@ -147,6 +150,32 @@ class DownloadRetryTests(unittest.TestCase):
         self.assertEqual(remaining, [],
                          f"Partial zips should be cleaned between attempts; "
                          f"found: {remaining}")
+
+    def test_default_max_retries_is_five(self):
+        """The default ``max_retries=5`` gives a ~7-min retry budget,
+        enough to ride out the short MorphoSource S3 outages we saw on
+        2026-05-25."""
+        import nninteractive_compare as mod
+        import inspect
+        sig = inspect.signature(mod._download)
+        self.assertEqual(sig.parameters["max_retries"].default, 5)
+
+    def test_backoff_sequence_caps_at_300(self):
+        """Backoff sequence should be [5, 15, 45, 135] for 5 attempts -
+        and capped at 300s if we ever bump the retry count further."""
+        transient = {"success": False, "media_id": "000048796",
+                     "error": "Connection broken: IncompleteRead"}
+        ok = {"success": True, "media_id": "000048796",
+              "downloaded_file": "x.zip", "file_size": 100}
+        slept = []
+        res, calls = _run_download(
+            "000048796", self.tmp, max_retries=5,
+            side_effects=[transient, transient, transient, transient, ok],
+            sleep_fn=lambda s: slept.append(s),
+        )
+        self.assertTrue(res["success"])
+        self.assertEqual(len(calls), 5)
+        self.assertEqual(slept, [5, 15, 45, 135])
 
     # --- Cache hit short-circuits the whole thing --------------------
     def test_cache_hit_skips_network(self):
