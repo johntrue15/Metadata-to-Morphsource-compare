@@ -631,6 +631,78 @@ def _get_gt_bbox(labelmap: Path) -> Optional[dict]:
     return None
 
 
+def _get_gt_intensity_window(
+    ct: Path,
+    gt: Path,
+    *,
+    lo_pct: float = 5.0,
+    hi_pct: float = 99.5,
+) -> Optional[tuple[float, float]]:
+    """Return a (vmin, vmax) bone-window derived from the CT intensities
+    that fall inside the GT mask.
+
+    Bright-seed's percentile-based candidate selector keeps clicking
+    "the brightest N% of the whole volume", which on uint16 micro-CTs
+    routinely picks scan artifacts (intensity 20k+) instead of the
+    actual bone (~13k). The local chameleon-stapes smoke test went from
+    dice 0.0 (artifacts) to dice 0.42 once we clipped candidates to the
+    GT-derived bone window. This helper computes that window per
+    specimen so the orchestrator can pass it straight to bright-seed
+    without anyone hand-tuning it.
+
+    Uses the nnInteractive venv subprocess (matches our other GT helpers
+    here) so the orchestrator's Python doesn't need SimpleITK.
+    Returns ``None`` if either file is missing or the GT mask is empty;
+    callers treat that as "let bright-seed use its own auto-detection".
+    """
+    if not NNI_PYTHON.exists() or not ct.exists() or not gt.exists():
+        return None
+    script = (
+        "import sys, json, SimpleITK as sitk, numpy as np\n"
+        "ct_arr = sitk.GetArrayFromImage(sitk.ReadImage(sys.argv[1]))\n"
+        "gt_arr = sitk.GetArrayFromImage(sitk.ReadImage(sys.argv[2]))\n"
+        "lo_pct = float(sys.argv[3]); hi_pct = float(sys.argv[4])\n"
+        "vals = ct_arr[gt_arr > 0]\n"
+        "if vals.size == 0:\n"
+        "    print('null'); sys.exit(0)\n"
+        "lo = float(np.percentile(vals, lo_pct))\n"
+        "hi = float(np.percentile(vals, hi_pct))\n"
+        "print(json.dumps([lo, hi]))\n"
+    )
+    try:
+        proc = subprocess.run(
+            [str(NNI_PYTHON), "-c", script, str(ct), str(gt),
+             f"{lo_pct:.3f}", f"{hi_pct:.3f}"],
+            capture_output=True, text=True, timeout=120,
+        )
+        if proc.returncode == 0 and proc.stdout.strip():
+            data = json.loads(proc.stdout.strip())
+            if isinstance(data, list) and len(data) == 2:
+                return (float(data[0]), float(data[1]))
+    except (subprocess.SubprocessError, OSError, ValueError,
+            json.JSONDecodeError) as exc:
+        log.debug("_get_gt_intensity_window failed: %s", exc)
+    return None
+
+
+def _bbox_to_kji_region(bbox_xyz: Optional[dict]) -> Optional[dict]:
+    """Translate the orchestrator's GT bbox (x, y, z order) into the
+    numpy (k=z, j=y, i=x) region dict bright-seed's
+    ``--region-bbox`` expects. Returning ``None`` from a ``None`` input
+    is the contract callers rely on - it lets the bright-seed runner
+    pass no region constraint when we don't have one."""
+    if not bbox_xyz:
+        return None
+    try:
+        return {
+            "k": [int(bbox_xyz["z"][0]), int(bbox_xyz["z"][1])],
+            "j": [int(bbox_xyz["y"][0]), int(bbox_xyz["y"][1])],
+            "i": [int(bbox_xyz["x"][0]), int(bbox_xyz["x"][1])],
+        }
+    except (KeyError, IndexError, TypeError, ValueError):
+        return None
+
+
 def _get_gt_seed_points(labelmap: Path, n: int = 5) -> list[list[int]]:
     """Sample ``n`` voxel coordinates that are guaranteed to be inside the
     GT target.
@@ -860,6 +932,158 @@ def _run_paint_loop(input_volume: Path, goal: str, output_dir: Path,
             "stdout_tail": (proc.stdout or "")[-400:]}
 
 
+# ---------------------------------------------------------------------------
+# Bright-seed paint loop (deterministic, no LLM)
+# ---------------------------------------------------------------------------
+
+
+def _run_bright_seed_loop(
+    input_volume: Path,
+    output_dir: Path,
+    media_id: str,
+    *,
+    max_steps: int = 12,
+    percentile: float = 99.0,
+    max_candidates: int = 200_000,
+    min_delta: int = 50,
+    patience: int = 3,
+    max_explosion_frac: float = 0.5,
+    no_stop_rules: bool = False,
+    intensity_min: Optional[float] = None,
+    intensity_max: Optional[float] = None,
+    region_bbox_kji: Optional[dict] = None,
+    enable_autozoom: bool = False,
+) -> dict:
+    """Run ``nninteractive_bright_seed.py`` and return a dict shaped like
+    ``_run_paint_loop``'s return value.
+
+    Bright-seed exists because the LLM-driven paint loop keeps failing on
+    thin cortical bone (Felis catus, Crotalus intermedius) and on the
+    rest of the colors-of-skull batch in similar ways. The mouse-skull
+    session in ``paper_artifacts/mouse_skull_session_001/`` proved the
+    deterministic bright-voxel greedy strategy is good enough by itself;
+    this runner makes that strategy available to ``run_comparison`` via
+    ``--paint-mode bright_seed``.
+
+    Output contract matches the LLM path so downstream code (metrics,
+    overlay, report, fixture export) needs no branching: the labelmap
+    lands at ``<output_dir>/<media_id>_nni_labelmap.nii.gz`` and the
+    returned dict has ``labelmap_path`` + ``voxel_count`` +
+    ``volume_mm3`` + ``stop_reason``.
+    """
+    if not NNI_PYTHON.exists():
+        return {
+            "error": (
+                f"nnInteractive venv not found at {NNI_PYTHON}. "
+                "Bootstrap it once with "
+                "`.github/scripts/install_nninteractive.sh`."
+            ),
+        }
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        str(NNI_PYTHON),
+        str(SCRIPT_DIR / "nninteractive_bright_seed.py"),
+        "--input", str(input_volume),
+        "--output-dir", str(output_dir),
+        "--media-id", media_id,
+        "--intensity-percentile", f"{float(percentile):.3f}",
+        "--max-candidates", str(int(max_candidates)),
+        "--max-steps", str(int(max_steps)),
+        "--min-delta", str(int(min_delta)),
+        "--patience", str(int(patience)),
+        "--max-explosion-frac", f"{float(max_explosion_frac):.3f}",
+    ]
+    if no_stop_rules:
+        cmd.append("--no-stop-rules")
+    if intensity_min is not None:
+        cmd += ["--intensity-min", f"{float(intensity_min):.3f}"]
+    if intensity_max is not None:
+        cmd += ["--intensity-max", f"{float(intensity_max):.3f}"]
+    if region_bbox_kji:
+        cmd += ["--region-bbox", json.dumps(region_bbox_kji)]
+    if enable_autozoom:
+        cmd.append("--enable-autozoom")
+
+    log.info("Running bright-seed paint loop (max_steps=%d, percentile=%.2f)",
+             max_steps, percentile)
+    if intensity_min is not None or intensity_max is not None:
+        log.info("  bone window: vmin=%s vmax=%s",
+                 f"{intensity_min:.1f}" if intensity_min is not None else "n/a",
+                 f"{intensity_max:.1f}" if intensity_max is not None else "n/a")
+    if region_bbox_kji:
+        log.info("  region bbox (k,j,i): %s", json.dumps(region_bbox_kji))
+
+    env = os.environ.copy()
+    env.setdefault("NNINTERACTIVE_HOME", str(NNI_HOME))
+    env.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
+    for var in ("OMP_NUM_THREADS", "MKL_NUM_THREADS",
+                "OPENBLAS_NUM_THREADS", "VECLIB_MAXIMUM_THREADS",
+                "NUMEXPR_NUM_THREADS", "NNINTERACTIVE_TORCH_THREADS"):
+        env.setdefault(var, "1")
+
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True,
+                              timeout=3600, env=env)
+    except subprocess.TimeoutExpired:
+        return {"error": "Bright-seed paint loop timed out (1h)"}
+    except Exception as exc:
+        return {"error": f"Bright-seed subprocess failed: {exc}"}
+
+    log.info("Bright-seed exit code: %d", proc.returncode)
+    if proc.stdout:
+        for line in proc.stdout.strip().split("\n")[-20:]:
+            log.info("  bright-seed: %s", line)
+    if proc.stderr:
+        for line in (proc.stderr[-4000:]).strip().split("\n")[-50:]:
+            log.info("  bright-seed[err]: %s", line)
+
+    # The bright-seed script writes:
+    #   - <media_id>_nni_labelmap.nii.gz  (same name as the LLM path)
+    #   - <media_id>_nni_summary.json     (full Segmenter summary)
+    #   - <media_id>_bright_summary.json  (bright-seed-specific summary)
+    # We prefer the bright-seed summary if present (it has the click trail
+    # and stop_reason); fall back to the generic Segmenter summary.
+    labelmap_file = output_dir / f"{media_id}_nni_labelmap.nii.gz"
+    bright_summary = output_dir / f"{media_id}_bright_summary.json"
+    nni_summary = output_dir / f"{media_id}_nni_summary.json"
+
+    summary_payload: Optional[dict] = None
+    for candidate in (bright_summary, nni_summary):
+        if candidate.exists():
+            try:
+                summary_payload = json.loads(candidate.read_text())
+                break
+            except json.JSONDecodeError:
+                continue
+
+    if summary_payload is None and labelmap_file.exists():
+        # Subprocess died but we have a labelmap on disk (mirrors the LLM
+        # path's crash-recovery behaviour). Synthesize a minimal summary.
+        summary_payload = {
+            "media_id": media_id,
+            "labelmap_path": str(labelmap_file),
+            "mode": "bright_seed",
+            "recovered_from_crash": True,
+            "paint_loop_exit_code": proc.returncode,
+            "stdout_tail": (proc.stdout or "")[-400:],
+            "stderr_tail": (proc.stderr or "")[-400:],
+        }
+
+    if summary_payload is None:
+        return {
+            "error": "No bright-seed summary or labelmap produced",
+            "stdout_tail": (proc.stdout or "")[-400:],
+            "stderr_tail": (proc.stderr or "")[-400:],
+            "paint_loop_exit_code": proc.returncode,
+        }
+
+    summary_payload.setdefault("labelmap_path", str(labelmap_file))
+    summary_payload.setdefault("media_id", media_id)
+    summary_payload.setdefault("mode", "bright_seed")
+    return summary_payload
+
+
 def _compute_metrics(prediction: Path, ground_truth: Path,
                      volume: Path, overlay_path: Path,
                      metrics_path: Path) -> dict:
@@ -1008,7 +1232,11 @@ def run_comparison(ct_media_id: str, gt_media_id: str, goal: str,
                    max_voxel_axis: int = 0,
                    align_mesh_to_ct: str = "",
                    skip_paint_loop: bool = False,
-                   export_fixture_dir: Optional[Path] = None) -> dict:
+                   export_fixture_dir: Optional[Path] = None,
+                   paint_mode: str = "llm",
+                   bright_seed_percentile: float = 99.0,
+                   bright_seed_max_candidates: int = 200_000,
+                   bright_seed_no_stop_rules: bool = False) -> dict:
     """End-to-end comparison.
 
     voxelize_backend  "auto" | "slicer" | "vtk"   (auto = Slicer first, VTK fallback)
@@ -1032,6 +1260,19 @@ def run_comparison(ct_media_id: str, gt_media_id: str, goal: str,
                         ran) into this directory. This is the "cached file"
                         path that lets PR-level CI smoke-test the comparison
                         pipeline in <2 min on a hosted runner.
+    paint_mode          "llm" (default) | "bright_seed". The LLM path runs
+                        ``nninteractive_loop.py``; bright_seed runs the
+                        deterministic ``nninteractive_bright_seed.py``
+                        (no OpenAI calls, no spatial-reasoning bugs - the
+                        same algorithm that produced the mouse-skull 80
+                        segments in 113 clicks). Both modes share the
+                        same fixture-export / metrics / overlay path.
+    bright_seed_percentile        intensity percentile that becomes the
+                                  candidate threshold (default 99.0 = top 1%).
+    bright_seed_max_candidates    cap on the sorted candidate list (default
+                                  200k - tested limit for skull-sized CTs).
+    bright_seed_no_stop_rules     run to saturation / max_steps; otherwise
+                                  the patience + explosion guards apply.
     """
     t0 = time.time()
     pair_dir = output_dir / f"{ct_media_id}__vs__{gt_media_id}"
@@ -1207,13 +1448,55 @@ def run_comparison(ct_media_id: str, gt_media_id: str, goal: str,
     # interpreted unambiguously by nnInteractive.
     gt_seed_points = _get_gt_seed_points(gt_labelmap, n=5)
     nni_dir = pair_dir / "nninteractive"
-    nni_result = _run_paint_loop(
-        cropped_ct, goal, nni_dir, ct_media_id, max_steps,
-        expected_voxels=gt_voxels,
-        expected_volume_mm3=gt_volume_mm3,
-        expected_bbox=gt_bbox,
-        expected_seed_points=gt_seed_points,
-    )
+    paint_mode_norm = (paint_mode or "llm").strip().lower()
+    if paint_mode_norm not in {"llm", "bright_seed"}:
+        return {
+            "success": False,
+            "stage": "paint_loop",
+            "error": (
+                f"Unknown paint_mode={paint_mode!r}; "
+                "expected 'llm' or 'bright_seed'."
+            ),
+        }
+    if paint_mode_norm == "bright_seed":
+        # GT-derived bone window: the percentile-only candidate selector
+        # picks artifacts on uint16 micro-CTs (chameleon stapes went from
+        # dice 0.0 to 0.42 once we clipped by the GT-derived window).
+        intensity_window = _get_gt_intensity_window(cropped_ct, gt_labelmap)
+        intensity_min = intensity_window[0] if intensity_window else None
+        intensity_max = intensity_window[1] if intensity_window else None
+        # GT bbox restricts candidates to the right region of the volume
+        # so bright non-target structures (teeth, edge artifacts outside
+        # the cranium) don't dominate the candidate list.
+        region_bbox_kji = _bbox_to_kji_region(gt_bbox)
+        log.info(
+            "Paint mode: bright_seed (percentile=%.2f, max_candidates=%d, "
+            "intensity_min=%s, intensity_max=%s, region_bbox=%s, "
+            "no_stop_rules=%s)",
+            bright_seed_percentile, bright_seed_max_candidates,
+            f"{intensity_min:.1f}" if intensity_min is not None else "auto",
+            f"{intensity_max:.1f}" if intensity_max is not None else "auto",
+            "yes" if region_bbox_kji else "no",
+            bright_seed_no_stop_rules,
+        )
+        nni_result = _run_bright_seed_loop(
+            cropped_ct, nni_dir, ct_media_id,
+            max_steps=max_steps,
+            percentile=bright_seed_percentile,
+            max_candidates=bright_seed_max_candidates,
+            no_stop_rules=bright_seed_no_stop_rules,
+            intensity_min=intensity_min,
+            intensity_max=intensity_max,
+            region_bbox_kji=region_bbox_kji,
+        )
+    else:
+        nni_result = _run_paint_loop(
+            cropped_ct, goal, nni_dir, ct_media_id, max_steps,
+            expected_voxels=gt_voxels,
+            expected_volume_mm3=gt_volume_mm3,
+            expected_bbox=gt_bbox,
+            expected_seed_points=gt_seed_points,
+        )
     if "error" in nni_result:
         return {"success": False, "stage": "paint_loop", "result": nni_result}
     pred_labelmap = Path(nni_result.get("labelmap_path", ""))
@@ -1344,7 +1627,11 @@ def run_comparison_from_fixture(fixture_dir: Path, output_dir: Path,
                                 pred_labelmap: Optional[Path] = None,
                                 goal: Optional[str] = None,
                                 max_steps: Optional[int] = None,
-                                skip_paint_loop: bool = False) -> dict:
+                                skip_paint_loop: bool = False,
+                                paint_mode: str = "llm",
+                                bright_seed_percentile: float = 99.0,
+                                bright_seed_max_candidates: int = 200_000,
+                                bright_seed_no_stop_rules: bool = False) -> dict:
     """Run the comparison using a pre-computed fixture.
 
     Skips download, TIFF→NIfTI, crop, and voxelize. The fixture directory
@@ -1353,6 +1640,13 @@ def run_comparison_from_fixture(fixture_dir: Path, output_dir: Path,
     ``pred.nii.gz`` exists in the fixture dir), the paint loop is also
     skipped and only metrics + overlay + report are produced — the cheap
     no-GPU no-OpenAI smoke path.
+
+    ``paint_mode`` (and the related ``bright_seed_*`` knobs) work
+    identically to ``run_comparison``: ``llm`` runs the original LLM
+    paint loop, ``bright_seed`` runs the deterministic bright-voxel
+    greedy algorithm. The GT-derived bone window / region bbox are
+    computed from the fixture's ``gt_voxelized.nii.gz`` just like the
+    download path does on the cropped GT labelmap.
     """
     t0 = time.time()
     fixture_dir = Path(fixture_dir)
@@ -1421,8 +1715,37 @@ def run_comparison_from_fixture(fixture_dir: Path, output_dir: Path,
         }
     else:
         nni_dir = pair_dir / "nninteractive"
-        nni_result = _run_paint_loop(ct_path, fixture_goal, nni_dir,
-                                     ct_media_id, fixture_max_steps)
+        paint_mode_norm = (paint_mode or "llm").strip().lower()
+        if paint_mode_norm not in {"llm", "bright_seed"}:
+            return {"success": False, "stage": "paint_loop",
+                    "from_fixture": True,
+                    "error": (f"Unknown paint_mode={paint_mode!r}; "
+                              "expected 'llm' or 'bright_seed'.")}
+        if paint_mode_norm == "bright_seed":
+            intensity_window = _get_gt_intensity_window(ct_path, gt_labelmap)
+            intensity_min = intensity_window[0] if intensity_window else None
+            intensity_max = intensity_window[1] if intensity_window else None
+            region_bbox_kji = _bbox_to_kji_region(_get_gt_bbox(gt_labelmap))
+            log.info(
+                "Fixture paint mode: bright_seed (intensity_min=%s, "
+                "intensity_max=%s, region_bbox=%s)",
+                f"{intensity_min:.1f}" if intensity_min is not None else "auto",
+                f"{intensity_max:.1f}" if intensity_max is not None else "auto",
+                "yes" if region_bbox_kji else "no",
+            )
+            nni_result = _run_bright_seed_loop(
+                ct_path, nni_dir, ct_media_id,
+                max_steps=fixture_max_steps,
+                percentile=bright_seed_percentile,
+                max_candidates=bright_seed_max_candidates,
+                no_stop_rules=bright_seed_no_stop_rules,
+                intensity_min=intensity_min,
+                intensity_max=intensity_max,
+                region_bbox_kji=region_bbox_kji,
+            )
+        else:
+            nni_result = _run_paint_loop(ct_path, fixture_goal, nni_dir,
+                                         ct_media_id, fixture_max_steps)
         if "error" in nni_result:
             return {"success": False, "stage": "paint_loop",
                     "result": nni_result, "from_fixture": True}
@@ -1825,6 +2148,27 @@ def _parse_args():
     p.add_argument("--regression-tol", type=float, default=0.01,
                    help="Allowed absolute dice/iou regression vs "
                         "--baseline-metrics (default: 0.01)")
+    p.add_argument("--paint-mode", default="llm",
+                   choices=["llm", "bright_seed"],
+                   help="Paint-loop strategy. 'llm' (default) drives the "
+                        "iterative GPT vision/text loop. 'bright_seed' runs "
+                        "the deterministic bright-voxel greedy algorithm "
+                        "(no OpenAI calls). The bright-seed path is much "
+                        "cheaper and handles thin-cortical-bone CTs (Felis, "
+                        "Crotalus) and bright micro-CT bones better than "
+                        "the LLM path. Both modes share the same fixture / "
+                        "metrics / overlay outputs.")
+    p.add_argument("--bright-seed-percentile", type=float, default=99.0,
+                   help="Intensity percentile that becomes the candidate "
+                        "threshold for --paint-mode bright_seed "
+                        "(default 99.0 = top 1%% of voxels).")
+    p.add_argument("--bright-seed-max-candidates", type=int, default=200_000,
+                   help="Cap on the sorted candidate list "
+                        "(default 200k - tested on skull-sized CTs).")
+    p.add_argument("--bright-seed-no-stop-rules", action="store_true",
+                   help="Disable bright-seed's saturation + explosion "
+                        "guards so it runs to max_steps. Matches the "
+                        "mouse-skull session's behaviour.")
     return p.parse_args()
 
 
@@ -1870,6 +2214,10 @@ def main() -> int:
             goal=args.goal.strip() or None,
             max_steps=args.max_steps if args.max_steps != 12 else None,
             skip_paint_loop=args.skip_paint_loop,
+            paint_mode=args.paint_mode,
+            bright_seed_percentile=args.bright_seed_percentile,
+            bright_seed_max_candidates=args.bright_seed_max_candidates,
+            bright_seed_no_stop_rules=args.bright_seed_no_stop_rules,
         )
         print(json.dumps({k: v for k, v in result.items() if k != "metrics"},
                          indent=2, default=str))
@@ -1942,6 +2290,10 @@ def main() -> int:
         skip_paint_loop=args.skip_paint_loop,
         export_fixture_dir=(Path(args.export_fixture_dir)
                             if args.export_fixture_dir else None),
+        paint_mode=args.paint_mode,
+        bright_seed_percentile=args.bright_seed_percentile,
+        bright_seed_max_candidates=args.bright_seed_max_candidates,
+        bright_seed_no_stop_rules=args.bright_seed_no_stop_rules,
     )
     print(json.dumps({k: v for k, v in result.items() if k != "metrics"},
                      indent=2, default=str))

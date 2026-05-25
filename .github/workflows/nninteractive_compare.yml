@@ -80,6 +80,22 @@ on:
         type: choice
         options: ['', 'centroid', 'auto']
         default: ''
+      paint_mode:
+        description: 'Paint-loop strategy. "llm" = iterative GPT vision/text loop (default). "bright_seed" = deterministic bright-voxel greedy algorithm (no OpenAI cost; handles thin-cortical-bone CTs the LLM fails on).'
+        required: false
+        type: choice
+        options: ['llm', 'bright_seed']
+        default: 'llm'
+      bright_seed_percentile:
+        description: 'Intensity percentile threshold for --paint-mode bright_seed (default 99 = top 1% of voxels).'
+        required: false
+        type: number
+        default: 99
+      bright_seed_no_stop_rules:
+        description: 'Disable bright-seed saturation + explosion guards so it runs to max_steps. Matches the mouse-skull session.'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   compare:
@@ -181,6 +197,14 @@ jobs:
           fi
           if [ -n "${{ inputs.align_mesh_to_ct }}" ]; then
             ARGS+=(--align-mesh-to-ct "${{ inputs.align_mesh_to_ct }}")
+          fi
+          PAINT_MODE="${{ inputs.paint_mode || 'llm' }}"
+          ARGS+=(--paint-mode "$PAINT_MODE")
+          if [ "$PAINT_MODE" = "bright_seed" ]; then
+            ARGS+=(--bright-seed-percentile "${{ inputs.bright_seed_percentile || 99 }}")
+            if [ "${{ inputs.bright_seed_no_stop_rules }}" = "true" ]; then
+              ARGS+=(--bright-seed-no-stop-rules)
+            fi
           fi
           ARGS+=(--output-dir /tmp/nni_compare)
           ARGS+=(--export-fixture-dir /tmp/nni_compare_fixtures)
