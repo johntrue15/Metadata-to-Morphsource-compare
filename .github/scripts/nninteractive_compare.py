@@ -714,8 +714,17 @@ def _run_paint_loop(input_volume: Path, goal: str, output_dir: Path,
     if proc.stdout:
         for line in proc.stdout.strip().split("\n")[-10:]:
             log.info("  loop: %s", line)
-    if proc.returncode != 0 and proc.stderr:
-        log.warning("loop stderr: %s", proc.stderr[-500:])
+    # Always log loop stderr - the paint loop's own logger writes there.
+    # Without this the orchestrator log misses crucial signals like LLM
+    # API failures, RESET vetoes, and budget guidance (Felis v7 wasted
+    # a 20 min run because the empty-LLM-response failure was invisible
+    # in the orchestrator log).
+    if proc.stderr:
+        # Trim huge stderr from crashed runs (CUDA stack traces can be
+        # >50 KB); keep the last ~2 KB which has the action signal.
+        tail = proc.stderr[-2000:]
+        for line in tail.strip().split("\n")[-40:]:
+            log.info("  loop[err]: %s", line)
 
     summary_file = output_dir / f"{media_id}_nni_summary.json"
     labelmap_file = output_dir / f"{media_id}_nni_labelmap.nii.gz"

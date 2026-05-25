@@ -414,9 +414,49 @@ def run_loop(input_path: str, goal: str, output_dir: str,
 
         log.info("Step %d/%d — asking LLM (%d voxels currently in mask)",
                  step, max_steps, seg.voxel_count())
-        text = _call_vision_llm(api_key, vision_model, SYSTEM_PROMPT,
-                                state_text, last_screens, max_tokens=800)
-        action = _parse_action(text or "")
+        # Retry transient LLM failures (empty content / unparseable JSON)
+        # up to 2 extra times. Felis v7 (run 26383719224) hit one empty
+        # response on step 1 and the old code interpreted that as DONE,
+        # terminating the loop with 0 prompts ever sent and dice=0.
+        # ``max_tokens`` bumped 800 -> 1500 to leave room for any chain-
+        # of-thought gpt-4o emits before the JSON action.
+        text = None
+        action: dict = {"tool": "DONE", "reason": "no LLM call attempted"}
+        for attempt in range(3):
+            text = _call_vision_llm(api_key, vision_model, SYSTEM_PROMPT,
+                                    state_text, last_screens,
+                                    max_tokens=1500)
+            action = _parse_action(text or "")
+            reason = (action.get("reason") or "").lower()
+            transient = reason.startswith("empty llm response") or \
+                reason.startswith("unparseable llm response")
+            if not transient:
+                break
+            log.warning(
+                "Step %d LLM call returned %s (attempt %d/3); "
+                "retrying after 5s.",
+                step, reason or "unknown", attempt + 1,
+            )
+            if attempt < 2:
+                time.sleep(5.0)
+        # If still transient-failed after the retries, SKIP this step
+        # (record it but don't break the loop) so the remaining budget
+        # can still be used productively.
+        reason = (action.get("reason") or "").lower()
+        if reason.startswith("empty llm response") \
+                or reason.startswith("unparseable llm response"):
+            log.warning("Step %d: LLM unreachable after 3 attempts; "
+                        "skipping rather than exiting the loop.", step)
+            history.append(StepRecord(
+                step=step, tool="LLM_SKIP", args=action,
+                result=f"skipped: {action.get('reason', '?')}",
+                voxel_count=seg.voxel_count(),
+            ))
+            # Re-render previews (no segmenter change) so the next step
+            # still has fresh image input. Skip the per-step checkpoint
+            # because nothing changed.
+            continue
+
         tool = action.get("tool", "DONE").upper()
         log.info("  Tool: %s — %s", tool, action.get("reason", "")[:120])
 
