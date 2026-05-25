@@ -718,11 +718,55 @@ def _run_paint_loop(input_volume: Path, goal: str, output_dir: Path,
         log.warning("loop stderr: %s", proc.stderr[-500:])
 
     summary_file = output_dir / f"{media_id}_nni_summary.json"
+    labelmap_file = output_dir / f"{media_id}_nni_labelmap.nii.gz"
+
+    # Crash recovery: even if the subprocess died (e.g. SIGABRT from
+    # nnInteractive's CUDA inference - Felis run 26378105756), the loop
+    # checkpoints its labelmap and summary after every successful step.
+    # If we have a labelmap on disk, treat the run as a partial success
+    # and continue to the metrics stage rather than aborting the whole
+    # comparison.
+    summary_payload: Optional[dict] = None
     if summary_file.exists():
         try:
-            return json.loads(summary_file.read_text())
+            summary_payload = json.loads(summary_file.read_text())
         except json.JSONDecodeError:
-            pass
+            summary_payload = None
+
+    if proc.returncode != 0 and labelmap_file.exists():
+        log.warning("Paint loop exited %d but a checkpoint labelmap is "
+                    "on disk (%s) - recovering from last good step.",
+                    proc.returncode, labelmap_file)
+        # Synthesize a minimal summary if the checkpointed one is also
+        # missing/corrupt so downstream code has the labelmap path.
+        if summary_payload is None:
+            summary_payload = {
+                "media_id": media_id,
+                "labelmap_path": str(labelmap_file),
+                "voxel_count": -1,
+                "volume_mm3": -1.0,
+                "recovered_from_crash": True,
+                "paint_loop_exit_code": proc.returncode,
+                "stdout_tail": (proc.stdout or "")[-400:],
+                "stderr_tail": (proc.stderr or "")[-400:],
+            }
+        else:
+            summary_payload["recovered_from_crash"] = True
+            summary_payload["paint_loop_exit_code"] = proc.returncode
+        # Ensure the labelmap path is set even if the checkpoint
+        # didn't include it (older checkpoint formats).
+        summary_payload.setdefault("labelmap_path", str(labelmap_file))
+        # The report path may also be missing; downstream code tolerates
+        # this but we surface it for clarity.
+        summary_payload.setdefault(
+            "report_path",
+            str(output_dir / f"{media_id}_nni_report.md"),
+        )
+        return summary_payload
+
+    if summary_payload is not None:
+        return summary_payload
+
     return {"error": "No nnInteractive summary produced",
             "stdout_tail": (proc.stdout or "")[-400:]}
 

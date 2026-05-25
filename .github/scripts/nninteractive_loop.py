@@ -501,6 +501,25 @@ def run_loop(input_path: str, goal: str, output_dir: str,
         # Snapshot the best mask seen so far (cheap numpy copy).
         _snapshot_if_best()
 
+        # Incremental crash-recovery checkpoint: persist the labelmap +
+        # summary after every successful step. If a subsequent step
+        # crashes nnInteractive (Felis v6 / run 26378105756 SIGABRT-ed
+        # inside CUDA during the second prediction's AutoZoom), the
+        # orchestrator can still recover the most recent good mask and
+        # produce metrics. We swallow any error from the checkpoint -
+        # losing a checkpoint must NEVER abort the run.
+        try:
+            seg.save_labelmap()  # default filename, overwritten each step
+            seg.export_summary({
+                "n_steps_completed": step,
+                "checkpoint": True,
+                "best_voxel_count": best_voxel_count,
+                "best_step": best_step,
+            })
+        except Exception as exc:  # pragma: no cover - belt-and-braces
+            log.warning("Step %d checkpoint failed (continuing): %s",
+                        step, exc)
+
         # Render the new state for the next iteration
         screens = seg.save_orthogonal_previews(
             name_prefix=f"{media_id}_step{step:02d}",
