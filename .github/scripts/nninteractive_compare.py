@@ -631,11 +631,57 @@ def _get_gt_bbox(labelmap: Path) -> Optional[dict]:
     return None
 
 
+def _get_gt_seed_points(labelmap: Path, n: int = 5) -> list[list[int]]:
+    """Sample ``n`` voxel coordinates that are guaranteed to be inside the
+    GT target.
+
+    Felis v10 (run 26385712938) showed that the LLM faithfully copies the
+    LOCALISATION HINT's bbox seed example but the resulting single-slice
+    bbox is so large that nnInteractive over-segments to ~12x budget
+    every single time. A point prompt on a known-bone voxel is much less
+    ambiguous - "the user said this voxel is bone, grow from here".
+
+    Returned coords are ``[x, y, z]`` to match nnInteractive's convention
+    (inverse of numpy ``(z, y, x)``). Sampled deterministically with a
+    fixed seed so the prompt is reproducible across runs.
+    """
+    if not NNI_PYTHON.exists() or not labelmap.exists():
+        return []
+    script = (
+        "import sys, json, SimpleITK as sitk, numpy as np\n"
+        "n = int(sys.argv[2])\n"
+        "img = sitk.ReadImage(sys.argv[1])\n"
+        "arr = sitk.GetArrayFromImage(img)\n"
+        "zs, ys, xs = np.where(arr > 0)\n"
+        "if zs.size == 0:\n"
+        "    print('[]'); sys.exit(0)\n"
+        "rng = np.random.default_rng(seed=0)\n"
+        "idx = rng.choice(zs.size, size=min(n, zs.size), replace=False)\n"
+        "pts = [[int(xs[i]), int(ys[i]), int(zs[i])] for i in idx]\n"
+        "print(json.dumps(pts))\n"
+    )
+    try:
+        proc = subprocess.run(
+            [str(NNI_PYTHON), "-c", script, str(labelmap), str(int(n))],
+            capture_output=True, text=True, timeout=60,
+        )
+        if proc.returncode == 0 and proc.stdout.strip():
+            data = json.loads(proc.stdout.strip())
+            if isinstance(data, list):
+                return [list(map(int, p)) for p in data
+                        if isinstance(p, list) and len(p) == 3]
+    except (subprocess.SubprocessError, OSError, ValueError,
+            json.JSONDecodeError) as exc:
+        log.debug("_get_gt_seed_points failed for %s: %s", labelmap, exc)
+    return []
+
+
 def _run_paint_loop(input_volume: Path, goal: str, output_dir: Path,
                      media_id: str, max_steps: int,
                      expected_voxels: Optional[int] = None,
                      expected_volume_mm3: Optional[float] = None,
-                     expected_bbox: Optional[dict] = None) -> dict:
+                     expected_bbox: Optional[dict] = None,
+                     expected_seed_points: Optional[list] = None) -> dict:
     """Run nninteractive_loop.py.
 
     Backend selection:
@@ -688,6 +734,8 @@ def _run_paint_loop(input_volume: Path, goal: str, output_dir: Path,
         cmd += ["--expected-volume-mm3", f"{float(expected_volume_mm3):.3f}"]
     if expected_bbox:
         cmd += ["--expected-bbox", json.dumps(expected_bbox)]
+    if expected_seed_points:
+        cmd += ["--expected-seed-points", json.dumps(expected_seed_points)]
     env = os.environ.copy()
     env.setdefault("NNINTERACTIVE_HOME", str(NNI_HOME))
     # nnInteractive's nnU-Net backbone hits ops that aren't implemented
@@ -715,6 +763,9 @@ def _run_paint_loop(input_volume: Path, goal: str, output_dir: Path,
     if expected_bbox:
         log.info("  Paint loop loc hint: expected_bbox=%s",
                  json.dumps(expected_bbox))
+    if expected_seed_points:
+        log.info("  Paint loop seed pts (%d, known-bone voxels): %s",
+                 len(expected_seed_points), json.dumps(expected_seed_points))
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True,
                               timeout=3600, env=env)
@@ -1147,12 +1198,21 @@ def run_comparison(ct_media_id: str, gt_media_id: str, goal: str,
     # save-best) can't help. The bbox is treated as a STRONG suggestion
     # in the prompt - the LLM is still free to refine outside it.
     gt_bbox = _get_gt_bbox(gt_labelmap)
+    # Felis v10 (run 26385712938) proved that a bbox seed isn't enough -
+    # the LLM faithfully copies the bbox template into ADD_BBOX, but the
+    # resulting 96%-of-slice-area bbox causes nnInteractive to over-segment
+    # to ~12x budget every time (8.77 M voxels vs 700 k expected). Sample
+    # a handful of voxels that are *literally* part of the GT and let the
+    # LLM open with ADD_POINT on one of them instead. Point prompts are
+    # interpreted unambiguously by nnInteractive.
+    gt_seed_points = _get_gt_seed_points(gt_labelmap, n=5)
     nni_dir = pair_dir / "nninteractive"
     nni_result = _run_paint_loop(
         cropped_ct, goal, nni_dir, ct_media_id, max_steps,
         expected_voxels=gt_voxels,
         expected_volume_mm3=gt_volume_mm3,
         expected_bbox=gt_bbox,
+        expected_seed_points=gt_seed_points,
     )
     if "error" in nni_result:
         return {"success": False, "stage": "paint_loop", "result": nni_result}

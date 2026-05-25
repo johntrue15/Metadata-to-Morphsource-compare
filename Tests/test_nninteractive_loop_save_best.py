@@ -537,7 +537,7 @@ class BboxHintTests(unittest.TestCase):
     caller passed plus a concrete ADD_BBOX suggestion the LLM can copy.
     """
 
-    def _build(self, *, bbox=None):
+    def _build(self, *, bbox=None, seeds=None):
         from nninteractive_loop import _build_state_text
         return _build_state_text(
             goal="Segment cranial bone.",
@@ -549,6 +549,7 @@ class BboxHintTests(unittest.TestCase):
             expected_voxels=701499,
             expected_volume_mm3=32035.0,
             expected_bbox=bbox,
+            expected_seed_points=seeds,
         )
 
     def test_no_hint_without_bbox(self):
@@ -563,28 +564,89 @@ class BboxHintTests(unittest.TestCase):
         self.assertIn("y: [101, 197]", s)
         self.assertIn("z: [87, 277]", s)
 
-    def test_bbox_hint_includes_concrete_add_bbox_seed(self):
-        """The hint should give the LLM a ready-to-copy ADD_BBOX prompt
-        on the mid-z slice of the bbox - removing the spatial-reasoning
-        step that v3-v5 all failed at."""
+    def test_bbox_hint_does_NOT_include_add_bbox_seed(self):
+        """Felis v10 (run 26385712938) regression: when the LOCALISATION
+        HINT shipped an ADD_BBOX template, the LLM faithfully copied a
+        96%-of-slice bbox and nnInteractive over-segmented to ~12 x
+        budget. The hint must NOT seed bbox prompts."""
         bbox = {"x": [42, 168], "y": [101, 197], "z": [87, 277]}
         s = self._build(bbox=bbox)
-        # Mid-z of [87, 277] is 182; the seed should be a planar bbox
-        # spanning the full x/y range of the bbox at that slice.
-        self.assertIn('"tool":"ADD_BBOX"', s)
-        self.assertIn('"x":[42,168]', s)
-        self.assertIn('"y":[101,197]', s)
-        self.assertIn('"z":[182,183]', s)
+        self.assertNotIn('"tool":"ADD_BBOX"', s)
+        self.assertNotIn('"GT bbox seed on mid-z slice"', s)
 
     def test_bbox_hint_warns_to_stay_inside(self):
         bbox = {"x": [10, 20], "y": [10, 20], "z": [10, 20]}
         s = self._build(bbox=bbox)
-        self.assertIn("Do NOT click outside this bbox", s)
+        self.assertIn("do NOT click outside it", s)
 
     def test_partial_bbox_dict_is_ignored(self):
         # Missing 'z' -> hint omitted (defensive guard).
         s = self._build(bbox={"x": [0, 1], "y": [0, 1]})
         self.assertNotIn("LOCALISATION HINT", s)
+
+
+class SeedPointHintTests(unittest.TestCase):
+    """Felis v10 replaced the bbox seed (which over-segmented every
+    time) with concrete ADD_POINT seeds sampled from voxels that are
+    literally inside the GT mask. These tests pin down the shape of
+    that hint."""
+
+    def _build(self, *, bbox=None, seeds=None):
+        from nninteractive_loop import _build_state_text
+        return _build_state_text(
+            goal="Segment cranial bone.",
+            step=1, max_steps=12,
+            image_shape_xyz=[211, 224, 384],
+            spacing_xyz=[0.357, 0.357, 0.357],
+            voxel_count=0, volume_mm3=0,
+            history=[],
+            expected_voxels=701499,
+            expected_volume_mm3=32035.0,
+            expected_bbox=bbox,
+            expected_seed_points=seeds,
+        )
+
+    def test_no_hint_without_seeds(self):
+        s = self._build(seeds=None)
+        self.assertNotIn("POSITIVE SEED POINTS", s)
+
+    def test_seed_points_section_appears(self):
+        s = self._build(seeds=[[110, 80, 200], [120, 90, 210]])
+        self.assertIn("POSITIVE SEED POINTS", s)
+        self.assertIn("#1: x=110 y=80 z=200", s)
+        self.assertIn("#2: x=120 y=90 z=210", s)
+
+    def test_first_seed_is_concrete_add_point_template(self):
+        """The very first seed must be wrapped in a ready-to-copy
+        ADD_POINT JSON object so the LLM has zero spatial-reasoning
+        work to do for step 1."""
+        s = self._build(seeds=[[111, 82, 205]])
+        self.assertIn('"tool":"ADD_POINT"', s)
+        self.assertIn('"x":111', s)
+        self.assertIn('"y":82', s)
+        self.assertIn('"z":205', s)
+        self.assertIn('"positive":true', s)
+
+    def test_seed_hint_actively_discourages_bbox(self):
+        """Without this, the LLM falls back on its prior of opening
+        with ADD_BBOX (the cause of Felis v10's dice ~= 0)."""
+        s = self._build(seeds=[[10, 10, 10]])
+        self.assertIn("Do NOT open with ADD_BBOX", s)
+
+    def test_only_first_five_seeds_are_listed(self):
+        seeds = [[i, i, i] for i in range(20)]
+        s = self._build(seeds=seeds)
+        # First 5 listed, 6th not.
+        self.assertIn("#5: x=4", s)
+        self.assertNotIn("#6:", s)
+
+    def test_seed_and_bbox_coexist(self):
+        bbox = {"x": [0, 200], "y": [0, 200], "z": [0, 200]}
+        s = self._build(bbox=bbox, seeds=[[50, 60, 70]])
+        self.assertIn("LOCALISATION HINT", s)
+        self.assertIn("POSITIVE SEED POINTS", s)
+        # The bbox section should still warn to stay inside.
+        self.assertIn("do NOT click outside it", s)
 
 
 class LoopFileHandlerTests(unittest.TestCase):

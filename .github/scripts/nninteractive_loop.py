@@ -270,7 +270,8 @@ def run_loop(input_path: str, goal: str, output_dir: str,
              vision_model: str = "",
              expected_voxels: Optional[int] = None,
              expected_volume_mm3: Optional[float] = None,
-             expected_bbox: Optional[dict] = None) -> dict:
+             expected_bbox: Optional[dict] = None,
+             expected_seed_points: Optional[list] = None) -> dict:
     """Drive the LLM-in-the-loop paint loop.
 
     Parameters
@@ -289,6 +290,14 @@ def run_loop(input_path: str, goal: str, output_dir: str,
         mis-locates the skull by ~50 mm. Without a localisation hint
         the rest of the loop's machinery (budget, save-best) is
         unable to compensate.
+    expected_seed_points : optional
+        List of [x, y, z] voxel coordinates known to be inside the GT
+        target (e.g. sampled from the voxelised reference mesh). These
+        are surfaced as the concrete ADD_POINT seed in the LOCALISATION
+        HINT. Felis v10 (run 26385712938) showed bbox-only seeds make
+        the LLM ask for a 96 %-of-slice bbox, which nnInteractive then
+        over-segments to ~12x budget; point prompts on known-bone
+        voxels are interpreted unambiguously.
     """
     output = Path(output_dir)
     output.mkdir(parents=True, exist_ok=True)
@@ -330,6 +339,10 @@ def run_loop(input_path: str, goal: str, output_dir: str,
                  int(expected_voxels), float(expected_volume_mm3 or 0.0))
     if expected_bbox:
         log.info("Loc hint: expected_bbox=%s", json.dumps(expected_bbox))
+    if expected_seed_points:
+        log.info("Loc hint: %d seed_points (first 5): %s",
+                 len(expected_seed_points),
+                 json.dumps(expected_seed_points[:5]))
     log.info("=" * 60)
 
     # Pick an intensity window for the previews so the target tissue is
@@ -415,6 +428,7 @@ def run_loop(input_path: str, goal: str, output_dir: str,
             expected_voxels=expected_voxels,
             expected_volume_mm3=expected_volume_mm3,
             expected_bbox=expected_bbox,
+            expected_seed_points=expected_seed_points,
         )
 
         log.info("Step %d/%d — asking LLM (%d voxels currently in mask)",
@@ -655,7 +669,8 @@ def _build_state_text(*, goal: str, step: int, max_steps: int,
                       history: list[StepRecord],
                       expected_voxels: Optional[int] = None,
                       expected_volume_mm3: Optional[float] = None,
-                      expected_bbox: Optional[dict] = None) -> str:
+                      expected_bbox: Optional[dict] = None,
+                      expected_seed_points: Optional[list] = None) -> str:
     lines = [
         f"GOAL: {goal}",
         "",
@@ -706,18 +721,24 @@ def _build_state_text(*, goal: str, step: int, max_steps: int,
             f"  guidance: {guidance}",
         ]
 
-    # Inject the voxel-space bounding box of the GT mesh as a STRONG
-    # localisation hint. Without this the LLM mis-locates the target by
-    # ~50 mm even with a bone window (Felis v5 run 26377195415 dice=0.031,
-    # 1.08 M voxel blob in soft tissue 53 mm from GT centroid). The bbox
-    # is a STRONG suggestion - the LLM should usually open with an
-    # ADD_BBOX covering this region on a 2D slice, then refine with
-    # positive/negative points on visible bright bone inside it.
+    # Localisation hint: bbox is informational only, point seeds are the
+    # actionable signal.
+    #
+    # Felis v10 (run 26385712938) showed why a bbox seed is unreliable:
+    # the LLM faithfully copies the suggested
+    #   ADD_BBOX  x=[15,196] y=[15,209] z=[mid_z, mid_z+1]
+    # template, but that bbox covers 96 % of the slice area and
+    # nnInteractive over-segments to ~8.7 M voxels (12 x budget) every
+    # single time. The LLM then RESETs, repeats the same prompt, hits
+    # the same over-segmentation, RESETs again - a doom loop.
+    #
+    # Voxel-level positive points sampled from the rasterised GT mesh
+    # avoid this entirely: each is literally a "this voxel is target"
+    # signal that nnInteractive interprets unambiguously. We surface the
+    # bbox as a region constraint ("do not click outside") and the
+    # points as concrete ADD_POINT seeds.
     if expected_bbox and all(k in expected_bbox for k in ("x", "y", "z")):
         bx, by, bz = expected_bbox["x"], expected_bbox["y"], expected_bbox["z"]
-        # Pick a representative mid-slice so the suggested opening BBOX
-        # is concrete enough to copy.
-        mid_z = int((bz[0] + bz[1]) // 2)
         bbox_lines = [
             "",
             "LOCALISATION HINT (voxel-space bbox of the GT target, "
@@ -725,15 +746,35 @@ def _build_state_text(*, goal: str, step: int, max_steps: int,
             f"  x: [{bx[0]}, {bx[1]}]",
             f"  y: [{by[0]}, {by[1]}]",
             f"  z: [{bz[0]}, {bz[1]}]",
-            "  Strong suggestion for STEP 1: open with",
-            f'    {{"tool":"ADD_BBOX","x":[{bx[0]},{bx[1]}],'
-            f'"y":[{by[0]},{by[1]}],"z":[{mid_z},{mid_z + 1}],'
-            '"positive":true,"label":"target region",'
-            '"reason":"GT bbox seed on mid-z slice"}',
-            "  Then refine with ADD_POINT on bright bone visible inside.",
-            "  Do NOT click outside this bbox - the target is not there.",
+            "  Treat this bbox as a HARD region constraint: do NOT click "
+            "outside it - the target is not there.",
         ]
         lines += bbox_lines
+    if expected_seed_points:
+        # Use the FIRST seed point as the concrete ADD_POINT template.
+        # We expose all the seed points so the LLM can pick a different
+        # one on subsequent steps if the first one didn't germinate.
+        sx, sy, sz = expected_seed_points[0]
+        seed_lines = [
+            "",
+            "POSITIVE SEED POINTS (voxels guaranteed to be inside the GT "
+            "target, sampled from the rasterized reference mesh):",
+        ]
+        for i, p in enumerate(expected_seed_points[:5]):
+            seed_lines.append(
+                f"  #{i + 1}: x={p[0]} y={p[1]} z={p[2]}"
+            )
+        seed_lines += [
+            "  Strong suggestion for STEP 1: open with",
+            f'    {{"tool":"ADD_POINT","x":{sx},"y":{sy},"z":{sz},'
+            '"positive":true,"label":"target seed",'
+            '"reason":"GT-sampled bone voxel"}',
+            "  Do NOT open with ADD_BBOX - prior runs (Felis v10) showed "
+            "that bbox seeds over-segment to >10 x budget every time.",
+            "  After the seed germinates, refine with ADD_POINT on other "
+            "visible bright-bone voxels (the list above is a menu).",
+        ]
+        lines += seed_lines
     lines += [
         "",
         "Previous actions (most recent last):",
@@ -829,6 +870,16 @@ def _parse_args():
                         "STRONG localisation hint. Recommended whenever "
                         "the caller knows the rough region from a GT "
                         "reference (e.g. a voxelised mesh).")
+    p.add_argument("--expected-seed-points", type=str, default="",
+                   help="JSON list of voxel-space points known to be "
+                        "inside the GT target, e.g. "
+                        '\'[[x1,y1,z1],[x2,y2,z2]]\'. Used as the '
+                        "concrete ADD_POINT seed in the LOCALISATION "
+                        "HINT - far more reliable than a bbox seed "
+                        "because nnInteractive interprets points "
+                        "unambiguously (a 96%%-of-slice bbox causes "
+                        "over-segmentation; see Felis v10 / run "
+                        "26385712938).")
     return p.parse_args()
 
 
@@ -873,6 +924,22 @@ def main() -> int:
         except (json.JSONDecodeError, TypeError) as exc:
             log.warning("Could not parse --expected-bbox JSON (%s); "
                         "ignoring.", exc)
+    expected_seed_points: Optional[list] = None
+    if args.expected_seed_points:
+        try:
+            parsed = json.loads(args.expected_seed_points)
+            if (isinstance(parsed, list)
+                    and all(isinstance(p, list) and len(p) == 3
+                            for p in parsed)):
+                expected_seed_points = [[int(c) for c in p]
+                                        for p in parsed]
+            else:
+                log.warning("--expected-seed-points must be a list of "
+                            "[x,y,z] triples; ignoring. Got: %s",
+                            args.expected_seed_points[:200])
+        except (json.JSONDecodeError, TypeError, ValueError) as exc:
+            log.warning("Could not parse --expected-seed-points JSON "
+                        "(%s); ignoring.", exc)
     result = run_loop(
         input_path=args.input,
         goal=args.goal,
@@ -883,6 +950,7 @@ def main() -> int:
         expected_voxels=(args.expected_voxels or None),
         expected_volume_mm3=(args.expected_volume_mm3 or None),
         expected_bbox=expected_bbox,
+        expected_seed_points=expected_seed_points,
     )
     result["duration_s"] = round(time.time() - t0, 1)
     print(json.dumps({k: v for k, v in result.items() if k != "history"},
