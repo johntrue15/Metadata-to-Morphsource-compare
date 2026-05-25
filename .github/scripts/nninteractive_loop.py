@@ -325,6 +325,11 @@ def run_loop(input_path: str, goal: str, output_dir: str,
     log.info("Spacing:  %s mm (x, y, z)", seg.sitk_image.GetSpacing())
     log.info("Max steps:%d", max_steps)
     log.info("Vision model: %s", vision_model)
+    if expected_voxels:
+        log.info("Budget:   expected_voxels=%d  expected_volume_mm3=%.1f",
+                 int(expected_voxels), float(expected_volume_mm3 or 0.0))
+    if expected_bbox:
+        log.info("Loc hint: expected_bbox=%s", json.dumps(expected_bbox))
     log.info("=" * 60)
 
     # Pick an intensity window for the previews so the target tissue is
@@ -827,8 +832,33 @@ def _parse_args():
     return p.parse_args()
 
 
+def _attach_file_handler(output_dir: str, media_id: str) -> Optional[str]:
+    """Mirror every log record into ``<output_dir>/<media_id>_loop.log``.
+
+    nnInteractive can SIGABRT inside its CUDA kernels (Felis v6, v9), and
+    when it does the C++ stack trace floods stderr - clobbering the
+    orchestrator's last-2-KB tail. A file-backed log survives that and
+    lets us see what the LLM actually said + did right up to the crash.
+    """
+    try:
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+        log_path = Path(output_dir) / f"{media_id}_loop.log"
+        fh = logging.FileHandler(log_path, mode="w", encoding="utf-8")
+        fh.setLevel(logging.DEBUG)
+        fh.setFormatter(logging.Formatter(
+            "%(asctime)s [%(levelname)s] %(name)s — %(message)s"))
+        logging.getLogger().addHandler(fh)
+        log.info("Mirroring loop log to %s", log_path)
+        return str(log_path)
+    except OSError as exc:
+        log.warning("Could not attach file handler (%s); "
+                    "continuing with stderr only.", exc)
+        return None
+
+
 def main() -> int:
     args = _parse_args()
+    _attach_file_handler(args.output_dir, args.media_id)
     t0 = time.time()
     expected_bbox = None
     if args.expected_bbox:

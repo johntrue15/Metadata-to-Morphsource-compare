@@ -587,5 +587,63 @@ class BboxHintTests(unittest.TestCase):
         self.assertNotIn("LOCALISATION HINT", s)
 
 
+class LoopFileHandlerTests(unittest.TestCase):
+    """``_attach_file_handler`` must mirror the loop's stderr log into a
+    file inside ``output_dir`` so that we can recover the LLM's per-step
+    actions after a SIGABRT clobbers the orchestrator's last-2-KB stderr
+    tail (this is what happened on Felis v9, run 26384436616).
+    """
+
+    def setUp(self) -> None:
+        import logging
+        self.tmp = tempfile.mkdtemp(prefix="loop_filehandler_")
+        # Snapshot existing root handlers so we can restore them and not
+        # pollute later tests in the same process.
+        self._original_handlers = list(logging.getLogger().handlers)
+
+    def tearDown(self) -> None:
+        import logging
+        import shutil
+        # Remove any handler we added that points at our tmpdir.
+        root = logging.getLogger()
+        for h in list(root.handlers):
+            if h not in self._original_handlers:
+                root.removeHandler(h)
+                try:
+                    h.close()
+                except Exception:
+                    pass
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_writes_log_to_output_dir(self):
+        import nninteractive_loop as mod
+        log_path = mod._attach_file_handler(self.tmp, "TESTID")
+        self.assertEqual(log_path,
+                         str(Path(self.tmp) / "TESTID_loop.log"))
+        self.assertTrue(Path(log_path).exists())
+        mod.log.info("hello world")
+        # Flush handlers so the assertion sees the write.
+        import logging
+        for h in logging.getLogger().handlers:
+            try:
+                h.flush()
+            except Exception:
+                pass
+        body = Path(log_path).read_text(encoding="utf-8")
+        self.assertIn("hello world", body)
+        # We log "Mirroring loop log to ..." right after attaching - it
+        # must end up in the file too (proves the handler is wired BEFORE
+        # the message, not after).
+        self.assertIn("Mirroring loop log to", body)
+
+    def test_missing_output_dir_is_created(self):
+        import nninteractive_loop as mod
+        nested = Path(self.tmp) / "new" / "subdir"
+        self.assertFalse(nested.exists())
+        log_path = mod._attach_file_handler(str(nested), "X")
+        self.assertTrue(nested.exists())
+        self.assertTrue(Path(log_path).exists())
+
+
 if __name__ == "__main__":
     unittest.main()

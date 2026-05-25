@@ -706,6 +706,15 @@ def _run_paint_loop(input_volume: Path, goal: str, output_dir: Path,
 
     log.info("Running nnInteractive paint loop (goal=%s, max_steps=%d)",
              goal, max_steps)
+    # Surface budget + localisation hints in run.log so post-mortem
+    # investigations don't have to spelunk through the loop subprocess
+    # (Felis v9 showed it's easy to lose this if nnInteractive SIGABRTs).
+    if expected_voxels is not None and expected_voxels > 0:
+        log.info("  Paint loop budget: expected_voxels=%d expected_volume_mm3=%.1f",
+                 int(expected_voxels), float(expected_volume_mm3 or 0.0))
+    if expected_bbox:
+        log.info("  Paint loop loc hint: expected_bbox=%s",
+                 json.dumps(expected_bbox))
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True,
                               timeout=3600, env=env)
@@ -729,6 +738,22 @@ def _run_paint_loop(input_volume: Path, goal: str, output_dir: Path,
         tail = proc.stderr[-2000:]
         for line in tail.strip().split("\n")[-40:]:
             log.info("  loop[err]: %s", line)
+
+    # Felis v9 (run 26384436616) lost ALL of the loop's own logger output
+    # because the SIGABRT C++ stack trace flooded the last 2 KB of stderr.
+    # The loop now mirrors its log into <output_dir>/<media_id>_loop.log -
+    # read it back so the orchestrator artifact still tells us what the
+    # LLM said + did right up to the crash.
+    loop_log = output_dir / f"{media_id}_loop.log"
+    if loop_log.exists():
+        try:
+            loop_text = loop_log.read_text(encoding="utf-8", errors="replace")
+            log.info("Loop debug log (%s, %d bytes):",
+                     loop_log, len(loop_text))
+            for line in loop_text.strip().split("\n")[-120:]:
+                log.info("  loop.log: %s", line)
+        except OSError as exc:
+            log.warning("Could not read loop log %s: %s", loop_log, exc)
 
     summary_file = output_dir / f"{media_id}_nni_summary.json"
     labelmap_file = output_dir / f"{media_id}_nni_labelmap.nii.gz"
