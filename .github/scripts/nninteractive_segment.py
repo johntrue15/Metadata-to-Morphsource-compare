@@ -320,8 +320,25 @@ class Segmenter:
                  out_path, self.voxel_count(), self.volume_mm3())
         return str(out_path)
 
-    def save_orthogonal_previews(self, name_prefix: str = "") -> list[str]:
-        """Render axial / coronal / sagittal mid-slice previews with mask overlay."""
+    def save_orthogonal_previews(
+        self,
+        name_prefix: str = "",
+        intensity_window: Optional[tuple[float, float]] = None,
+    ) -> list[str]:
+        """Render axial / coronal / sagittal mid-slice previews with mask overlay.
+
+        When ``intensity_window=(vmin, vmax)`` is given (e.g. a bone window
+        of ``(-200, 2000)`` HU), the CT is rendered with those clipping
+        bounds so the target tissue stands out unambiguously. Without it,
+        matplotlib auto-scales which often washes out high-contrast
+        targets like bone in head CTs (Felis v4 dice 0.058 was diagnosed
+        as the LLM clicking inside the dark brain cavity because bone
+        and brain looked similar shades of gray under auto-scaling).
+
+        Axis ticks at every 50 voxels are now drawn so the LLM can read
+        click coordinates directly off the image rather than estimating
+        positions relative to the centre.
+        """
         np = self._np
         try:
             import matplotlib  # noqa: F401
@@ -343,23 +360,49 @@ class Segmenter:
             sums = mask.sum(axis=tuple(i for i in range(3) if i != axis))
             return int(np.argmax(sums))
 
+        if intensity_window is not None:
+            vmin, vmax = float(intensity_window[0]), float(intensity_window[1])
+        else:
+            vmin = vmax = None  # matplotlib auto-scale
+
         previews: list[str] = []
+        # Each entry: (view_name, slice_axis, slicer, h_axis_label, v_axis_label)
+        # h_axis_label/v_axis_label tell the LLM which voxel coord the
+        # horizontal/vertical pixel maps to. With ``origin='lower'`` the
+        # vertical axis grows upward, matching the printed coordinate.
         views = [
-            ("axial",    0, lambda v, s: (v[s, :, :], mask[s, :, :])),
-            ("coronal",  1, lambda v, s: (v[:, s, :], mask[:, s, :])),
-            ("sagittal", 2, lambda v, s: (v[:, :, s], mask[:, :, s])),
+            ("axial",    0,
+             lambda v, s: (v[s, :, :], mask[s, :, :]), "x", "y"),
+            ("coronal",  1,
+             lambda v, s: (v[:, s, :], mask[:, s, :]), "x", "z"),
+            ("sagittal", 2,
+             lambda v, s: (v[:, :, s], mask[:, :, s]), "y", "z"),
         ]
-        for view_name, axis, slicer in views:
+        for view_name, axis, slicer, h_lbl, v_lbl in views:
             s = _best_slice(axis)
             img_slice, mask_slice = slicer(arr, s)
 
             fig, ax = plt.subplots(figsize=(6, 6))
-            ax.imshow(img_slice, cmap="gray", origin="lower")
+            ax.imshow(img_slice, cmap="gray", origin="lower",
+                      vmin=vmin, vmax=vmax)
             if mask_slice.sum() > 0:
                 overlay = np.ma.masked_where(mask_slice == 0, mask_slice)
                 ax.imshow(overlay, cmap="autumn", alpha=0.45, origin="lower")
-            ax.set_title(f"{view_name} (slice {s}) — {self.config.media_id}")
-            ax.set_axis_off()
+            # Slice index is along the perpendicular axis (axial=z,
+            # coronal=y, sagittal=x).
+            slice_axis_label = {"axial": "z", "coronal": "y",
+                                "sagittal": "x"}[view_name]
+            ax.set_title(
+                f"{view_name} ({h_lbl}-{v_lbl} plane, "
+                f"{slice_axis_label}={s}) - {self.config.media_id}"
+            )
+            # Ticks every 50 voxels for direct coordinate reading.
+            h_max, v_max = img_slice.shape[1], img_slice.shape[0]
+            ax.set_xticks(list(range(0, h_max + 1, 50)))
+            ax.set_yticks(list(range(0, v_max + 1, 50)))
+            ax.set_xlabel(f"{h_lbl} (voxels)")
+            ax.set_ylabel(f"{v_lbl} (voxels)")
+            ax.tick_params(labelsize=8)
             out_path = self.output_dir / f"{prefix}_{view_name}.png"
             fig.tight_layout()
             fig.savefig(out_path, dpi=120, bbox_inches="tight")

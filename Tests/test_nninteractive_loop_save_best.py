@@ -141,7 +141,11 @@ class FakeSegmenter:
         self._advance()
 
     # --- io ----------------------------------------------------------------
-    def save_orthogonal_previews(self, name_prefix: str = "") -> list[str]:
+    def save_orthogonal_previews(self, name_prefix: str = "",
+                                  intensity_window=None) -> list[str]:
+        # The intensity_window kwarg is accepted (and ignored) so this
+        # mock matches the real Segmenter signature; the loop passes it
+        # for bone-targeting goals.
         p = self.output_dir / f"{name_prefix}_preview.png"
         p.write_bytes(b"\x89PNG\r\n\x1a\n")  # minimal stub
         return [str(p)]

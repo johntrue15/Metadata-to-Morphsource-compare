@@ -65,8 +65,10 @@ nnInteractive, a 3D promptable segmentation model, to extract a structure
 from a 3D medical/CT volume.
 
 You are shown three orthogonal screenshots (axial / coronal / sagittal)
-of the volume with the *current* segmentation mask overlaid in red. Each
-screenshot has voxel coordinates printed alongside it.
+of the volume with the *current* segmentation mask overlaid in red.
+Each screenshot has axis tick marks every 50 voxels and a title like
+"axial (x-y plane, z=192)" telling you which slice you are looking at
+and which voxel coords map to the horizontal/vertical pixels.
 
 You must decide ONE next action. Respond with EXACTLY one JSON object,
 no other text:
@@ -76,17 +78,53 @@ no other text:
 {"tool":"RESET","reason":"start over because the mask is wrong"}
 {"tool":"DONE","reason":"mask now matches the goal","summary":"<2-3 sentence summary>"}
 
-Rules:
-- Coordinates are voxel indices in (x, y, z) order matching the printed
-  axes. The volume's shape is given to you as image_shape_xyz.
-- Bounding boxes must be 2D for nnInteractive: one of x/y/z must span a
-  single voxel, e.g. z:[42,43].
+================ HOW TO READ THE PREVIEWS ================
+- The first preview is "axial (x-y plane, z=K)": horizontal pixels are
+  the x-voxel coordinate, vertical pixels are the y-voxel coordinate,
+  and the slice was taken at depth z=K.
+- The second is "coronal (x-z plane, y=K)": horizontal = x, vertical = z.
+- The third is "sagittal (y-z plane, x=K)": horizontal = y, vertical = z.
+- Read the tick labels to convert a pixel position into a voxel index.
+  DO NOT guess "middle of the image"; estimate the actual voxel index
+  the structure is centred on using the tick marks.
+
+================ HOW TO PICK A POINT ON A CT IMAGE ================
+- In a CT preview the brightness encodes Hounsfield Units. When the
+  goal mentions a *bone-like* structure (bone, skull, cranial, cortical,
+  tooth, vertebra, mandible, stapes, ...), the previews are rendered
+  with a CT bone window: DENSE BONE is brilliant WHITE/very bright;
+  soft tissue (brain, muscle, fat) is mid-gray; air is black.
+- For bone targets: ONLY click on bright white pixels. Pick a pixel that
+  is clearly on the target structure, not adjacent to it. If the goal
+  says "skull", remember the skull is a HOLLOW shell of bone surrounding
+  the brain cavity - the bone you want is the bright ring/walls, not
+  the dark gray interior. Avoid the geometric centre of the skull; it
+  lies inside the brain and is mostly soft tissue.
+- For soft-tissue targets (heart, liver, kidney, brain, tumour, ...):
+  click in the homogeneous interior of the target organ where the
+  greyscale value is characteristic of that tissue.
+- Cross-check your point across views: the same (x, y, z) voxel should
+  look like the target tissue in all three orthogonal slices.
+
+================ HOW TO USE BBOX ================
+- ADD_BBOX with a single-voxel-thick plane is a great FIRST PROMPT.
+  Drag a 2D box around the target on the slice that shows it best
+  (e.g. axial bbox at z=K covering the bone's full x and y extent),
+  then refine with positive/negative points. nnInteractive responds
+  much better to a confining bbox than to a single naked point near
+  the centre of a large volume.
+- Bounding boxes must be 2D for nnInteractive: one of x/y/z must span
+  a single voxel, e.g. z:[42, 43].
+
+================ GENERAL RULES ================
+- Coordinates are voxel indices in (x, y, z) order. The volume's full
+  shape is given to you as image_shape_xyz.
 - A positive point adds tissue similar to that voxel; negative removes.
 - Once the mask reasonably covers the target, call DONE. Avoid loops.
-- RESET wipes the ENTIRE mask back to 0 voxels. Only call RESET when the
-  mask is essentially wrong (covers <5% of the target) AND you still
-  have at least 4 steps remaining to rebuild. Never call RESET on the
-  last 3 steps - small corrective negative points are always safer.
+- RESET wipes the ENTIRE mask back to 0 voxels. Only call RESET when
+  the mask is essentially wrong (covers <5% of the target) AND you
+  still have at least 4 steps remaining to rebuild. Never call RESET
+  on the last 3 steps - small corrective negative points are safer.
 - Prefer keeping a slightly imperfect mask over RESET; the pipeline
   saves the best mask you reach during the loop, so trim conservatively
   near the end of the step budget.
@@ -280,8 +318,27 @@ def run_loop(input_path: str, goal: str, output_dir: str,
     log.info("Vision model: %s", vision_model)
     log.info("=" * 60)
 
-    # Initial preview (no prompts yet → empty mask)
-    initial = seg.save_orthogonal_previews(name_prefix=f"{media_id}_step00")
+    # Pick an intensity window for the previews so the target tissue is
+    # visually unambiguous. For bone-targeting goals we use a CT bone
+    # window (HU range -200..2000) which renders dense bone as brilliant
+    # white and soft tissue as muted gray. Felis v4 (run 26375110522)
+    # showed that under matplotlib's default auto-scaling the LLM cannot
+    # reliably distinguish bone from brain matter and ends up clicking
+    # inside the dark brain cavity instead of on the bright bone shell.
+    goal_lc = (goal or "").lower()
+    bone_keywords = ("bone", "skull", "cranial", "cortical",
+                     "calcified", "calcium", "osteo", "vertebra",
+                     "mandible", "stapes")
+    intensity_window: Optional[tuple[float, float]] = None
+    if any(kw in goal_lc for kw in bone_keywords):
+        intensity_window = (-200.0, 2000.0)
+        log.info("Goal mentions bone-like keyword - rendering previews "
+                 "with bone window vmin=-200 vmax=2000 HU.")
+
+    initial = seg.save_orthogonal_previews(
+        name_prefix=f"{media_id}_step00",
+        intensity_window=intensity_window,
+    )
 
     history: list[StepRecord] = []
     z, y, x = seg.image_shape_zyx
@@ -435,7 +492,10 @@ def run_loop(input_path: str, goal: str, output_dir: str,
         _snapshot_if_best()
 
         # Render the new state for the next iteration
-        screens = seg.save_orthogonal_previews(name_prefix=f"{media_id}_step{step:02d}")
+        screens = seg.save_orthogonal_previews(
+            name_prefix=f"{media_id}_step{step:02d}",
+            intensity_window=intensity_window,
+        )
         history[-1].screenshots = screens
 
     # Restore best mask if the final state is worse than a snapshot we
