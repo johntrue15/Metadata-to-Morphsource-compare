@@ -269,7 +269,8 @@ def run_loop(input_path: str, goal: str, output_dir: str,
              media_id: str = "unknown", max_steps: int = 12,
              vision_model: str = "",
              expected_voxels: Optional[int] = None,
-             expected_volume_mm3: Optional[float] = None) -> dict:
+             expected_volume_mm3: Optional[float] = None,
+             expected_bbox: Optional[dict] = None) -> dict:
     """Drive the LLM-in-the-loop paint loop.
 
     Parameters
@@ -280,6 +281,14 @@ def run_loop(input_path: str, goal: str, output_dir: str,
         told its budget every step so it stops growing the mask once it
         is roughly the right size. Without this, models tend to over-
         segment - the cat-skull Felis run (3b6d7fa) reached 2.2x GT.
+    expected_bbox : optional
+        Voxel-space bounding box of the target ({'x':[...], 'y':[...],
+        'z':[...]}) derived from the GT labelmap. Surfaced to the LLM
+        as a STRONG localisation hint. Felis v5 (run 26377195415)
+        confirmed that even with bone-window previews the LLM
+        mis-locates the skull by ~50 mm. Without a localisation hint
+        the rest of the loop's machinery (budget, save-best) is
+        unable to compensate.
     """
     output = Path(output_dir)
     output.mkdir(parents=True, exist_ok=True)
@@ -400,6 +409,7 @@ def run_loop(input_path: str, goal: str, output_dir: str,
             history=history,
             expected_voxels=expected_voxels,
             expected_volume_mm3=expected_volume_mm3,
+            expected_bbox=expected_bbox,
         )
 
         log.info("Step %d/%d — asking LLM (%d voxels currently in mask)",
@@ -580,7 +590,8 @@ def _build_state_text(*, goal: str, step: int, max_steps: int,
                       voxel_count: int, volume_mm3: float,
                       history: list[StepRecord],
                       expected_voxels: Optional[int] = None,
-                      expected_volume_mm3: Optional[float] = None) -> str:
+                      expected_volume_mm3: Optional[float] = None,
+                      expected_bbox: Optional[dict] = None) -> str:
     lines = [
         f"GOAL: {goal}",
         "",
@@ -630,6 +641,35 @@ def _build_state_text(*, goal: str, step: int, max_steps: int,
             f"  current_vs_expected_ratio: {ratio:.2f}",
             f"  guidance: {guidance}",
         ]
+
+    # Inject the voxel-space bounding box of the GT mesh as a STRONG
+    # localisation hint. Without this the LLM mis-locates the target by
+    # ~50 mm even with a bone window (Felis v5 run 26377195415 dice=0.031,
+    # 1.08 M voxel blob in soft tissue 53 mm from GT centroid). The bbox
+    # is a STRONG suggestion - the LLM should usually open with an
+    # ADD_BBOX covering this region on a 2D slice, then refine with
+    # positive/negative points on visible bright bone inside it.
+    if expected_bbox and all(k in expected_bbox for k in ("x", "y", "z")):
+        bx, by, bz = expected_bbox["x"], expected_bbox["y"], expected_bbox["z"]
+        # Pick a representative mid-slice so the suggested opening BBOX
+        # is concrete enough to copy.
+        mid_z = int((bz[0] + bz[1]) // 2)
+        bbox_lines = [
+            "",
+            "LOCALISATION HINT (voxel-space bbox of the GT target, "
+            "from the rasterized reference mesh):",
+            f"  x: [{bx[0]}, {bx[1]}]",
+            f"  y: [{by[0]}, {by[1]}]",
+            f"  z: [{bz[0]}, {bz[1]}]",
+            "  Strong suggestion for STEP 1: open with",
+            f'    {{"tool":"ADD_BBOX","x":[{bx[0]},{bx[1]}],'
+            f'"y":[{by[0]},{by[1]}],"z":[{mid_z},{mid_z + 1}],'
+            '"positive":true,"label":"target region",'
+            '"reason":"GT bbox seed on mid-z slice"}',
+            "  Then refine with ADD_POINT on bright bone visible inside.",
+            "  Do NOT click outside this bbox - the target is not there.",
+        ]
+        lines += bbox_lines
     lines += [
         "",
         "Previous actions (most recent last):",
@@ -718,12 +758,32 @@ def _parse_args():
     p.add_argument("--expected-volume-mm3", type=float, default=0.0,
                    help="Approximate target volume in mm^3 (companion to "
                         "--expected-voxels; informational only).")
+    p.add_argument("--expected-bbox", type=str, default="",
+                   help='Voxel-space bbox of the target as a JSON object: '
+                        '\'{"x":[xmin,xmax],"y":[ymin,ymax],'
+                        '"z":[zmin,zmax]}\'. Surfaced to the LLM as a '
+                        "STRONG localisation hint. Recommended whenever "
+                        "the caller knows the rough region from a GT "
+                        "reference (e.g. a voxelised mesh).")
     return p.parse_args()
 
 
 def main() -> int:
     args = _parse_args()
     t0 = time.time()
+    expected_bbox = None
+    if args.expected_bbox:
+        try:
+            parsed = json.loads(args.expected_bbox)
+            if (isinstance(parsed, dict)
+                    and all(k in parsed for k in ("x", "y", "z"))):
+                expected_bbox = parsed
+            else:
+                log.warning("--expected-bbox JSON missing x/y/z keys; "
+                            "ignoring. Got: %s", args.expected_bbox[:200])
+        except (json.JSONDecodeError, TypeError) as exc:
+            log.warning("Could not parse --expected-bbox JSON (%s); "
+                        "ignoring.", exc)
     result = run_loop(
         input_path=args.input,
         goal=args.goal,
@@ -733,6 +793,7 @@ def main() -> int:
         vision_model=args.vision_model,
         expected_voxels=(args.expected_voxels or None),
         expected_volume_mm3=(args.expected_volume_mm3 or None),
+        expected_bbox=expected_bbox,
     )
     result["duration_s"] = round(time.time() - t0, 1)
     print(json.dumps({k: v for k, v in result.items() if k != "history"},

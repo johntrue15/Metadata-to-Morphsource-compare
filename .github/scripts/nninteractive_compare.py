@@ -582,10 +582,56 @@ def _volume_mm3_of(labelmap: Path) -> Optional[float]:
     return None
 
 
+def _get_gt_bbox(labelmap: Path) -> Optional[dict]:
+    """Compute the voxel-space bounding box (x, y, z) of the GT labelmap.
+
+    Returned dict has keys ``x``, ``y``, ``z`` each mapped to ``[min, max]``
+    in voxel coordinates matching nnInteractive's ``(x, y, z)`` convention
+    (i.e. inverse of numpy's ``(z, y, x)`` array order).
+
+    This is supplied to the paint loop as a localisation hint - the LLM
+    routinely misjudges *where* the target is, even with bone-window
+    previews. Felis v5 (run 26377195415) segmented a 1.08 M voxel blob
+    in soft tissue 53 mm from the GT centroid. Giving the LLM the GT
+    bbox unblocks the validation suite without weakening the paint
+    loop's job of refining the mask once the region is right.
+    """
+    if not NNI_PYTHON.exists() or not labelmap.exists():
+        return None
+    script = (
+        "import sys, json, SimpleITK as sitk, numpy as np\n"
+        "img = sitk.ReadImage(sys.argv[1])\n"
+        "arr = sitk.GetArrayFromImage(img)\n"
+        "zs, ys, xs = np.where(arr > 0)\n"
+        "if zs.size == 0:\n"
+        "    print('{}'); sys.exit(0)\n"
+        "out = {\n"
+        "    'x': [int(xs.min()), int(xs.max())],\n"
+        "    'y': [int(ys.min()), int(ys.max())],\n"
+        "    'z': [int(zs.min()), int(zs.max())],\n"
+        "}\n"
+        "print(json.dumps(out))\n"
+    )
+    try:
+        proc = subprocess.run(
+            [str(NNI_PYTHON), "-c", script, str(labelmap)],
+            capture_output=True, text=True, timeout=60,
+        )
+        if proc.returncode == 0 and proc.stdout.strip():
+            data = json.loads(proc.stdout.strip())
+            if data and all(k in data for k in ("x", "y", "z")):
+                return data
+    except (subprocess.SubprocessError, OSError, ValueError,
+            json.JSONDecodeError) as exc:
+        log.debug("_get_gt_bbox failed for %s: %s", labelmap, exc)
+    return None
+
+
 def _run_paint_loop(input_volume: Path, goal: str, output_dir: Path,
                      media_id: str, max_steps: int,
                      expected_voxels: Optional[int] = None,
-                     expected_volume_mm3: Optional[float] = None) -> dict:
+                     expected_volume_mm3: Optional[float] = None,
+                     expected_bbox: Optional[dict] = None) -> dict:
     """Run nninteractive_loop.py.
 
     Backend selection:
@@ -636,6 +682,8 @@ def _run_paint_loop(input_volume: Path, goal: str, output_dir: Path,
         cmd += ["--expected-voxels", str(int(expected_voxels))]
     if expected_volume_mm3 is not None and expected_volume_mm3 > 0:
         cmd += ["--expected-volume-mm3", f"{float(expected_volume_mm3):.3f}"]
+    if expected_bbox:
+        cmd += ["--expected-bbox", json.dumps(expected_bbox)]
     env = os.environ.copy()
     env.setdefault("NNINTERACTIVE_HOME", str(NNI_HOME))
     # nnInteractive's nnU-Net backbone hits ops that aren't implemented
@@ -1011,11 +1059,18 @@ def run_comparison(ct_media_id: str, gt_media_id: str, goal: str,
     # positives once the mask is close to the right size.
     gt_voxels = _count_nonzero_voxels(gt_labelmap)
     gt_volume_mm3 = _volume_mm3_of(gt_labelmap)
+    # GT-derived voxel bbox hint. Felis v5 (run 26377195415) showed that
+    # even with bone-window previews the LLM mis-localised the skull by
+    # ~50 mm; without a hint the paint loop's other improvements (budget,
+    # save-best) can't help. The bbox is treated as a STRONG suggestion
+    # in the prompt - the LLM is still free to refine outside it.
+    gt_bbox = _get_gt_bbox(gt_labelmap)
     nni_dir = pair_dir / "nninteractive"
     nni_result = _run_paint_loop(
         cropped_ct, goal, nni_dir, ct_media_id, max_steps,
         expected_voxels=gt_voxels,
         expected_volume_mm3=gt_volume_mm3,
+        expected_bbox=gt_bbox,
     )
     if "error" in nni_result:
         return {"success": False, "stage": "paint_loop", "result": nni_result}

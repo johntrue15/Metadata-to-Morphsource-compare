@@ -531,5 +531,61 @@ class BudgetHintTests(unittest.TestCase):
         self.assertIn("RESET", s)
 
 
+class BboxHintTests(unittest.TestCase):
+    """The voxel-space bbox hint should appear in the prompt only when
+    ``expected_bbox`` is provided. It must include the exact bbox the
+    caller passed plus a concrete ADD_BBOX suggestion the LLM can copy.
+    """
+
+    def _build(self, *, bbox=None):
+        from nninteractive_loop import _build_state_text
+        return _build_state_text(
+            goal="Segment cranial bone.",
+            step=1, max_steps=12,
+            image_shape_xyz=[211, 224, 384],
+            spacing_xyz=[0.357, 0.357, 0.357],
+            voxel_count=0, volume_mm3=0,
+            history=[],
+            expected_voxels=701499,
+            expected_volume_mm3=32035.0,
+            expected_bbox=bbox,
+        )
+
+    def test_no_hint_without_bbox(self):
+        s = self._build(bbox=None)
+        self.assertNotIn("LOCALISATION HINT", s)
+
+    def test_bbox_hint_shows_full_extents(self):
+        bbox = {"x": [42, 168], "y": [101, 197], "z": [87, 277]}
+        s = self._build(bbox=bbox)
+        self.assertIn("LOCALISATION HINT", s)
+        self.assertIn("x: [42, 168]", s)
+        self.assertIn("y: [101, 197]", s)
+        self.assertIn("z: [87, 277]", s)
+
+    def test_bbox_hint_includes_concrete_add_bbox_seed(self):
+        """The hint should give the LLM a ready-to-copy ADD_BBOX prompt
+        on the mid-z slice of the bbox - removing the spatial-reasoning
+        step that v3-v5 all failed at."""
+        bbox = {"x": [42, 168], "y": [101, 197], "z": [87, 277]}
+        s = self._build(bbox=bbox)
+        # Mid-z of [87, 277] is 182; the seed should be a planar bbox
+        # spanning the full x/y range of the bbox at that slice.
+        self.assertIn('"tool":"ADD_BBOX"', s)
+        self.assertIn('"x":[42,168]', s)
+        self.assertIn('"y":[101,197]', s)
+        self.assertIn('"z":[182,183]', s)
+
+    def test_bbox_hint_warns_to_stay_inside(self):
+        bbox = {"x": [10, 20], "y": [10, 20], "z": [10, 20]}
+        s = self._build(bbox=bbox)
+        self.assertIn("Do NOT click outside this bbox", s)
+
+    def test_partial_bbox_dict_is_ignored(self):
+        # Missing 'z' -> hint omitted (defensive guard).
+        s = self._build(bbox={"x": [0, 1], "y": [0, 1]})
+        self.assertNotIn("LOCALISATION HINT", s)
+
+
 if __name__ == "__main__":
     unittest.main()
