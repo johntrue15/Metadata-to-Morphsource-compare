@@ -150,7 +150,14 @@ def gh_dispatch(gh: str, pair: "PairSpec", args: argparse.Namespace) -> str:
         f"crop_around_mesh_mm={args.crop_around_mesh_mm}",
         f"max_voxel_axis={args.max_voxel_axis}",
         f"align_mesh_to_ct={args.align_mesh_to_ct}",
+        f"paint_mode={args.paint_mode}",
     ]
+    if args.paint_mode == "bright_seed":
+        inputs.append(
+            f"bright_seed_percentile={args.bright_seed_percentile}"
+        )
+        if args.bright_seed_no_stop_rules:
+            inputs.append("bright_seed_no_stop_rules=true")
     cmd = [
         gh, "workflow", "run", WORKFLOW_FILE,
         "--repo", gh_repo(),
@@ -541,6 +548,18 @@ def main() -> int:
     p.add_argument("--voxelize-backend", default="vtk",
                    choices=["vtk", "slicer", "auto"])
     p.add_argument("--max-steps", type=int, default=12)
+    p.add_argument("--paint-mode", default="llm",
+                   choices=["llm", "bright_seed"],
+                   help="Paint-loop strategy. 'llm' = original GPT loop. "
+                        "'bright_seed' = deterministic bright-voxel greedy "
+                        "(no OpenAI cost, handles thin-cortical-bone CTs "
+                        "the LLM cannot). Default 'llm' for back-compat.")
+    p.add_argument("--bright-seed-percentile", type=float, default=99.0,
+                   help="Intensity percentile threshold for "
+                        "--paint-mode bright_seed (default 99 = top 1%%).")
+    p.add_argument("--bright-seed-no-stop-rules", action="store_true",
+                   help="Disable bright-seed saturation + explosion guards "
+                        "so it runs to --max-steps (mouse-skull behaviour).")
     p.add_argument("--poll-every-s", type=int, default=30)
     p.add_argument("--max-minutes", type=int, default=240,
                    help="Max wall time per pair (default 4h)")
