@@ -138,7 +138,15 @@ class StepRecord:
     args: dict
     result: str
     voxel_count: int
+    # All preview PNGs for the step (BEFORE + AFTER). Reviewers look
+    # at this list to walk through the click trail.
     screenshots: list[str] = field(default_factory=list)
+    # Subset of ``screenshots`` to feed back to the LLM on the next
+    # turn - we only resend the AFTER frames because they show the
+    # current mask state; sending BEFORE+AFTER would eat the per-call
+    # image budget and confuse the model with duplicate scenes.
+    screenshots_for_next_llm: list[str] = field(default_factory=list)
+    click_intensity: Optional[float] = None
 
 
 # ---------------------------------------------------------------------------
@@ -413,8 +421,14 @@ def run_loop(input_path: str, goal: str, output_dir: str,
                       expected_voxels if expected_voxels else "n/a")
 
     for step in range(1, max_steps + 1):
+        # Use AFTER frames only when feeding the LLM (BEFORE frames
+        # are the same scene as the previous AFTER and would burn the
+        # per-call image budget). The full BEFORE+AFTER trail still
+        # lives in ``screenshots`` for human review.
         last_screens = (
-            history[-1].screenshots if history else initial
+            (history[-1].screenshots_for_next_llm
+             or history[-1].screenshots)
+            if history else initial
         )
         state_text = _build_state_text(
             goal=goal,
@@ -479,6 +493,75 @@ def run_loop(input_path: str, goal: str, output_dir: str,
         tool = action.get("tool", "DONE").upper()
         log.info("  Tool: %s — %s", tool, action.get("reason", "")[:120])
 
+        # Build a marker for the planned action so the BEFORE/AFTER
+        # previews show exactly where the LLM is about to click.
+        # User explicitly asked for "screenshotting and saving what
+        # the data looks like before and after clicking" so the trail
+        # has to make the click VISIBLE on the rendered images, not
+        # only buried in the JSON log.
+        planned_markers: list[dict] = []
+        click_intensity_preview: Optional[float] = None
+        if tool == "ADD_POINT":
+            try:
+                px, py, pz = (int(action["x"]), int(action["y"]),
+                              int(action["z"]))
+                planned_markers.append({
+                    "xyz": (px, py, pz),
+                    "positive": bool(action.get("positive", True)),
+                    "label": f"s{step}",
+                })
+                click_intensity_preview = seg.sample_intensity(px, py, pz)
+            except (KeyError, ValueError, TypeError):
+                pass
+        elif tool == "ADD_BBOX":
+            try:
+                xr = action["x"]; yr = action["y"]; zr = action["z"]
+                cx = (int(xr[0]) + int(xr[1])) // 2
+                cy = (int(yr[0]) + int(yr[1])) // 2
+                cz = (int(zr[0]) + int(zr[1])) // 2
+                planned_markers.append({
+                    "xyz": (cx, cy, cz),
+                    "positive": bool(action.get("positive", True)),
+                    "label": f"s{step} bbox-center",
+                })
+                click_intensity_preview = seg.sample_intensity(cx, cy, cz)
+            except (KeyError, ValueError, TypeError, IndexError):
+                pass
+
+        # Save the BEFORE preview (current mask + planned-click marker)
+        # for every interactive tool. RESET/DONE don't have a click
+        # location so we skip them to keep the artifact tree tidy.
+        before_screens: list[str] = []
+        if planned_markers:
+            before_screens = seg.save_orthogonal_previews(
+                name_prefix=f"{media_id}_step{step:02d}_before",
+                intensity_window=intensity_window,
+                markers=planned_markers,
+            )
+            if click_intensity_preview is None:
+                log.info(
+                    "  click target %s: outside volume "
+                    "(intensity unsamplable)",
+                    planned_markers[0]["xyz"],
+                )
+            else:
+                # In CT, bone is typically > 200 HU; air/cavity is
+                # around -1000 HU; soft tissue 0-100 HU. We don't
+                # gate the click on this - just surface it loudly so
+                # post-mortems can see "the LLM clicked HU=-987,
+                # which is air" without re-rendering the PNGs.
+                kind_hint = (
+                    "BONE-LIKE (good)" if click_intensity_preview > 200
+                    else "soft tissue / boundary"
+                    if click_intensity_preview > -100
+                    else "AIR / CAVITY (likely wrong)"
+                )
+                log.info(
+                    "  click target %s: CT intensity = %.1f HU (%s)",
+                    planned_markers[0]["xyz"],
+                    click_intensity_preview, kind_hint,
+                )
+
         # Execute the tool
         if tool == "DONE":
             history.append(StepRecord(
@@ -531,6 +614,7 @@ def run_loop(input_path: str, goal: str, output_dir: str,
                 step=step, tool="ADD_POINT", args=action,
                 result=result,
                 voxel_count=seg.voxel_count(),
+                click_intensity=click_intensity_preview,
             ))
         elif tool == "ADD_BBOX":
             try:
@@ -547,6 +631,7 @@ def run_loop(input_path: str, goal: str, output_dir: str,
                 step=step, tool="ADD_BBOX", args=action,
                 result=result,
                 voxel_count=seg.voxel_count(),
+                click_intensity=click_intensity_preview,
             ))
         else:
             log.warning("Unknown tool '%s' — treating as DONE", tool)
@@ -579,12 +664,35 @@ def run_loop(input_path: str, goal: str, output_dir: str,
             log.warning("Step %d checkpoint failed (continuing): %s",
                         step, exc)
 
-        # Render the new state for the next iteration
-        screens = seg.save_orthogonal_previews(
-            name_prefix=f"{media_id}_step{step:02d}",
+        # Render the AFTER state for the next iteration. Same markers
+        # as the BEFORE preview so the pair forms a true before/after
+        # diff for review. The full ``screenshots`` list is BEFORE + AFTER
+        # together so the eventual artifact bundle contains both legs of
+        # the click trail.
+        after_screens = seg.save_orthogonal_previews(
+            name_prefix=f"{media_id}_step{step:02d}_after",
             intensity_window=intensity_window,
+            markers=planned_markers,
         )
-        history[-1].screenshots = screens
+        history[-1].screenshots = before_screens + after_screens
+        # Tell the LLM to look at the AFTER frames on the next turn -
+        # the BEFORE frames are the same as last-step's AFTER and would
+        # otherwise eat into the per-call image budget. The full pair
+        # still lives on disk for human reviewers.
+        history[-1].screenshots_for_next_llm = after_screens
+        # Voxel delta vs the previous step makes "did this click do
+        # anything?" trivial to read off the loop log.
+        prev_vc = (
+            history[-2].voxel_count if len(history) >= 2 else 0
+        )
+        delta = history[-1].voxel_count - prev_vc
+        log.info(
+            "  step %d post-action: voxels %d -> %d (delta %+d), "
+            "click_intensity=%s",
+            step, prev_vc, history[-1].voxel_count, delta,
+            f"{click_intensity_preview:.1f}"
+            if click_intensity_preview is not None else "n/a",
+        )
 
     # Restore best mask if the final state is worse than a snapshot we
     # took earlier. "Worse" is defined by the same score the snapshotter
@@ -801,6 +909,7 @@ def _record_to_dict(r: StepRecord) -> dict:
         "result": r.result,
         "voxel_count": r.voxel_count,
         "screenshots": r.screenshots,
+        "click_intensity": r.click_intensity,
     }
 
 

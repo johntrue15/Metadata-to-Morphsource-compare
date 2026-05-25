@@ -140,12 +140,20 @@ class FakeSegmenter:
         # so just advance.
         self._advance()
 
+    def sample_intensity(self, x, y, z):
+        # Real Segmenter samples the CT voxel value; the fake returns
+        # a constant so tests can assert "intensity is recorded".
+        return 1234.5
+
     # --- io ----------------------------------------------------------------
     def save_orthogonal_previews(self, name_prefix: str = "",
-                                  intensity_window=None) -> list[str]:
-        # The intensity_window kwarg is accepted (and ignored) so this
-        # mock matches the real Segmenter signature; the loop passes it
-        # for bone-targeting goals.
+                                  intensity_window=None,
+                                  markers=None) -> list[str]:
+        # Accepts the markers kwarg the real Segmenter now takes so the
+        # paint loop can pass click markers without crashing the fake.
+        # We record the markers it was called with for assertion in
+        # the BEFORE/AFTER trail tests.
+        self._last_markers = list(markers) if markers is not None else None
         p = self.output_dir / f"{name_prefix}_preview.png"
         p.write_bytes(b"\x89PNG\r\n\x1a\n")  # minimal stub
         return [str(p)]
@@ -705,6 +713,148 @@ class LoopFileHandlerTests(unittest.TestCase):
         log_path = mod._attach_file_handler(str(nested), "X")
         self.assertTrue(nested.exists())
         self.assertTrue(Path(log_path).exists())
+
+
+class BeforeAfterPreviewTests(unittest.TestCase):
+    """Per the user request after Felis v11 / Crotalus failures:
+
+        "Lets make sure we are screenshotting and saving what the
+         data looks like before and after clicking to get nninteractive
+         to run."
+
+    These tests assert that the paint loop:
+      - calls ``save_orthogonal_previews`` TWICE per interactive step
+        (once with a ``_before`` prefix, once with ``_after``).
+      - passes the planned click coords as a ``markers`` kwarg so the
+        rendered PNG actually shows where the LLM is clicking.
+      - records the CT-intensity sampled at the click location in the
+        StepRecord (so post-mortems can spot "the LLM clicked an
+        HU=-987 cavity voxel" without re-rendering).
+    """
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp())
+        os.environ["OPENAI_API_KEY"] = "sk-test-stub"
+
+    def tearDown(self) -> None:
+        import shutil
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _run_one_point(self, click=(12, 34, 56)):
+        """Drive the loop through ONE ADD_POINT then DONE.
+
+        Returns (history, recorded_calls) where recorded_calls is the
+        list of (name_prefix, markers) the loop passed to the fake
+        segmenter's save_orthogonal_previews.
+        """
+        import nninteractive_loop as mod
+
+        fake_seg = FakeSegmenter(voxel_trace=[5000, 5000],
+                                 output_dir=self.tmp)
+        recorded: list[tuple] = []
+        real_save = fake_seg.save_orthogonal_previews
+
+        def _capturing_save(name_prefix="", intensity_window=None,
+                            markers=None):
+            recorded.append((name_prefix,
+                             [dict(m) for m in (markers or [])]))
+            return real_save(name_prefix=name_prefix,
+                             intensity_window=intensity_window,
+                             markers=markers)
+        fake_seg.save_orthogonal_previews = _capturing_save  # type: ignore[assignment]
+
+        cx, cy, cz = click
+        llm = [
+            {"tool": "ADD_POINT", "x": cx, "y": cy, "z": cz,
+             "positive": True, "label": "test seed",
+             "reason": "stub"},
+            {"tool": "DONE", "reason": "stop"},
+        ]
+
+        with patch.object(mod, "make_segmenter", return_value=fake_seg), \
+             patch.object(mod, "_call_vision_llm",
+                          new=_scripted_llm(llm)), \
+             patch.dict(sys.modules, {"torch": FakeTorchModule}):
+            mod.run_loop(
+                input_path=str(self.tmp / "dummy_ct.nii.gz"),
+                goal="Segment the cranial bone (skull) for testing.",
+                output_dir=str(self.tmp),
+                media_id="TESTID",
+                max_steps=4,
+                vision_model="gpt-4o-stub",
+            )
+
+        return recorded
+
+    def test_step_emits_before_and_after_previews(self):
+        recorded = self._run_one_point()
+        prefixes = [p for p, _ in recorded]
+        # step00 (initial) + step01_before + step01_after expected.
+        self.assertIn("TESTID_step00", prefixes)
+        self.assertTrue(any(p == "TESTID_step01_before"
+                            for p in prefixes),
+                        msg=f"missing _before preview, got {prefixes}")
+        self.assertTrue(any(p == "TESTID_step01_after"
+                            for p in prefixes),
+                        msg=f"missing _after preview, got {prefixes}")
+
+    def test_marker_xyz_matches_clicked_coordinate(self):
+        click = (77, 88, 99)
+        recorded = self._run_one_point(click=click)
+        # Both before+after for step 1 must carry the exact xyz the
+        # LLM picked.
+        before = next((m for p, m in recorded
+                       if p == "TESTID_step01_before"), None)
+        after = next((m for p, m in recorded
+                      if p == "TESTID_step01_after"), None)
+        self.assertIsNotNone(before)
+        self.assertIsNotNone(after)
+        self.assertEqual(len(before), 1)
+        self.assertEqual(tuple(before[0]["xyz"]), click)
+        self.assertEqual(tuple(after[0]["xyz"]), click)
+        self.assertTrue(before[0]["positive"])
+        self.assertEqual(after[0]["label"], "s1")
+
+    def test_initial_step00_has_no_marker(self):
+        recorded = self._run_one_point()
+        markers00 = next((m for p, m in recorded
+                          if p == "TESTID_step00"), None)
+        self.assertEqual(markers00, [])
+
+    def test_click_intensity_recorded_in_step_record(self):
+        """The FakeSegmenter returns 1234.5 from sample_intensity, so
+        the StepRecord for the ADD_POINT step must carry that value."""
+        import nninteractive_loop as mod
+
+        fake_seg = FakeSegmenter(voxel_trace=[5000, 5000],
+                                 output_dir=self.tmp)
+        captured: dict = {}
+        original_run = mod.run_loop
+
+        llm = [
+            {"tool": "ADD_POINT", "x": 1, "y": 2, "z": 3,
+             "positive": True, "reason": "stub"},
+            {"tool": "DONE", "reason": "stop"},
+        ]
+        with patch.object(mod, "make_segmenter", return_value=fake_seg), \
+             patch.object(mod, "_call_vision_llm",
+                          new=_scripted_llm(llm)), \
+             patch.dict(sys.modules, {"torch": FakeTorchModule}):
+            result = original_run(
+                input_path=str(self.tmp / "dummy_ct.nii.gz"),
+                goal="Segment the cranial bone (skull) for testing.",
+                output_dir=str(self.tmp),
+                media_id="TESTID",
+                max_steps=4,
+                vision_model="gpt-4o-stub",
+            )
+        # run_loop returns {"steps": int, "history": [StepRecord-as-dict]}
+        # so we read the per-step click_intensity off the history list.
+        history = result.get("history") or []
+        point_records = [r for r in history
+                         if r.get("tool") == "ADD_POINT"]
+        self.assertTrue(point_records, "no ADD_POINT step recorded")
+        self.assertEqual(point_records[0].get("click_intensity"), 1234.5)
 
 
 if __name__ == "__main__":
