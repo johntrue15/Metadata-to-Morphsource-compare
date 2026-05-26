@@ -972,7 +972,37 @@ def _parse_args(argv=None) -> argparse.Namespace:
                         "list is exhausted, (b) click intensity drops "
                         "into 'background-bright' territory, or (c) "
                         "the max-steps safety cap is reached.")
+    p.add_argument("--autopilot", action="store_true",
+                   help="Auto-derive every tunable knob from the CT "
+                        "volume's intensity histogram (see "
+                        "auto_params.py) and then run to natural "
+                        "saturation. Picks --intensity-percentile, "
+                        "--intensity-drop-floor-frac, "
+                        "--min-segment-voxels, --max-segment-voxels, "
+                        "--max-candidates, and turns on --auto-"
+                        "saturate. Any flag explicitly passed on the "
+                        "command line takes precedence (so you can "
+                        "autopilot and override one knob).")
     return p.parse_args(argv)
+
+
+def _user_passed(flag: str, argv) -> bool:
+    """Return True if the user explicitly typed ``--flag`` (or
+    ``--flag=...``) on the command line. ``argv`` may be None (use
+    ``sys.argv``) or a pre-built list (unit tests).
+
+    We use this to make ``--autopilot`` respect any flag the caller
+    already overrode: argparse can't natively distinguish a default
+    from "user typed the default value", so we sniff argv directly.
+    Acceptable trade-off: it's a few lines, the alternative
+    (custom Action subclasses for every flag) is much heavier.
+    """
+    src = list(argv) if argv is not None else sys.argv[1:]
+    needles = (f"--{flag}", f"--{flag}=")
+    return any(
+        item == needles[0] or item.startswith(needles[1])
+        for item in src
+    )
 
 
 def main(argv=None) -> int:
@@ -980,6 +1010,51 @@ def main(argv=None) -> int:
     region_bbox = None
     if args.region_bbox:
         region_bbox = json.loads(args.region_bbox)
+
+    # --autopilot: derive every tunable from the volume histogram via
+    # auto_params, then fall through to the --auto-saturate path. Any
+    # flag the user explicitly passed wins over the autopilot pick.
+    if args.autopilot:
+        try:
+            import auto_params as _ap
+            ap_result = _ap.derive_from_path(args.input)
+        except Exception as exc:
+            log.error("--autopilot failed to read %s: %s", args.input, exc)
+            return 2
+        log.info(
+            "--autopilot derived: percentile=%.2f, "
+            "intensity_drop_floor_frac=%.3f, min_segment_voxels=%d, "
+            "max_segment_voxels=%d, max_candidates=%d "
+            "(tail_ratio=%.3f, voxel_count=%d)",
+            ap_result.percentile,
+            ap_result.intensity_drop_floor_frac,
+            ap_result.min_segment_voxels,
+            ap_result.max_segment_voxels,
+            ap_result.max_candidates,
+            ap_result.meta.get("tail_ratio") or float("nan"),
+            ap_result.meta.get("voxel_count", 0),
+        )
+        if not _user_passed("intensity-percentile", argv):
+            args.intensity_percentile = ap_result.percentile
+        if not _user_passed("intensity-drop-floor-frac", argv):
+            args.intensity_drop_floor_frac = (
+                ap_result.intensity_drop_floor_frac
+            )
+        if not _user_passed("min-segment-voxels", argv):
+            args.min_segment_voxels = ap_result.min_segment_voxels
+        if not _user_passed("max-segment-voxels", argv):
+            args.max_segment_voxels = ap_result.max_segment_voxels
+        if not _user_passed("max-candidates", argv):
+            args.max_candidates = ap_result.max_candidates
+        if not _user_passed("min-local-density", argv):
+            args.min_local_density = ap_result.min_local_density
+        if not _user_passed("neighborhood-radius", argv):
+            args.neighborhood_radius = ap_result.neighborhood_radius
+        if not _user_passed("min-clicks-before-drop-stop", argv):
+            args.min_clicks_before_drop_stop = (
+                ap_result.min_clicks_before_drop_stop
+            )
+        args.auto_saturate = True
 
     # --auto-saturate sets sensible "run-to-exhaustion" defaults but
     # never overrides values the caller passed explicitly. argparse

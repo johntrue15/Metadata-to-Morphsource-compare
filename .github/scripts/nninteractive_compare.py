@@ -989,6 +989,15 @@ def _run_bright_seed_loop(
         }
 
     output_dir.mkdir(parents=True, exist_ok=True)
+    effective_max_steps = int(max_steps)
+    if auto_saturate and effective_max_steps < 100:
+        log.info(
+            "auto_saturate=True overrides max_steps %d -> 500 to let the "
+            "loop run until natural saturation (intensity-drop / "
+            "candidate exhaustion)",
+            effective_max_steps,
+        )
+        effective_max_steps = 500
     cmd = [
         str(NNI_PYTHON),
         str(SCRIPT_DIR / "nninteractive_bright_seed.py"),
@@ -997,7 +1006,7 @@ def _run_bright_seed_loop(
         "--media-id", media_id,
         "--intensity-percentile", f"{float(percentile):.3f}",
         "--max-candidates", str(int(max_candidates)),
-        "--max-steps", str(int(max_steps)),
+        "--max-steps", str(effective_max_steps),
         "--min-delta", str(int(min_delta)),
         "--patience", str(int(patience)),
         "--max-explosion-frac", f"{float(max_explosion_frac):.3f}",
@@ -1258,7 +1267,9 @@ def run_comparison(ct_media_id: str, gt_media_id: str, goal: str,
                    paint_mode: str = "llm",
                    bright_seed_percentile: float = 99.0,
                    bright_seed_max_candidates: int = 200_000,
-                   bright_seed_no_stop_rules: bool = False) -> dict:
+                   bright_seed_no_stop_rules: bool = False,
+                   bright_seed_auto_saturate: bool = False,
+                   bright_seed_intensity_drop_floor_frac: float = 0.0) -> dict:
     """End-to-end comparison.
 
     voxelize_backend  "auto" | "slicer" | "vtk"   (auto = Slicer first, VTK fallback)
@@ -1507,6 +1518,8 @@ def run_comparison(ct_media_id: str, gt_media_id: str, goal: str,
             percentile=bright_seed_percentile,
             max_candidates=bright_seed_max_candidates,
             no_stop_rules=bright_seed_no_stop_rules,
+            auto_saturate=bright_seed_auto_saturate,
+            intensity_drop_floor_frac=bright_seed_intensity_drop_floor_frac,
             intensity_min=intensity_min,
             intensity_max=intensity_max,
             region_bbox_kji=region_bbox_kji,
@@ -1653,7 +1666,9 @@ def run_comparison_from_fixture(fixture_dir: Path, output_dir: Path,
                                 paint_mode: str = "llm",
                                 bright_seed_percentile: float = 99.0,
                                 bright_seed_max_candidates: int = 200_000,
-                                bright_seed_no_stop_rules: bool = False) -> dict:
+                                bright_seed_no_stop_rules: bool = False,
+                                bright_seed_auto_saturate: bool = False,
+                                bright_seed_intensity_drop_floor_frac: float = 0.0) -> dict:
     """Run the comparison using a pre-computed fixture.
 
     Skips download, TIFF→NIfTI, crop, and voxelize. The fixture directory
@@ -1761,6 +1776,8 @@ def run_comparison_from_fixture(fixture_dir: Path, output_dir: Path,
                 percentile=bright_seed_percentile,
                 max_candidates=bright_seed_max_candidates,
                 no_stop_rules=bright_seed_no_stop_rules,
+                auto_saturate=bright_seed_auto_saturate,
+                intensity_drop_floor_frac=bright_seed_intensity_drop_floor_frac,
                 intensity_min=intensity_min,
                 intensity_max=intensity_max,
                 region_bbox_kji=region_bbox_kji,
@@ -2191,6 +2208,22 @@ def _parse_args():
                    help="Disable bright-seed's saturation + explosion "
                         "guards so it runs to max_steps. Matches the "
                         "mouse-skull session's behaviour.")
+    p.add_argument("--bright-seed-auto-saturate", action="store_true",
+                   help="Run bright-seed until no statistically obvious "
+                        "bright voxel remains. Convenience flag that "
+                        "sets max_steps=500, no_stop_rules=True, and "
+                        "intensity_drop_floor_frac=0.5 unless those are "
+                        "overridden explicitly. Exits when candidates "
+                        "are exhausted OR click intensity drops below "
+                        "the 'obvious' floor OR the max-steps cap is "
+                        "reached.")
+    p.add_argument("--bright-seed-intensity-drop-floor-frac",
+                   type=float, default=0.0,
+                   help="Stop bright-seed when a click's intensity "
+                        "falls below threshold + (peak - threshold) * "
+                        "frac. 0 disables. 0.5 = strict (mouse-style), "
+                        "0.2 = permissive (skull-bone-style narrow "
+                        "intensity range).")
     return p.parse_args()
 
 
@@ -2240,6 +2273,10 @@ def main() -> int:
             bright_seed_percentile=args.bright_seed_percentile,
             bright_seed_max_candidates=args.bright_seed_max_candidates,
             bright_seed_no_stop_rules=args.bright_seed_no_stop_rules,
+            bright_seed_auto_saturate=args.bright_seed_auto_saturate,
+            bright_seed_intensity_drop_floor_frac=(
+                args.bright_seed_intensity_drop_floor_frac
+            ),
         )
         print(json.dumps({k: v for k, v in result.items() if k != "metrics"},
                          indent=2, default=str))
@@ -2316,6 +2353,10 @@ def main() -> int:
         bright_seed_percentile=args.bright_seed_percentile,
         bright_seed_max_candidates=args.bright_seed_max_candidates,
         bright_seed_no_stop_rules=args.bright_seed_no_stop_rules,
+        bright_seed_auto_saturate=args.bright_seed_auto_saturate,
+        bright_seed_intensity_drop_floor_frac=(
+            args.bright_seed_intensity_drop_floor_frac
+        ),
     )
     print(json.dumps({k: v for k, v in result.items() if k != "metrics"},
                      indent=2, default=str))

@@ -96,3 +96,4 @@ site/
 runs/
 smoke_out/
 
+.local/

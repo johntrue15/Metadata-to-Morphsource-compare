@@ -158,6 +158,13 @@ def gh_dispatch(gh: str, pair: "PairSpec", args: argparse.Namespace) -> str:
         )
         if args.bright_seed_no_stop_rules:
             inputs.append("bright_seed_no_stop_rules=true")
+        if args.bright_seed_auto_saturate:
+            inputs.append("bright_seed_auto_saturate=true")
+        if args.bright_seed_intensity_drop_floor_frac > 0:
+            inputs.append(
+                "bright_seed_intensity_drop_floor_frac="
+                f"{args.bright_seed_intensity_drop_floor_frac}"
+            )
     cmd = [
         gh, "workflow", "run", WORKFLOW_FILE,
         "--repo", gh_repo(),
@@ -560,6 +567,17 @@ def main() -> int:
     p.add_argument("--bright-seed-no-stop-rules", action="store_true",
                    help="Disable bright-seed saturation + explosion guards "
                         "so it runs to --max-steps (mouse-skull behaviour).")
+    p.add_argument("--bright-seed-auto-saturate", action="store_true",
+                   help="Run bright-seed until no statistically obvious "
+                        "bright voxel remains. Sets max_steps=500, "
+                        "no_stop_rules, intensity_drop_floor_frac=0.5 "
+                        "unless explicitly overridden.")
+    p.add_argument("--bright-seed-intensity-drop-floor-frac",
+                   type=float, default=0.0,
+                   help="Stop bright-seed when click intensity falls "
+                        "below threshold + (peak - threshold) * frac. "
+                        "0 disables (default). 0.5 = strict (mouse), "
+                        "0.2 = permissive (skull bone).")
     p.add_argument("--poll-every-s", type=int, default=30)
     p.add_argument("--max-minutes", type=int, default=240,
                    help="Max wall time per pair (default 4h)")

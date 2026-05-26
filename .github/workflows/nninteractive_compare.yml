@@ -96,6 +96,16 @@ on:
         required: false
         type: boolean
         default: false
+      bright_seed_auto_saturate:
+        description: 'Run bright-seed until no statistically obvious bright voxel remains (intensity-drop exit, candidates exhausted, or max_steps cap). Sets max_steps=500, no_stop_rules=True, intensity_drop_floor_frac=0.5 unless overridden.'
+        required: false
+        type: boolean
+        default: false
+      bright_seed_intensity_drop_floor_frac:
+        description: 'Stop when click intensity falls below threshold + (peak - threshold) * frac. 0 disables. 0.5 is strict (mouse-style), 0.2 is permissive (skull-bone-style).'
+        required: false
+        type: number
+        default: 0
 
 jobs:
   compare:
@@ -204,6 +214,12 @@ jobs:
             ARGS+=(--bright-seed-percentile "${{ inputs.bright_seed_percentile || 99 }}")
             if [ "${{ inputs.bright_seed_no_stop_rules }}" = "true" ]; then
               ARGS+=(--bright-seed-no-stop-rules)
+            fi
+            if [ "${{ inputs.bright_seed_auto_saturate }}" = "true" ]; then
+              ARGS+=(--bright-seed-auto-saturate)
+            fi
+            if [ "${{ inputs.bright_seed_intensity_drop_floor_frac || 0 }}" != "0" ]; then
+              ARGS+=(--bright-seed-intensity-drop-floor-frac "${{ inputs.bright_seed_intensity_drop_floor_frac }}")
             fi
           fi
           ARGS+=(--output-dir /tmp/nni_compare)
