@@ -1,0 +1,28 @@
+{
+  "_doc": [
+    "GitHub raw URLs for Colors of Skull Anatomy (project 358382) staged samples.",
+    "Files must exist on the default branch under data/sample/ before these work.",
+    "Regenerate with: make stage-colors-skull-ct && make stage-colors-skull-gt",
+    "Override repo/branch via GITHUB_REPO / GITHUB_REF env when running tests."
+  ],
+  "github_repo": "johntrue15/MorphoClaw",
+  "github_ref": "main",
+  "slug": "crotalus_skull_000445108",
+  "project_id": "000358382",
+  "project_query": "Colors of Skull Anatomy",
+  "physical_object_id": "000445108",
+  "taxonomy": "Crotalus intermedius",
+  "ct_media_id": "000445159",
+  "mesh_media_id": "000691954",
+  "files": {
+    "ct_nrrd": "data/sample/crotalus_skull_000445108_ct.nrrd",
+    "gt_labelmap_nrrd": "data/sample/crotalus_skull_000445108_gt_labelmap.nrrd",
+    "provenance_json": "data/sample/crotalus_skull_000445108.provenance.json"
+  },
+  "slicer_volume_name": "crotalus_skull_000445108_ct",
+  "pilot_defaults": {
+    "budgets": [10],
+    "max_steps": 10,
+    "intensity_percentile": 99.0
+  }
+}

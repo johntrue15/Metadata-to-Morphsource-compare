@@ -1,0 +1,101 @@
+{
+  "tool": "stage_morphosource_sample.py",
+  "generated_utc": "2026-05-26T16:44:16Z",
+  "ct_media": {
+    "id": "000445159",
+    "title": "Head [CTImageSeries] [CT]",
+    "taxonomy": "Crotalus intermedius",
+    "physical_object_id": "000445108",
+    "physical_object_title": "UF:Herp:52552",
+    "doi": "",
+    "ark": "ark:/87602/m4/445159",
+    "visibility": "open",
+    "x_pixel_spacing_mm": 0.01903364,
+    "y_pixel_spacing_mm": 0.01903364,
+    "z_pixel_spacing_mm": 0.01903364,
+    "native_voxel_dims_xyz": [
+      699,
+      489,
+      1300
+    ],
+    "tiff_stack_root": "data/morphosource-download-000445159/morphosource_media-id-000445159_download-b6324c63/Media 000445159 - Head CTImageSeries CT/UF-herp-52552-head-000445159/UF-herp-52552-head"
+  },
+  "mesh_media": {
+    "id": "000691954",
+    "title": "Skull [Mesh] [CT]",
+    "media_parent_id": "000445159",
+    "doi": "",
+    "ark": "ark:/87602/m4/691954",
+    "visibility": "open",
+    "file": "data/morphosource-download-000691954/morphosource_media-id-000691954_download-b66d3742/Media 000691954 - Skull Mesh CT/rattlesnake_skull_colored-000691954.ply",
+    "world_bounds_xyz_mm": [
+      -3.9049856662750244,
+      3.8568038940429688,
+      -8.117964744567871,
+      7.579565048217773,
+      -3.628345251083374,
+      3.2562804222106934
+    ]
+  },
+  "grid": {
+    "max_axis_target": 384,
+    "margin_mm": 2.0,
+    "stride": 3,
+    "origin_convention": "centered",
+    "crop_index_min": [
+      41,
+      0,
+      146
+    ],
+    "crop_index_max": [
+      660,
+      488,
+      1182
+    ],
+    "mesh_axis_perm": "-x-z-y",
+    "mesh_axis_matrix": [
+      [
+        -1.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      [
+        0.0,
+        -1.0,
+        0.0
+      ]
+    ],
+    "ct_dtype": "uint16"
+  },
+  "outputs": {
+    "ct_nrrd": {
+      "path": "data/sample/crotalus_skull_000445108_ct.nrrd",
+      "size_bytes": 10926854,
+      "sha256": "082d1ad87cf6d7b6ddbed42ad1ba546a731112cc6a199e0119c06c5727e4b1b0",
+      "voxel_dims_xyz": [
+        207,
+        163,
+        346
+      ],
+      "spacing_xyz_mm": [
+        0.05710092,
+        0.05710092,
+        0.05710092
+      ],
+      "origin_xyz_mm": [
+        -5.86236112,
+        -4.64420816,
+        -9.58343774
+      ],
+      "dtype": "uint16"
+    }
+  },
+  "phases_completed": [
+    "ct-only"
+  ]
+}
