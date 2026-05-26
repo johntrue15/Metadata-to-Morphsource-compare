@@ -50,14 +50,29 @@ echo "  parent py:  $PARENT_PY"
 echo "  nni py:     $NNI_PYTHON"
 echo "  args:       $*"
 
-nohup "$PARENT_PY" .github/scripts/sweep_harness.py \
-    --state-dir "$STATE_DIR" \
-    run \
-    --nni-python "$NNI_PYTHON" \
-    "$@" \
-    >>"$DAEMON_LOG" 2>&1 &
+# `setsid` puts the worker into its own session so it survives the
+# parent bash + WSL terminal exit (nohup alone is not enough under
+# `wsl -d ... -- bash -lc ...`). The `</dev/null` cuts the stdin tie
+# to the controlling terminal that would otherwise SIGHUP the child.
+setsid bash -c "
+    exec '$PARENT_PY' .github/scripts/sweep_harness.py \\
+        --state-dir '$STATE_DIR' \\
+        run \\
+        --nni-python '$NNI_PYTHON' \\
+        $* \\
+        >>'$DAEMON_LOG' 2>&1
+" </dev/null >>"$DAEMON_LOG" 2>&1 &
 
 DAEMON_PID=$!
+disown "$DAEMON_PID" 2>/dev/null || true
 echo "$DAEMON_PID" >"$PID_FILE"
+sleep 1
+# Re-check: the setsid wrapper exits immediately, so the actual
+# long-running pid is one of its children. Find it.
+WORKER_PID="$(pgrep -P "$DAEMON_PID" -f sweep_harness | head -1 || true)"
+if [[ -n "$WORKER_PID" ]]; then
+    echo "$WORKER_PID" >"$PID_FILE"
+    DAEMON_PID="$WORKER_PID"
+fi
 echo "Daemon started pid=$DAEMON_PID"
 echo "Tail $DAEMON_LOG to watch."
