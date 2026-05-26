@@ -222,6 +222,32 @@ def has_dense_bright_neighborhood(
     return (above / cube.size) >= min_density
 
 
+def intensity_below_obvious(
+    intensity: float,
+    *,
+    threshold: float,
+    peak_intensity: float,
+    floor_frac: float,
+) -> bool:
+    """Return True when ``intensity`` is no longer "statistically obvious"
+    relative to the volume's bright distribution.
+
+    "Obvious" = above ``threshold + (peak - threshold) * floor_frac``.
+    With the IMPC mouse defaults (threshold=102, peak=255, frac=0.5)
+    the floor sits at 178; once bright-seed starts clicking voxels
+    below that we declare saturation and exit.
+
+    Returns False when ``floor_frac <= 0`` (rule disabled) or when
+    ``peak <= threshold`` (degenerate volume).
+    """
+    if floor_frac <= 0:
+        return False
+    if peak_intensity <= threshold:
+        return False
+    floor = threshold + (peak_intensity - threshold) * floor_frac
+    return intensity < floor
+
+
 def next_validated_candidate(
     arr_kji,
     cand_kji,
@@ -319,6 +345,8 @@ def run_bright_seed(
     max_segment_voxels: Optional[int] = None,
     min_local_density: float = 0.4,
     neighborhood_radius: int = 2,
+    intensity_drop_floor_frac: float = 0.0,
+    min_clicks_before_drop_stop: int = 5,
     segmenter=None,
 ) -> dict:
     """Drive the bright-seed paint loop end to end.
@@ -353,6 +381,16 @@ def run_bright_seed(
     mouse-embryo step-6 failure mode (click landed at intensity 183
     in the background outside the embryo body where a sparse cluster
     of bright noise voxels grew into a 41k-voxel runaway segment).
+
+    ``intensity_drop_floor_frac`` (> 0 enables) declares saturation
+    when the accepted click's intensity falls below
+    ``threshold + (peak_intensity - threshold) * floor_frac``. This is
+    the "statistically obvious bright voxel" rule: bright-seed walks
+    through candidates in descending intensity order, so once we're
+    down to "the bottom half of the bright tail" there's nothing left
+    that's confidently brighter than background and we should exit.
+    ``min_clicks_before_drop_stop`` guards against early exits on
+    volumes where the very first candidates aren't representative.
 
     Returns a summary dict with the per-step trail. ``segmenter`` is
     injectable so the unit tests can run without nnInteractive.
@@ -653,6 +691,39 @@ def run_bright_seed(
                      step, patience, min_delta)
             break
 
+        # "Statistically obvious bright voxel" saturation rule. Bright
+        # voxels are clicked in descending intensity order, so once we
+        # drop below threshold + (peak - threshold)*floor_frac there
+        # is nothing left that's clearly brighter than background.
+        if (intensity_drop_floor_frac > 0
+                and len(history) >= min_clicks_before_drop_stop):
+            peak_intensity = max(rec["intensity"] for rec in history)
+            if intensity_below_obvious(
+                intensity,
+                threshold=threshold,
+                peak_intensity=peak_intensity,
+                floor_frac=intensity_drop_floor_frac,
+            ):
+                floor = (threshold
+                         + (peak_intensity - threshold)
+                         * intensity_drop_floor_frac)
+                stop_reason = {
+                    "reason": "intensity_below_obvious",
+                    "intensity": intensity,
+                    "intensity_floor": floor,
+                    "peak_intensity": peak_intensity,
+                    "threshold": threshold,
+                    "floor_frac": intensity_drop_floor_frac,
+                    "step": step,
+                }
+                log.info(
+                    "Step %d: click intensity %.2f below 'obvious' floor "
+                    "%.2f (peak=%.2f threshold=%.2f frac=%.2f); stopping.",
+                    step, intensity, floor, peak_intensity,
+                    threshold, intensity_drop_floor_frac,
+                )
+                break
+
     if stop_reason is None:
         stop_reason = {"reason": "max_steps", "max_steps": max_steps}
         log.info("Hit max_steps=%d; stopping.", max_steps)
@@ -749,6 +820,8 @@ def run_bright_seed(
         "max_segment_voxels": max_segment_voxels,
         "min_local_density": min_local_density,
         "neighborhood_radius": neighborhood_radius,
+        "intensity_drop_floor_frac": intensity_drop_floor_frac,
+        "min_clicks_before_drop_stop": min_clicks_before_drop_stop,
         "stop_reason": stop_reason,
         "n_clicks": len(history),
         "n_segments_kept": len(per_segment_masks),
@@ -876,6 +949,29 @@ def _parse_args(argv=None) -> argparse.Namespace:
     p.add_argument("--neighborhood-radius", type=int, default=2,
                    help="Radius (in voxels) of the local-density "
                         "neighborhood cube (default 2 -> 5x5x5).")
+    p.add_argument("--intensity-drop-floor-frac", type=float, default=0.0,
+                   help="Stop when a click's intensity falls below "
+                        "threshold + (peak - threshold) * frac. "
+                        "Default 0 = disabled. 0.5 is a good auto-"
+                        "saturation default (stops once we're down to "
+                        "the bottom half of the bright tail, i.e. "
+                        "voxels no more statistically obvious than the "
+                        "ambient bright background).")
+    p.add_argument("--min-clicks-before-drop-stop", type=int, default=5,
+                   help="Minimum number of accepted clicks before the "
+                        "intensity-drop stop rule is allowed to fire. "
+                        "Prevents premature exit on volumes where the "
+                        "first few candidates happen to be on the "
+                        "lower end of the bright tail (default 5).")
+    p.add_argument("--auto-saturate", action="store_true",
+                   help="Convenience: run until natural saturation. "
+                        "Implies --max-steps 500, --no-stop-rules, "
+                        "--intensity-drop-floor-frac 0.5 unless those "
+                        "are overridden on the command line. The loop "
+                        "then exits when either (a) the candidate "
+                        "list is exhausted, (b) click intensity drops "
+                        "into 'background-bright' territory, or (c) "
+                        "the max-steps safety cap is reached.")
     return p.parse_args(argv)
 
 
@@ -884,6 +980,24 @@ def main(argv=None) -> int:
     region_bbox = None
     if args.region_bbox:
         region_bbox = json.loads(args.region_bbox)
+
+    # --auto-saturate sets sensible "run-to-exhaustion" defaults but
+    # never overrides values the caller passed explicitly. argparse
+    # uses sentinels (the registered defaults) to detect "user did
+    # not set this flag", so the check below compares against the
+    # parser's defaults.
+    if args.auto_saturate:
+        if args.max_steps == 50:
+            args.max_steps = 500
+        args.no_stop_rules = True
+        if args.intensity_drop_floor_frac == 0.0:
+            args.intensity_drop_floor_frac = 0.5
+        log.info(
+            "--auto-saturate enabled: max_steps=%d, no_stop_rules=True, "
+            "intensity_drop_floor_frac=%.2f",
+            args.max_steps, args.intensity_drop_floor_frac,
+        )
+
     result = run_bright_seed(
         input_path=args.input,
         output_dir=args.output_dir,
@@ -905,6 +1019,8 @@ def main(argv=None) -> int:
         max_segment_voxels=args.max_segment_voxels,
         min_local_density=args.min_local_density,
         neighborhood_radius=args.neighborhood_radius,
+        intensity_drop_floor_frac=args.intensity_drop_floor_frac,
+        min_clicks_before_drop_stop=args.min_clicks_before_drop_stop,
     )
     print(json.dumps({k: v for k, v in result.items()
                       if k != "history"}, indent=2, default=str))

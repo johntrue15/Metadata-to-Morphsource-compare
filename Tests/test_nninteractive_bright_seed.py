@@ -496,6 +496,33 @@ class RunBrightSeedTests(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
+class IntensityBelowObviousTests(unittest.TestCase):
+    """``intensity_below_obvious`` is the saturation rule that lets
+    bright-seed exit naturally once we're past the obviously-bright
+    voxels. With the IMPC mouse defaults (threshold=102, peak=255,
+    frac=0.5) the floor sits at 178: clicks at intensity 200 keep
+    going, clicks at intensity 150 trigger the stop.
+    """
+
+    def test_disabled_when_frac_zero(self):
+        self.assertFalse(bs.intensity_below_obvious(
+            10.0, threshold=100.0, peak_intensity=255.0, floor_frac=0.0))
+
+    def test_stops_when_below_floor(self):
+        # floor = 102 + (255-102)*0.5 = 178.5
+        self.assertTrue(bs.intensity_below_obvious(
+            150.0, threshold=102.0, peak_intensity=255.0, floor_frac=0.5))
+
+    def test_continues_when_above_floor(self):
+        self.assertFalse(bs.intensity_below_obvious(
+            200.0, threshold=102.0, peak_intensity=255.0, floor_frac=0.5))
+
+    def test_degenerate_peak_below_threshold(self):
+        # Should not fire when peak <= threshold (no bright voxels).
+        self.assertFalse(bs.intensity_below_obvious(
+            50.0, threshold=100.0, peak_intensity=50.0, floor_frac=0.5))
+
+
 class HasDenseBrightNeighborhoodTests(unittest.TestCase):
     """The IMPC mouse step-6 failure mode was a single bright noise
     voxel in the background. ``has_dense_bright_neighborhood`` must
@@ -743,6 +770,48 @@ class MultiSegmentRunTests(unittest.TestCase):
                                "expected at least one click in blob A")
             self.assertGreater(len(blob_b_clicks), 0,
                                "expected at least one click in blob B")
+
+    def test_intensity_drop_stop_rule(self):
+        """When ``intensity_drop_floor_frac`` is enabled, the loop
+        exits as soon as a click's intensity is below the floor —
+        this is the "no longer statistically obvious" criterion that
+        lets bright-seed self-terminate without a fixed step counter.
+        """
+        import numpy as np
+        # Volume with a clear gradient of "obvious" bright voxels:
+        # eight at 250, eight at 220, eight at 190, eight at 160. With
+        # threshold=100, peak=250, floor_frac=0.5 the floor is 175.
+        # So intensities 250, 220, 190 pass (they're >= 175) and 160
+        # triggers the stop.
+        arr = np.full((4, 4, 4), 50, dtype=np.uint8)
+        bright_levels = [(0, 250), (1, 220), (2, 190), (3, 160)]
+        for slice_idx, val in bright_levels:
+            arr[slice_idx, 0:2, 0:2] = val  # 4 bright voxels per level
+
+        fake = FakeBrightSegmenter(arr, self.tmp, paint_radius=0)
+        result = bs.run_bright_seed(
+            input_path="ignored", output_dir=str(self.tmp),
+            media_id="MS", percentile=70.0,
+            max_candidates=0, max_steps=100,
+            no_stop_rules=True,
+            segmenter=fake, save_previews=False,
+            multi_segment=True,
+            min_segment_voxels=1,
+            min_local_density=0.0,
+            intensity_drop_floor_frac=0.5,
+            min_clicks_before_drop_stop=3,
+        )
+        self.assertTrue(result["success"])
+        self.assertEqual(
+            result["stop_reason"]["reason"], "intensity_below_obvious",
+            msg=f"got stop_reason={result['stop_reason']}",
+        )
+        # The 160-intensity click triggered the stop, so it appears
+        # in the history (the rule fires AFTER the accept) — but no
+        # 130-or-lower clicks should appear.
+        click_intensities = [r["intensity"] for r in result["history"]]
+        self.assertIn(160.0, click_intensities,
+                      f"got {click_intensities}")
 
     def test_multilabel_labelmap_written(self):
         arr = self._arr_with_two_blobs(dim=20)

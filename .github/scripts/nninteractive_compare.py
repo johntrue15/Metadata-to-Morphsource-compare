@@ -958,6 +958,9 @@ def _run_bright_seed_loop(
     max_segment_voxels: Optional[int] = None,
     min_local_density: float = 0.4,
     neighborhood_radius: int = 2,
+    intensity_drop_floor_frac: float = 0.0,
+    min_clicks_before_drop_stop: int = 5,
+    auto_saturate: bool = False,
 ) -> dict:
     """Run ``nninteractive_bright_seed.py`` and return a dict shaped like
     ``_run_paint_loop``'s return value.
@@ -1016,6 +1019,13 @@ def _run_bright_seed_loop(
         cmd += ["--max-segment-voxels", str(int(max_segment_voxels))]
     cmd += ["--min-local-density", f"{float(min_local_density):.3f}"]
     cmd += ["--neighborhood-radius", str(int(neighborhood_radius))]
+    if intensity_drop_floor_frac > 0:
+        cmd += ["--intensity-drop-floor-frac",
+                f"{float(intensity_drop_floor_frac):.3f}"]
+        cmd += ["--min-clicks-before-drop-stop",
+                str(int(min_clicks_before_drop_stop))]
+    if auto_saturate:
+        cmd.append("--auto-saturate")
 
     log.info("Running bright-seed paint loop (max_steps=%d, percentile=%.2f)",
              max_steps, percentile)
