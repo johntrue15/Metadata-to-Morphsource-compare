@@ -183,6 +183,94 @@ def should_early_stop(
     return all(d < min_delta for d in deltas[-patience:])
 
 
+def has_dense_bright_neighborhood(
+    arr_kji,
+    k: int, j: int, i: int,
+    *,
+    threshold: float,
+    radius: int = 2,
+    min_density: float = 0.4,
+) -> bool:
+    """Reject candidates whose local neighborhood isn't densely bright.
+
+    The IMPC mouse-embryo 6-click smoke test showed why this matters:
+    bright-seed picked candidate (x=202, y=106, z=150) at intensity 183
+    which landed in the BACKGROUND outside the embryo body, where a
+    handful of scan-noise voxels happened to be bright. nnInteractive
+    grew that into a 41k-voxel runaway segment because there was no
+    real organ boundary to constrain it. A real bright structure
+    (heart, liver, bone) has many bright voxels around the candidate.
+    A background artifact has just a few isolated bright voxels.
+
+    Returns True iff at least ``min_density`` fraction of the voxels
+    in the ``(2*radius+1)^3`` cube around ``(k, j, i)`` are above
+    ``threshold``. Defaults (radius=2, min_density=0.4) correspond to
+    "at least 50/125 voxels in a 5x5x5 cube must be bright".
+    """
+    import numpy as np
+    z_max, y_max, x_max = arr_kji.shape
+    kmin = max(0, k - radius)
+    kmax = min(z_max, k + radius + 1)
+    jmin = max(0, j - radius)
+    jmax = min(y_max, j + radius + 1)
+    imin = max(0, i - radius)
+    imax = min(x_max, i + radius + 1)
+    cube = arr_kji[kmin:kmax, jmin:jmax, imin:imax]
+    if cube.size == 0:
+        return False
+    above = int(np.asarray(cube >= threshold).sum())
+    return (above / cube.size) >= min_density
+
+
+def next_validated_candidate(
+    arr_kji,
+    cand_kji,
+    cand_int,
+    union_mask,
+    *,
+    start_idx: int,
+    threshold: float,
+    min_local_density: float = 0.0,
+    neighborhood_radius: int = 2,
+):
+    """Combine the skim-past-already-in-mask rule with an optional
+    local-density check.
+
+    Returns ``(idx_picked, idx_after, skipped_inside, skipped_sparse)``.
+    ``idx_picked`` is None when the candidate list is exhausted.
+    ``skipped_inside`` counts voxels rejected because they fall inside
+    a previous segment; ``skipped_sparse`` counts voxels rejected by
+    the local-density filter. Both are useful for diagnosing why the
+    loop ran out of candidates.
+
+    The density filter is skipped when ``min_local_density <= 0`` so
+    the function stays backward-compatible with the original behaviour.
+    """
+    idx = int(start_idx)
+    n = int(cand_kji.shape[0])
+    skipped_inside = 0
+    skipped_sparse = 0
+    while idx < n:
+        k = int(cand_kji[idx, 0])
+        j = int(cand_kji[idx, 1])
+        i = int(cand_kji[idx, 2])
+        if bool(union_mask[k, j, i]):
+            idx += 1
+            skipped_inside += 1
+            continue
+        if min_local_density > 0 and not has_dense_bright_neighborhood(
+            arr_kji, k, j, i,
+            threshold=threshold,
+            radius=neighborhood_radius,
+            min_density=min_local_density,
+        ):
+            idx += 1
+            skipped_sparse += 1
+            continue
+        return idx, idx + 1, skipped_inside, skipped_sparse
+    return None, idx, skipped_inside, skipped_sparse
+
+
 # ---------------------------------------------------------------------------
 # Bone-window for previews (CT only)
 # ---------------------------------------------------------------------------
@@ -226,9 +314,45 @@ def run_bright_seed(
     intensity_max: Optional[float] = None,
     region_bbox_kji: Optional[dict] = None,
     do_autozoom: bool = False,
+    multi_segment: bool = True,
+    min_segment_voxels: int = 200,
+    max_segment_voxels: Optional[int] = None,
+    min_local_density: float = 0.4,
+    neighborhood_radius: int = 2,
     segmenter=None,
 ) -> dict:
     """Drive the bright-seed paint loop end to end.
+
+    Two paint modes:
+
+    * ``multi_segment=True`` (default, matches ``slicer_remote_bright_seed.py``):
+      every click starts a FRESH nnInteractive interaction session via
+      ``Segmenter.reset_segment()``. nnInteractive grows one coherent
+      structure per click. The resulting per-click masks are unioned
+      into ``union_mask`` (used for the "already-inside" check on
+      future candidates) and tracked individually so the composite
+      labelmap is a multi-label image (1..N for the N kept segments).
+
+      Each new segment is validated before being kept:
+        - ``min_segment_voxels`` (reject artifact clicks)
+        - ``max_segment_voxels`` (reject runaway segments)
+      A rejected segment's prompt is rolled back via ``reset_segment``
+      and the loop tries the next candidate instead of advancing the
+      step counter.
+
+    * ``multi_segment=False`` (legacy, the old behaviour):
+      a single growing nnInteractive session shared across all clicks.
+      Useful when you actually want one fused mask (the colors-of-skull
+      cranial-bone use case), but produces the IMPC-mouse failure mode
+      where click 6 lands just outside click 5's edge artifact.
+
+    ``min_local_density`` (only used when > 0) requires the candidate's
+    ``(2*neighborhood_radius+1)^3`` neighborhood to be at least that
+    fraction bright. Defaults (0.4 = 50/125 voxels in a 5x5x5 cube)
+    filter out isolated background-noise voxels, which is the IMPC
+    mouse-embryo step-6 failure mode (click landed at intensity 183
+    in the background outside the embryo body where a sparse cluster
+    of bright noise voxels grew into a 41k-voxel runaway segment).
 
     Returns a summary dict with the per-step trail. ``segmenter`` is
     injectable so the unit tests can run without nnInteractive.
@@ -311,23 +435,49 @@ def run_bright_seed(
     history: list[dict] = []
     deltas: list[int] = []
     explosion_voxels = int(total_voxels * max_explosion_frac)
+    if max_segment_voxels is None:
+        # Default: any single segment that swallows >50% of the volume
+        # is almost certainly a runaway, not a real organ.
+        max_segment_voxels = explosion_voxels
+
+    # Multi-segment bookkeeping: the running union of all KEPT segment
+    # masks (used for "already inside" candidate skipping) plus a list
+    # of individual segment masks (so the composite labelmap can be
+    # multi-label rather than a single binary union).
+    union_mask = np.zeros(arr_kji.shape, dtype=bool)
+    per_segment_masks: list = []  # entries: {"label", "click_xyz", "mask"}
     next_idx = 0
-    voxels_after = 0
+    rejections: list[dict] = []
     stop_reason: Optional[dict] = None
 
     t_start = time.time()
-    for step in range(1, max_steps + 1):
-        mask_before = (seg.mask_array > 0)
-        voxels_before = int(mask_before.sum())
-
-        idx_picked, next_idx, skipped = next_unsegmented_candidate(
-            cand_kji, mask_before, next_idx,
+    step = 0
+    while step < max_steps:
+        step += 1
+        # Pick the next candidate that is NOT inside any kept segment
+        # AND has a dense enough bright neighborhood to be real tissue.
+        idx_picked, next_idx, skipped_inside, skipped_sparse = (
+            next_validated_candidate(
+                arr_kji, cand_kji, cand_int, union_mask,
+                start_idx=next_idx,
+                threshold=threshold,
+                min_local_density=min_local_density,
+                neighborhood_radius=neighborhood_radius,
+            )
         )
         if idx_picked is None:
-            stop_reason = {"reason": "no_more_candidates",
-                           "candidates_left": 0,
-                           "voxels": voxels_before}
-            log.info("Step %d: no candidates left (saturation).", step)
+            stop_reason = {
+                "reason": "no_more_candidates",
+                "candidates_left": 0,
+                "voxels": int(union_mask.sum()),
+                "skipped_inside_total": skipped_inside,
+                "skipped_sparse_total": skipped_sparse,
+            }
+            log.info(
+                "Step %d: no candidates left (skipped_inside=%d sparse=%d).",
+                step, skipped_inside, skipped_sparse,
+            )
+            step -= 1  # this step didn't run
             break
 
         k = int(cand_kji[idx_picked, 0])
@@ -340,17 +490,17 @@ def run_bright_seed(
         # map shape is the numpy ``(z, y, x)`` order. So if we want
         # the bounds check to pass for any voxel in the volume we
         # must pass the prompt in the SAME order as ``arr.shape`` -
-        # i.e. ``(k, j, i)`` not the documented ``(x, y, z)``. The
-        # local smoke test on the cached Felis CT proved this: a
-        # candidate at numpy ``(k=345, j=53, i=124)`` passed as
-        # ``xyz=(124, 53, 345)`` was rejected with "Point is outside
-        # the interaction map" because ``345 > shape[2] = i_max =
-        # 211``. The same candidate passed as ``xyz=(345, 53, 124)``
-        # falls inside ``shape=(384, 224, 211)`` and paints at the
-        # intended voxel.
+        # i.e. ``(k, j, i)`` not the documented ``(x, y, z)``.
         x, y, z = k, j, i
 
-        # BEFORE preview with the planned-click marker.
+        # In multi-segment mode every click starts from a fresh nnInteractive
+        # interaction session. The previous segment masks are preserved in
+        # ``per_segment_masks`` / ``union_mask`` so the "already inside"
+        # check still works.
+        voxels_before_segment = int(union_mask.sum())
+        if multi_segment:
+            seg.reset_segment()
+
         marker = [{
             "xyz": (x, y, z),
             "positive": True,
@@ -365,9 +515,11 @@ def run_bright_seed(
 
         log.info(
             "Step %d/%d: click (x=%d, y=%d, z=%d) intensity=%.2f "
-            "(skipped %d already-inside; %d candidates left)",
-            step, max_steps, x, y, z, intensity, skipped,
-            n_candidates - next_idx,
+            "[skipped %d inside, %d sparse; %d candidates left] "
+            "kept_segments=%d union_voxels=%d",
+            step, max_steps, x, y, z, intensity,
+            skipped_inside, skipped_sparse, n_candidates - next_idx,
+            len(per_segment_masks), voxels_before_segment,
         )
         t0 = time.time()
         try:
@@ -380,8 +532,61 @@ def run_bright_seed(
             break
         click_seconds = round(time.time() - t0, 3)
 
-        voxels_after = seg.voxel_count()
-        delta = voxels_after - voxels_before
+        # Snapshot THIS segment's mask before we decide whether to keep
+        # or roll it back. In multi-segment mode seg.mask_array is the
+        # current segment only; in single-segment mode it is the
+        # cumulative mask, so we subtract the previous union to get
+        # the per-click delta either way.
+        current_seg_mask = (seg.mask_array > 0)
+        if multi_segment:
+            new_segment_mask = current_seg_mask & (~union_mask)
+        else:
+            new_segment_mask = current_seg_mask & (~union_mask)
+        new_segment_voxels = int(new_segment_mask.sum())
+
+        # Validate: reject tiny segments (single bright voxel that
+        # nnInteractive couldn't grow into anything coherent) and
+        # runaway segments (background blob that exploded).
+        rejected_reason: Optional[str] = None
+        if new_segment_voxels < min_segment_voxels:
+            rejected_reason = "too_small"
+        elif new_segment_voxels > max_segment_voxels:
+            rejected_reason = "runaway"
+
+        if rejected_reason is not None and multi_segment:
+            # Roll back so the rejected segment doesn't contaminate
+            # the union (and therefore doesn't block neighboring
+            # candidates from being clicked next time).
+            seg.reset_segment()
+            rejections.append({
+                "step": step,
+                "xyz": [x, y, z],
+                "intensity": intensity,
+                "new_segment_voxels": new_segment_voxels,
+                "reason": rejected_reason,
+            })
+            log.warning(
+                "Step %d: rejected segment (%s, %d voxels) at (%d,%d,%d). "
+                "Trying next candidate.",
+                step, rejected_reason, new_segment_voxels, x, y, z,
+            )
+            # Don't advance step: try again with a new candidate.
+            step -= 1
+            continue
+
+        # Accept: roll the new segment into the union and remember it.
+        union_mask |= new_segment_mask
+        per_segment_masks.append({
+            "label": len(per_segment_masks) + 1,
+            "click_xyz": [x, y, z],
+            "click_kji": [k, j, i],
+            "intensity": intensity,
+            "voxels": new_segment_voxels,
+            "mask": new_segment_mask,
+        })
+
+        voxels_after = int(union_mask.sum())
+        delta = new_segment_voxels  # per-click delta = this segment's size
         deltas.append(delta)
 
         rec = {
@@ -389,19 +594,22 @@ def run_bright_seed(
             "ijk_kji": [i, j, k],
             "xyz": [x, y, z],
             "intensity": intensity,
-            "voxels_before": voxels_before,
+            "voxels_before": voxels_before_segment,
             "voxels_after": voxels_after,
             "delta": delta,
-            "skipped_inside": skipped,
+            "segment_voxels": new_segment_voxels,
+            "segment_label": per_segment_masks[-1]["label"],
+            "skipped_inside": skipped_inside,
+            "skipped_sparse": skipped_sparse,
             "candidates_left": int(n_candidates - next_idx),
             "click_seconds": click_seconds,
+            "n_segments_kept": len(per_segment_masks),
+            "rejections_so_far": len(rejections),
         }
         history.append(rec)
         clicks_fh.write(json.dumps(rec) + "\n")
         clicks_fh.flush()
 
-        # AFTER preview with the same marker (now shows the resulting
-        # mask change too).
         if save_previews:
             seg.save_orthogonal_previews(
                 name_prefix=f"{media_id}_step{step:02d}_after",
@@ -410,12 +618,16 @@ def run_bright_seed(
             )
 
         log.info(
-            "  -> voxels %d -> %d (delta %+d, click %.2fs)",
-            voxels_before, voxels_after, delta, click_seconds,
+            "  -> segment#%d at (%d,%d,%d) = %d voxels  "
+            "(union %d -> %d, click %.2fs)",
+            per_segment_masks[-1]["label"], x, y, z, new_segment_voxels,
+            voxels_before_segment, voxels_after, click_seconds,
         )
 
-        # Runaway-explosion guard (one click adds > N% of the volume).
-        if delta > explosion_voxels and explosion_voxels > 0:
+        # Runaway-explosion guard against the GLOBAL mask (less likely
+        # to trip now that single-segment runaways are caught above,
+        # but kept for completeness in single-segment mode).
+        if delta > explosion_voxels and explosion_voxels > 0 and not multi_segment:
             stop_reason = {
                 "reason": "explosion",
                 "delta": delta,
@@ -428,7 +640,6 @@ def run_bright_seed(
             )
             break
 
-        # Saturation: trailing ``patience`` deltas all below min_delta.
         if should_early_stop(deltas, min_delta=min_delta,
                              patience=patience):
             stop_reason = {
@@ -441,16 +652,90 @@ def run_bright_seed(
             log.info("Step %d: trailing %d deltas all < %d; stopping.",
                      step, patience, min_delta)
             break
-    else:
+
+    if stop_reason is None:
         stop_reason = {"reason": "max_steps", "max_steps": max_steps}
         log.info("Hit max_steps=%d; stopping.", max_steps)
 
     clicks_fh.close()
 
-    labelmap_path = seg.save_labelmap()
-    summary_path = seg.export_summary({
+    # In multi-segment mode the segmenter's target buffer holds only
+    # the LAST per-click segment (or nothing, if step N was rolled
+    # back). Push the union into it so the final preview/labelmap
+    # path reflects all 10 organs together — otherwise the
+    # step10_after.png only shows segment #10 and the user can't see
+    # the cumulative result.
+    if multi_segment and per_segment_masks:
+        try:
+            import torch
+            seg.target.zero_()
+            seg.target.copy_(torch.from_numpy(
+                union_mask.astype(np.uint8)
+            ).to(seg.target.device))
+        except Exception as exc:
+            log.debug("Could not push union into target buffer: %s", exc)
+        if save_previews:
+            try:
+                # Markers for every kept segment so the user can see
+                # where each click landed on the final composite.
+                final_markers = [
+                    {"xyz": tuple(entry["click_xyz"]),
+                     "positive": True,
+                     "label": f"s{idx+1}"}
+                    for idx, entry in enumerate(per_segment_masks)
+                ]
+                seg.save_orthogonal_previews(
+                    name_prefix=f"{media_id}_final_union",
+                    intensity_window=intensity_window,
+                    markers=final_markers,
+                )
+            except Exception as exc:
+                log.debug("Could not write final union preview: %s", exc)
+
+    # Final mask export. In multi-segment mode we own the union and
+    # write it ourselves (sitk directly) so we don't depend on the
+    # segmenter's internal target buffer being current — between the
+    # last click and now we may have rolled back rejected segments,
+    # so seg.mask_array isn't necessarily the union.
+    labelmap_path: str = ""
+    multilabel_path: Optional[str] = None
+    if multi_segment and per_segment_masks:
+        try:
+            union_image = seg._sitk.GetImageFromArray(
+                union_mask.astype(np.uint8)
+            )
+            union_image.CopyInformation(seg.sitk_image)
+            union_out = out_dir / f"{media_id}_nni_labelmap.nii.gz"
+            seg._sitk.WriteImage(union_image, str(union_out),
+                                 useCompression=True)
+            labelmap_path = str(union_out)
+            log.info("Wrote union labelmap: %s (%d voxels)",
+                     union_out, int(union_mask.sum()))
+        except Exception as exc:
+            log.warning("Direct union labelmap write failed (%s); "
+                        "falling back to seg.save_labelmap()", exc)
+            labelmap_path = seg.save_labelmap()
+
+        try:
+            multilabel = np.zeros(arr_kji.shape, dtype=np.uint16)
+            for entry in per_segment_masks:
+                multilabel[entry["mask"]] = entry["label"]
+            ml_image = seg._sitk.GetImageFromArray(multilabel)
+            ml_image.CopyInformation(seg.sitk_image)
+            ml_out = out_dir / f"{media_id}_nni_multilabel.nii.gz"
+            seg._sitk.WriteImage(ml_image, str(ml_out), useCompression=True)
+            multilabel_path = str(ml_out)
+            log.info("Wrote multi-label labelmap: %s (%d segments)",
+                     ml_out, len(per_segment_masks))
+        except Exception as exc:
+            log.warning("Failed to write multi-label labelmap: %s", exc)
+    else:
+        labelmap_path = seg.save_labelmap()
+
+    summary_payload: dict = {
         "media_id": media_id,
         "mode": "bright_seed",
+        "multi_segment": multi_segment,
         "percentile": percentile,
         "intensity_threshold": threshold,
         "n_candidates": n_candidates,
@@ -460,16 +745,36 @@ def run_bright_seed(
         "min_delta": min_delta,
         "patience": patience,
         "max_explosion_frac": max_explosion_frac,
+        "min_segment_voxels": min_segment_voxels,
+        "max_segment_voxels": max_segment_voxels,
+        "min_local_density": min_local_density,
+        "neighborhood_radius": neighborhood_radius,
         "stop_reason": stop_reason,
         "n_clicks": len(history),
+        "n_segments_kept": len(per_segment_masks),
+        "n_rejections": len(rejections),
+        "rejections": rejections,
+        "per_segment": [
+            {k: v for k, v in entry.items() if k != "mask"}
+            for entry in per_segment_masks
+        ],
         "history": history,
         "total_seconds": round(time.time() - t_start, 2),
-    })
+    }
+    summary_path = seg.export_summary(summary_payload)
 
+    final_voxels = int(union_mask.sum()) if multi_segment else seg.voxel_count()
+    final_mm3 = (
+        float(final_voxels)
+        * float(seg.sitk_image.GetSpacing()[0])
+        * float(seg.sitk_image.GetSpacing()[1])
+        * float(seg.sitk_image.GetSpacing()[2])
+    )
     log.info(
-        "Bright-seed done: %d clicks, %d final voxels (%.2f mm^3), "
-        "stop_reason=%s, labelmap=%s",
-        len(history), seg.voxel_count(), seg.volume_mm3(),
+        "Bright-seed done: %d clicks kept (%d rejected), %d segments, "
+        "%d final voxels (%.2f mm^3), stop_reason=%s, labelmap=%s",
+        len(history), len(rejections), len(per_segment_masks),
+        final_voxels, final_mm3,
         (stop_reason or {}).get("reason"), labelmap_path,
     )
 
@@ -477,12 +782,21 @@ def run_bright_seed(
         "success": True,
         "media_id": media_id,
         "mode": "bright_seed",
+        "multi_segment": multi_segment,
         "labelmap_path": labelmap_path,
+        "multilabel_path": multilabel_path,
         "summary_path": summary_path,
         "clicks_path": str(clicks_path),
         "n_clicks": len(history),
-        "voxel_count": seg.voxel_count(),
-        "volume_mm3": round(seg.volume_mm3(), 3),
+        "n_segments_kept": len(per_segment_masks),
+        "n_rejections": len(rejections),
+        "rejections": rejections,
+        "per_segment": [
+            {k: v for k, v in entry.items() if k != "mask"}
+            for entry in per_segment_masks
+        ],
+        "voxel_count": final_voxels,
+        "volume_mm3": round(final_mm3, 3),
         "stop_reason": stop_reason,
         "history": history,
     }
@@ -533,6 +847,35 @@ def _parse_args(argv=None) -> argparse.Namespace:
                         "voxels to this sub-volume so bright "
                         "non-target structures (teeth, edge artifacts) "
                         "don't dominate.")
+    p.add_argument("--no-multi-segment", action="store_true",
+                   help="Disable per-click-new-segment mode (matches "
+                        "the OLD bright-seed behaviour where every "
+                        "click extends one shared mask). Default ON "
+                        "matches slicer_remote_bright_seed.py: each "
+                        "click starts a fresh nnInteractive session "
+                        "via Segmenter.reset_segment().")
+    p.add_argument("--min-segment-voxels", type=int, default=200,
+                   help="Reject any click whose resulting NEW segment "
+                        "is smaller than this (default 200 voxels). "
+                        "Filters out single-voxel artifact clicks "
+                        "that nnInteractive couldn't grow into "
+                        "anything coherent.")
+    p.add_argument("--max-segment-voxels", type=int, default=None,
+                   help="Reject any click whose resulting NEW segment "
+                        "is larger than this. Default = "
+                        "max_explosion_frac * total_voxels (~50%% of "
+                        "volume), which catches runaway background "
+                        "blobs.")
+    p.add_argument("--min-local-density", type=float, default=0.4,
+                   help="Required fraction of bright neighbors in the "
+                        "(2*radius+1)^3 cube around each candidate "
+                        "(default 0.4 = 50/125 in a 5x5x5 cube). Set "
+                        "to 0 to disable. Filters out isolated bright "
+                        "background-noise voxels (the IMPC mouse "
+                        "step-6 failure mode).")
+    p.add_argument("--neighborhood-radius", type=int, default=2,
+                   help="Radius (in voxels) of the local-density "
+                        "neighborhood cube (default 2 -> 5x5x5).")
     return p.parse_args(argv)
 
 
@@ -557,6 +900,11 @@ def main(argv=None) -> int:
         intensity_max=args.intensity_max,
         region_bbox_kji=region_bbox,
         do_autozoom=args.enable_autozoom,
+        multi_segment=not args.no_multi_segment,
+        min_segment_voxels=args.min_segment_voxels,
+        max_segment_voxels=args.max_segment_voxels,
+        min_local_density=args.min_local_density,
+        neighborhood_radius=args.neighborhood_radius,
     )
     print(json.dumps({k: v for k, v in result.items()
                       if k != "history"}, indent=2, default=str))

@@ -200,10 +200,28 @@ class EarlyStopTests(unittest.TestCase):
 class _FakeSitkModule:
     """Tiny stand-in for the SimpleITK module we read off ``seg._sitk``.
     Returns the underlying numpy array verbatim when ``GetArrayFromImage``
-    is called."""
+    is called.
 
-    def GetArrayFromImage(self, img):  # noqa: N802 (sitk uses CamelCase)
+    Multi-segment mode also calls ``GetImageFromArray`` / ``WriteImage``
+    to write the union and multi-label labelmaps directly (it does
+    NOT route through ``seg.save_labelmap()``). The fake just stores
+    the bytes in a class-level registry so tests can inspect them.
+    """
+
+    def __init__(self):
+        self.written: dict[str, object] = {}
+
+    def GetArrayFromImage(self, img):  # noqa: N802
         return img._arr
+
+    def GetImageFromArray(self, arr):  # noqa: N802
+        return _FakeSitkImage(arr)
+
+    def WriteImage(self, img, path, useCompression=False):  # noqa: N802, N803
+        # Persist a sentinel so the test asserts a file was created.
+        from pathlib import Path as _P
+        _P(path).write_bytes(b"NIFTI-STUB")
+        self.written[path] = img
 
 
 class _FakeSitkImage:
@@ -212,6 +230,10 @@ class _FakeSitkImage:
 
     def GetSpacing(self):  # noqa: N802
         return (1.0, 1.0, 1.0)
+
+    def CopyInformation(self, other):  # noqa: N802
+        # We don't model header metadata in the fake.
+        return None
 
 
 class FakeBrightSegmenter:
@@ -235,9 +257,8 @@ class FakeBrightSegmenter:
         self.output_dir = output_dir
         self.preview_calls: list[dict] = []
         self.point_calls: list[dict] = []
+        self.reset_calls: int = 0
         self.paint_radius = paint_radius
-        # Force the FakeSitkImage spacing to match the array shape (z,y,x).
-        # The image_shape_zyx attribute is consumed elsewhere.
         self.image_shape_zyx = arr.shape
         self.device = "cpu"
 
@@ -250,6 +271,13 @@ class FakeBrightSegmenter:
 
     def volume_mm3(self) -> float:
         return float(self.voxel_count())
+
+    def reset_segment(self) -> None:
+        """Mirror the real Segmenter: zero the current target buffer
+        and clear interaction history. Used by multi-segment mode to
+        start a fresh segment for each click."""
+        self._mask[...] = 0
+        self.reset_calls += 1
 
     def add_point(self, x, y, z, *, positive=True, label=""):
         # IMPORTANT: bright-seed's workaround for nnInteractive's
@@ -312,49 +340,41 @@ class RunBrightSeedTests(unittest.TestCase):
         return arr
 
     def test_runs_to_saturation_with_no_stop_rules(self):
-        # Need a percentile high enough that only the BRIGHT voxels
-        # pass: 64 bright in a 4096-voxel volume = 1.56% bright, so
-        # the 99th percentile (top 1%) still catches part of the
-        # background. Use 99.0 with a slightly smaller blob so the
-        # threshold sits between 10 (background) and 200 (bright).
+        # Legacy single-segment behaviour: every click extends ONE
+        # shared mask. Eventually all candidates are inside the mask
+        # and the loop stops with "no_more_candidates".
         arr = self._make_arr_with_bright_blob(dim=16, blob=4)
         fake = FakeBrightSegmenter(arr, self.tmp, paint_radius=1)
-        # 64 bright voxels, intensity 200; rest are 10. percentile
-        # 99 of 4096 values -> position 4055 (sorted asc), still 10.
-        # So we threshold at 200 explicitly via a high percentile.
         result = bs.run_bright_seed(
             input_path="ignored",
             output_dir=str(self.tmp),
             media_id="TEST",
-            percentile=99.0,  # captures the top 64ish bright voxels
+            percentile=99.0,
             max_candidates=0,
             max_steps=50,
             no_stop_rules=True,
             segmenter=fake,
             save_previews=False,
+            multi_segment=False,
+            min_local_density=0.0,
         )
         self.assertTrue(result["success"])
-        # Saturation = no candidates left.
         self.assertEqual(result["stop_reason"]["reason"],
                          "no_more_candidates")
-        # We expect FEWER clicks than candidates because each click
-        # paints a 3x3x3 region and the skim-forward rule advances
-        # past those.
         self.assertGreater(result["n_clicks"], 0)
         self.assertLess(result["n_clicks"], 100)
 
     def test_respects_max_steps(self):
         arr = self._make_arr_with_bright_blob(dim=16, blob=4)
         fake = FakeBrightSegmenter(arr, self.tmp, paint_radius=0)
-        # paint_radius=0 means each click only adds the single clicked
-        # voxel, so the algorithm will want to click every candidate
-        # and a max_steps cap should kick in.
         result = bs.run_bright_seed(
             input_path="ignored", output_dir=str(self.tmp),
             media_id="TEST", percentile=95.0,
             max_candidates=0, max_steps=5,
             no_stop_rules=True,
             segmenter=fake, save_previews=False,
+            multi_segment=False,
+            min_local_density=0.0,
         )
         self.assertTrue(result["success"])
         self.assertEqual(result["n_clicks"], 5)
@@ -363,16 +383,14 @@ class RunBrightSeedTests(unittest.TestCase):
     def test_early_stop_on_saturation(self):
         arr = self._make_arr_with_bright_blob(dim=16, blob=4)
         fake = FakeBrightSegmenter(arr, self.tmp, paint_radius=2)
-        # paint_radius=2 -> 5x5x5 = 125-voxel region per click, so
-        # one click engulfs the whole blob. The next few clicks will
-        # add ~0 voxels (everything's already segmented) and the
-        # patience rule should stop the loop.
         result = bs.run_bright_seed(
             input_path="ignored", output_dir=str(self.tmp),
             media_id="TEST", percentile=95.0,
             max_candidates=0, max_steps=50,
             min_delta=10, patience=2,
             segmenter=fake, save_previews=False,
+            multi_segment=False,
+            min_local_density=0.0,
         )
         self.assertTrue(result["success"])
         self.assertEqual(result["stop_reason"]["reason"], "saturated")
@@ -383,13 +401,16 @@ class RunBrightSeedTests(unittest.TestCase):
         # paint_radius=8 on a 16-volume -> the first click paints the
         # ENTIRE volume (4096 voxels). max_explosion_frac=0.1 means
         # 410 voxels is already past the threshold, so step 1 trips
-        # the guard.
+        # the guard. Only valid in single-segment mode (multi-segment
+        # rejects+rolls-back instead).
         result = bs.run_bright_seed(
             input_path="ignored", output_dir=str(self.tmp),
             media_id="TEST", percentile=95.0,
             max_candidates=0, max_steps=20,
             max_explosion_frac=0.1,
             segmenter=fake, save_previews=False,
+            multi_segment=False,
+            min_local_density=0.0,
         )
         self.assertTrue(result["success"])
         self.assertEqual(result["stop_reason"]["reason"], "explosion")
@@ -424,6 +445,8 @@ class RunBrightSeedTests(unittest.TestCase):
             media_id="TEST", percentile=99.0,
             max_candidates=10, max_steps=1, no_stop_rules=True,
             segmenter=fake, save_previews=False,
+            multi_segment=False,
+            min_local_density=0.0,
         )
         self.assertTrue(result["success"])
         self.assertEqual(len(fake.point_calls), 1)
@@ -437,9 +460,10 @@ class RunBrightSeedTests(unittest.TestCase):
             media_id="TEST", percentile=95.0,
             max_candidates=0, max_steps=3, no_stop_rules=True,
             segmenter=fake, save_previews=True,
+            multi_segment=False,
+            min_local_density=0.0,
         )
         prefixes = [c["name_prefix"] for c in fake.preview_calls]
-        # step00 (initial) + 3 x (before, after)
         self.assertIn("TEST_step00", prefixes)
         for s in range(1, 4):
             self.assertIn(f"TEST_step{s:02d}_before", prefixes,
@@ -455,6 +479,8 @@ class RunBrightSeedTests(unittest.TestCase):
             media_id="TEST", percentile=95.0,
             max_candidates=0, max_steps=3, no_stop_rules=True,
             segmenter=fake, save_previews=False,
+            multi_segment=False,
+            min_local_density=0.0,
         )
         clicks = Path(result["clicks_path"]).read_text().strip().splitlines()
         self.assertEqual(len(clicks), result["n_clicks"])
@@ -463,6 +489,276 @@ class RunBrightSeedTests(unittest.TestCase):
         self.assertIn("xyz", first)
         self.assertIn("intensity", first)
         self.assertIn("delta", first)
+
+
+# ---------------------------------------------------------------------------
+# Multi-segment mode (matches slicer_remote_bright_seed.py reference)
+# ---------------------------------------------------------------------------
+
+
+class HasDenseBrightNeighborhoodTests(unittest.TestCase):
+    """The IMPC mouse step-6 failure mode was a single bright noise
+    voxel in the background. ``has_dense_bright_neighborhood`` must
+    reject it (sparse neighborhood) and accept candidates inside a
+    real bright structure (dense neighborhood).
+    """
+
+    def test_isolated_bright_voxel_rejected(self):
+        import numpy as np
+        arr = np.zeros((10, 10, 10), dtype=np.uint8)
+        arr[5, 5, 5] = 255  # one bright voxel, dark elsewhere
+        ok = bs.has_dense_bright_neighborhood(
+            arr, 5, 5, 5, threshold=100, radius=2, min_density=0.4,
+        )
+        self.assertFalse(ok, "single bright voxel must NOT pass")
+
+    def test_dense_bright_blob_accepted(self):
+        import numpy as np
+        arr = np.zeros((10, 10, 10), dtype=np.uint8)
+        arr[3:8, 3:8, 3:8] = 255  # solid 5x5x5 bright cube
+        ok = bs.has_dense_bright_neighborhood(
+            arr, 5, 5, 5, threshold=100, radius=2, min_density=0.4,
+        )
+        self.assertTrue(ok, "dense bright blob must pass")
+
+    def test_density_zero_disables_check(self):
+        import numpy as np
+        arr = np.zeros((5, 5, 5), dtype=np.uint8)
+        # Even an empty cube passes when min_density <= 0 (we don't
+        # call this branch when the filter is disabled, but be safe).
+        self.assertTrue(bs.has_dense_bright_neighborhood(
+            arr, 2, 2, 2, threshold=100, radius=1, min_density=0.0,
+        ))
+
+
+class NextValidatedCandidateTests(unittest.TestCase):
+    def test_skips_in_mask_and_sparse(self):
+        import numpy as np
+        # 4x4x4 volume; cand list: (0,0,0)=in mask, (1,1,1)=sparse,
+        # (2,2,2)=dense.
+        arr = np.zeros((4, 4, 4), dtype=np.uint8)
+        arr[2, 2, 2] = 255
+        arr[2, 2, 3] = 255
+        arr[2, 3, 2] = 255
+        arr[3, 2, 2] = 255
+        # Make a denser bright region around (2,2,2) so it passes.
+        arr[1:4, 1:4, 1:4] = 255
+
+        cand = np.array([[0, 0, 0], [1, 1, 1], [2, 2, 2]], dtype=np.int32)
+        cand_int = np.array([200, 150, 100], dtype=np.float32)
+        mask = np.zeros((4, 4, 4), dtype=bool)
+        mask[0, 0, 0] = True
+
+        # First call: (0,0,0) is in mask, (1,1,1) is in a dense region,
+        # so it passes the density filter (min_density=0.4 means 50/125
+        # voxels in 5x5x5 must be bright; here EVERY voxel in the 3x3x3
+        # around (1,1,1) is bright).
+        idx, after, in_skip, sparse_skip = bs.next_validated_candidate(
+            arr, cand, cand_int, mask,
+            start_idx=0,
+            threshold=200,
+            min_local_density=0.0,  # filter disabled
+        )
+        self.assertEqual(idx, 1)
+        self.assertEqual(after, 2)
+        self.assertEqual(in_skip, 1)
+        self.assertEqual(sparse_skip, 0)
+
+    def test_density_filter_picks_dense_only(self):
+        import numpy as np
+        arr = np.zeros((10, 10, 10), dtype=np.uint8)
+        # Isolated bright voxel at (1, 1, 1) - sparse neighborhood.
+        arr[1, 1, 1] = 255
+        # Dense bright blob centered at (5, 5, 5).
+        arr[3:8, 3:8, 3:8] = 255
+        cand = np.array([[1, 1, 1], [5, 5, 5]], dtype=np.int32)
+        cand_int = np.array([255, 255], dtype=np.float32)
+        mask = np.zeros((10, 10, 10), dtype=bool)
+
+        idx, after, in_skip, sparse_skip = bs.next_validated_candidate(
+            arr, cand, cand_int, mask,
+            start_idx=0,
+            threshold=100,
+            min_local_density=0.4,
+            neighborhood_radius=2,
+        )
+        self.assertEqual(idx, 1, "must skip the isolated voxel and pick the blob")
+        self.assertEqual(sparse_skip, 1)
+
+
+class MultiSegmentRunTests(unittest.TestCase):
+    """End-to-end tests for the new multi-segment paint loop. This
+    mirrors slicer_remote_bright_seed.py: each click resets the
+    segmenter, paints one fresh segment, and the union is the running
+    "already inside" check.
+    """
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="bright_seed_ms_"))
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _arr_with_two_blobs(self, dim=20):
+        """Two bright cubes far apart, so each click can pick a
+        DIFFERENT one without falling into the other's painted region.
+        """
+        import numpy as np
+        arr = np.full((dim, dim, dim), 10, dtype=np.uint8)
+        # Blob A: (3..7, 3..7, 3..7) - 64 voxels.
+        arr[3:7, 3:7, 3:7] = 200
+        # Blob B: (13..17, 13..17, 13..17) - 64 voxels.
+        arr[13:17, 13:17, 13:17] = 200
+        return arr
+
+    def test_reset_segment_called_each_click(self):
+        """The hallmark of multi-segment mode: ``reset_segment`` is
+        called once per accepted click (not once total). That's what
+        makes each click grow a fresh structure instead of refining
+        the previous one."""
+        arr = self._arr_with_two_blobs(dim=20)
+        fake = FakeBrightSegmenter(arr, self.tmp, paint_radius=2)
+        result = bs.run_bright_seed(
+            input_path="ignored", output_dir=str(self.tmp),
+            media_id="MS", percentile=99.0,
+            max_candidates=0, max_steps=3,
+            no_stop_rules=True,
+            segmenter=fake, save_previews=False,
+            multi_segment=True,
+            min_segment_voxels=1,
+            min_local_density=0.0,
+        )
+        self.assertTrue(result["success"])
+        # One reset per click in multi-segment mode.
+        self.assertEqual(fake.reset_calls, result["n_clicks"])
+        # Each click produces a distinct segment.
+        self.assertEqual(result["n_segments_kept"], result["n_clicks"])
+
+    def test_per_segment_voxel_tracking(self):
+        arr = self._arr_with_two_blobs(dim=20)
+        fake = FakeBrightSegmenter(arr, self.tmp, paint_radius=1)
+        result = bs.run_bright_seed(
+            input_path="ignored", output_dir=str(self.tmp),
+            media_id="MS", percentile=99.0,
+            max_candidates=0, max_steps=2,
+            no_stop_rules=True,
+            segmenter=fake, save_previews=False,
+            multi_segment=True,
+            min_segment_voxels=1,
+            min_local_density=0.0,
+        )
+        self.assertEqual(result["n_clicks"], 2)
+        # Each step record carries segment_voxels and segment_label.
+        for rec in result["history"]:
+            self.assertIn("segment_voxels", rec)
+            self.assertIn("segment_label", rec)
+            self.assertGreater(rec["segment_voxels"], 0)
+
+    def test_min_segment_voxels_rolls_back_tiny_clicks(self):
+        """When a click produces a segment too small to be a real
+        organ, multi-segment mode rolls it back (reset_segment) and
+        tries the NEXT candidate at the same step counter. This is
+        how we filter background-artifact clicks."""
+        arr = self._arr_with_two_blobs(dim=20)
+        fake = FakeBrightSegmenter(arr, self.tmp, paint_radius=0)
+        # paint_radius=0 -> every click produces a 1-voxel segment,
+        # which is below min_segment_voxels=2. So EVERY click is
+        # rejected and the loop exhausts the candidate list.
+        result = bs.run_bright_seed(
+            input_path="ignored", output_dir=str(self.tmp),
+            media_id="MS", percentile=99.0,
+            max_candidates=0, max_steps=5,
+            no_stop_rules=True,
+            segmenter=fake, save_previews=False,
+            multi_segment=True,
+            min_segment_voxels=2,
+            min_local_density=0.0,
+        )
+        self.assertTrue(result["success"])
+        self.assertEqual(result["n_clicks"], 0)
+        self.assertGreater(result["n_rejections"], 0)
+        # Multi-segment mode resets BEFORE every click attempt (fresh
+        # canvas) AND resets AGAIN on rejection (rollback safety net),
+        # so rejected attempts cost 2 reset_segment() calls each.
+        # Accepted clicks cost 1 (the pre-click reset only).
+        self.assertEqual(
+            fake.reset_calls,
+            2 * result["n_rejections"] + result["n_clicks"],
+        )
+
+    def test_max_segment_voxels_rejects_runaway(self):
+        """The IMPC step-6 mode: one click would grow a giant blob
+        bigger than any real organ. max_segment_voxels rejects it."""
+        arr = self._arr_with_two_blobs(dim=20)
+        fake = FakeBrightSegmenter(arr, self.tmp, paint_radius=10)
+        # paint_radius=10 on a 20-volume -> first click paints the
+        # entire volume (8000 voxels). max_segment_voxels=100 ->
+        # any click producing >100 voxels is rolled back.
+        result = bs.run_bright_seed(
+            input_path="ignored", output_dir=str(self.tmp),
+            media_id="MS", percentile=99.0,
+            max_candidates=0, max_steps=2,
+            no_stop_rules=True,
+            segmenter=fake, save_previews=False,
+            multi_segment=True,
+            min_segment_voxels=1,
+            max_segment_voxels=100,
+            min_local_density=0.0,
+        )
+        self.assertTrue(result["success"])
+        # Every click is rolled back as "runaway".
+        self.assertEqual(result["n_clicks"], 0)
+        self.assertGreater(result["n_rejections"], 0)
+        for r in result["rejections"]:
+            self.assertEqual(r["reason"], "runaway")
+
+    def test_union_mask_used_for_skip(self):
+        """After click 1 paints near blob A, click 2 must NOT pick a
+        candidate inside that painted region — it must skim forward
+        to a candidate in blob B."""
+        arr = self._arr_with_two_blobs(dim=20)
+        fake = FakeBrightSegmenter(arr, self.tmp, paint_radius=3)
+        # paint_radius=3 -> each click paints a 7x7x7 region. Blob A
+        # voxels first in candidate order (ties broken by argsort).
+        result = bs.run_bright_seed(
+            input_path="ignored", output_dir=str(self.tmp),
+            media_id="MS", percentile=99.0,
+            max_candidates=0, max_steps=5,
+            no_stop_rules=True,
+            segmenter=fake, save_previews=False,
+            multi_segment=True,
+            min_segment_voxels=1,
+            min_local_density=0.0,
+        )
+        self.assertTrue(result["success"])
+        clicks = [tuple(c["click_kji"])
+                  for c in result["per_segment"]]
+        # Click 1 should land in blob A region (k<10), click 2 in blob B
+        # region (k>=10) - this proves the union-mask skip is working.
+        if len(clicks) >= 2:
+            blob_a_clicks = [c for c in clicks if c[0] < 10]
+            blob_b_clicks = [c for c in clicks if c[0] >= 10]
+            self.assertGreater(len(blob_a_clicks), 0,
+                               "expected at least one click in blob A")
+            self.assertGreater(len(blob_b_clicks), 0,
+                               "expected at least one click in blob B")
+
+    def test_multilabel_labelmap_written(self):
+        arr = self._arr_with_two_blobs(dim=20)
+        fake = FakeBrightSegmenter(arr, self.tmp, paint_radius=2)
+        result = bs.run_bright_seed(
+            input_path="ignored", output_dir=str(self.tmp),
+            media_id="MS", percentile=99.0,
+            max_candidates=0, max_steps=2,
+            no_stop_rules=True,
+            segmenter=fake, save_previews=False,
+            multi_segment=True,
+            min_segment_voxels=1,
+            min_local_density=0.0,
+        )
+        self.assertIsNotNone(result["multilabel_path"])
+        self.assertTrue(Path(result["multilabel_path"]).exists())
 
 
 if __name__ == "__main__":

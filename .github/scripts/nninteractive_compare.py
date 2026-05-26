@@ -953,6 +953,11 @@ def _run_bright_seed_loop(
     intensity_max: Optional[float] = None,
     region_bbox_kji: Optional[dict] = None,
     enable_autozoom: bool = False,
+    multi_segment: bool = True,
+    min_segment_voxels: int = 200,
+    max_segment_voxels: Optional[int] = None,
+    min_local_density: float = 0.4,
+    neighborhood_radius: int = 2,
 ) -> dict:
     """Run ``nninteractive_bright_seed.py`` and return a dict shaped like
     ``_run_paint_loop``'s return value.
@@ -1004,6 +1009,13 @@ def _run_bright_seed_loop(
         cmd += ["--region-bbox", json.dumps(region_bbox_kji)]
     if enable_autozoom:
         cmd.append("--enable-autozoom")
+    if not multi_segment:
+        cmd.append("--no-multi-segment")
+    cmd += ["--min-segment-voxels", str(int(min_segment_voxels))]
+    if max_segment_voxels is not None:
+        cmd += ["--max-segment-voxels", str(int(max_segment_voxels))]
+    cmd += ["--min-local-density", f"{float(min_local_density):.3f}"]
+    cmd += ["--neighborhood-radius", str(int(neighborhood_radius))]
 
     log.info("Running bright-seed paint loop (max_steps=%d, percentile=%.2f)",
              max_steps, percentile)
