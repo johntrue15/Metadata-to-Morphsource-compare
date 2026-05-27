@@ -76,6 +76,30 @@ def _probe_slicer(base_url: str) -> bool:
         return False
 
 
+def load_sample_in_slicer(base_url: str, ct_url: str,
+                          volume_name: str) -> dict:
+    """Download *ct_url* on the Jetstream box and load into Slicer."""
+    import tempfile
+    import urllib.parse
+    import urllib.request
+
+    from remote_volume_io import load_volume_from_remote_path
+
+    cache_dir = Path(tempfile.gettempdir()) / "morphoclaw_github_samples"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    fname = Path(urllib.parse.urlparse(ct_url).path).name
+    local_path = cache_dir / fname
+    if not local_path.is_file() or local_path.stat().st_size == 0:
+        print(f"Downloading {ct_url} -> {local_path} …")
+        urllib.request.urlretrieve(ct_url, local_path)
+        print(f"Downloaded {local_path.stat().st_size:,} bytes.")
+    else:
+        print(f"Using cached {local_path} ({local_path.stat().st_size:,} bytes)")
+    return load_volume_from_remote_path(
+        base_url, str(local_path), name=volume_name, timeout=600.0,
+    )
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -90,6 +114,12 @@ def main(argv: Optional[list[str]] = None) -> int:
     p.add_argument("--out-dir", type=Path, default=None)
     p.add_argument("--label", type=str, default=None)
     p.add_argument("--no-screenshots", action="store_true")
+    p.add_argument("--reset-first", action="store_true",
+                   help="reset segmentation before bright-seed")
+    p.add_argument("--skip-remote-env", action="store_true",
+                   help="skip slow Slicer env probe in bright-seed")
+    p.add_argument("--skip-failed-steps", action="store_true",
+                   help="log transport errors and continue bright-seed")
     p.add_argument("--skip-bright-seed", action="store_true",
                    help="Only load the CT; do not run bright-seed")
     args = p.parse_args(argv)
@@ -150,8 +180,6 @@ def main(argv: Optional[list[str]] = None) -> int:
               file=sys.stderr)
         return 3
 
-    from jetstream_unshelve_start import load_sample_in_slicer
-
     loaded = load_sample_in_slicer(base_url, ct_url, volume_name)
     if loaded.get("status") != "ok":
         print(f"ERROR: failed to load CT: {loaded!r}", file=sys.stderr)
@@ -172,6 +200,9 @@ def main(argv: Optional[list[str]] = None) -> int:
         "--no-stop-rules",
         "--out-dir", str(out_dir),
         *(["--no-screenshots"] if args.no_screenshots else []),
+        *(["--reset-first"] if args.reset_first else []),
+        *(["--skip-remote-env"] if args.skip_remote_env else []),
+        *(["--skip-failed-steps"] if args.skip_failed_steps else []),
         *(["--label", label] if label else []),
     ])
     if rc != 0:

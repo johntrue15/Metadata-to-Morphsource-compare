@@ -34,6 +34,8 @@ from pathlib import Path
 from typing import Any, Optional
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+# Jobs run on Jetstream; cwd "." resolves to the ECU server's repo checkout.
+ECU_CWD = "."
 
 
 def _ecu_url() -> str:
@@ -89,7 +91,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         argv = argv[1:]
     body: dict[str, Any] = {
         "argv": argv,
-        "cwd": str(args.cwd or REPO_ROOT),
+        "cwd": str(args.cwd) if args.cwd is not None else ECU_CWD,
         "label": args.label or "",
         "env": {},
     }
@@ -142,12 +144,13 @@ def cmd_status(args: argparse.Namespace) -> int:
 
 
 def cmd_preset(args: argparse.Namespace) -> int:
+    max_steps = args.max_steps
     presets = {
         "pcb-copper-test": [
             "python3", ".github/scripts/slicer_remote_pcb_copper.py",
             "--phase", "copper",
             "--volume", "pcb_ti_jetstream",
-            "--max-steps", str(args.max_steps),
+            "--max-steps", str(max_steps if max_steps is not None else 8),
             "--noise-manifest", "runs/pcb_noise_export_20260527/noise_manifest.json",
             "--out-dir", f"runs/pcb_copper_ecu_{time.strftime('%Y%m%dT%H%M%S')}",
         ],
@@ -169,12 +172,23 @@ def cmd_preset(args: argparse.Namespace) -> int:
             "--label", "pcb_ti",
             "--out-dir", f"runs/pcb_bright_ecu_{time.strftime('%Y%m%dT%H%M%S')}",
         ],
+        "colors-skull-completion": [
+            "python3", ".github/scripts/jetstream_10click_from_url.py",
+            "--fixture", "data/sample/colors_of_skull_urls.json",
+            "--max-steps", str(max_steps if max_steps is not None else 10000),
+            "--no-screenshots",
+            "--reset-first",
+            "--skip-remote-env",
+            "--skip-failed-steps",
+            "--label", "crotalus_skull_completion",
+            "--out-dir", f"runs/colors_skull_bright_{time.strftime('%Y%m%dT%H%M%S')}",
+        ],
     }
     if args.name not in presets:
         sys.exit(f"unknown preset {args.name!r}; choose from {list(presets)}")
     ns = argparse.Namespace(
         remote_argv=presets[args.name],
-        cwd=REPO_ROOT,
+        cwd=None,
         label=args.name,
         env=[],
         wait=args.wait,
@@ -191,7 +205,8 @@ def main(argv: Optional[list[str]] = None) -> int:
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    sub.add_parser("health", help="GET /health on ECU")
+    ph = sub.add_parser("health", help="GET /health on ECU")
+    ph.set_defaults(func=cmd_health)
 
     pr = sub.add_parser("run", help="submit arbitrary argv to ECU")
     pr.add_argument("remote_argv", nargs="*", help="command after --")
@@ -214,8 +229,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     pp = sub.add_parser("preset", help="named remote workflows")
     pp.add_argument("name", choices=[
         "pcb-copper-test", "pcb-export-noise", "pcb-bright-100",
+        "colors-skull-completion",
     ])
-    pp.add_argument("--max-steps", type=int, default=8)
+    pp.add_argument("--max-steps", type=int, default=None)
     pp.add_argument("--wait", action="store_true")
     pp.add_argument("--poll", type=float, default=5.0)
     pp.add_argument("--tail", type=int, default=131072)
