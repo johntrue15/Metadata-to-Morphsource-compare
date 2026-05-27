@@ -317,18 +317,36 @@ def _build_bright_seed_cmd(
 def _summarise_run(out_dir: Path, media_id: str) -> dict:
     """Pluck the headline numbers (n_clicks, union_voxels, stop_reason)
     out of the bright-seed summary JSON so the results log doesn't
-    require re-loading the labelmap."""
-    summary_path = out_dir / f"{media_id}_bright_summary.json"
-    if not summary_path.exists():
+    require re-loading the labelmap.
+
+    The bright-seed runner writes its summary as
+    ``<media_id>_nni_summary.json``; we also accept the older
+    ``<media_id>_bright_summary.json`` name for results from earlier
+    revisions that may already live on disk.
+    """
+    candidates = [
+        out_dir / f"{media_id}_nni_summary.json",
+        out_dir / f"{media_id}_bright_summary.json",
+    ]
+    summary_path = next((c for c in candidates if c.exists()), None)
+    if summary_path is None:
         return {
             "summary_missing": True,
-            "summary_path": str(summary_path),
+            "summary_searched": [str(c) for c in candidates],
         }
     try:
         summary = json.loads(summary_path.read_text())
     except (OSError, json.JSONDecodeError) as exc:
         return {"summary_error": str(exc),
                 "summary_path": str(summary_path)}
+    # The bright-seed summary has nested {stop_reason: {reason, ...}}
+    # so the surface-level "stop_reason" field stays terse and the
+    # full payload still lives in the on-disk summary file.
+    stop_block = summary.get("stop_reason") or {}
+    if isinstance(stop_block, dict):
+        stop_reason_label = stop_block.get("reason")
+    else:
+        stop_reason_label = stop_block
     labelmap = (
         summary.get("labelmap_path")
         or str(out_dir / f"{media_id}_nni_labelmap.nii.gz")
@@ -338,9 +356,12 @@ def _summarise_run(out_dir: Path, media_id: str) -> dict:
         or str(out_dir / f"{media_id}_nni_multilabel.nii.gz")
     )
     return {
-        "n_clicks": summary.get("n_clicks"),
-        "union_voxels": summary.get("union_voxels"),
-        "stop_reason": summary.get("stop_reason"),
+        "n_clicks": summary.get("n_clicks") or summary.get("clicks_kept")
+                    or len(summary.get("history") or []),
+        "union_voxels": summary.get("union_voxels")
+                        or summary.get("voxel_count"),
+        "stop_reason": stop_reason_label,
+        "stop_block": stop_block if isinstance(stop_block, dict) else None,
         "params_used": summary.get("params"),
         "labelmap_path": labelmap,
         "multilabel_path": multilabel,

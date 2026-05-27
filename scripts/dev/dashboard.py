@@ -52,6 +52,18 @@ PID_FILE = RUNS_DIR / "orchestrator.pid"
 LOG_FILE = RUNS_DIR / "orchestrator.log"
 PROGRESS_CSV = RUNS_DIR / "progress.csv"
 
+# The autopilot sweep harness writes its state under
+# paper_artifacts/sweep/ (see .github/scripts/sweep_harness.py). We
+# surface a summary card in this dashboard so the same browser tab
+# covers both the legacy colors-of-skull batch and the new 24/7
+# sweep.
+SWEEP_DIR = REPO_ROOT / "paper_artifacts" / "sweep"
+SWEEP_QUEUE = SWEEP_DIR / "sweep_queue.jsonl"
+SWEEP_RESULTS = SWEEP_DIR / "sweep_results.jsonl"
+SWEEP_INFLIGHT_DIR = SWEEP_DIR / "in_flight"
+SWEEP_DAEMON_PID = SWEEP_DIR / "sweep_daemon.pid"
+SWEEP_DAEMON_LOG = SWEEP_DIR / "sweep_daemon.log"
+
 GH_REPO = os.environ.get("GH_REPO", "johntrue15/MorphoClaw")
 
 
@@ -229,11 +241,126 @@ def _classify(specimen: dict) -> str:
     return "queued"
 
 
+def _read_jsonl(path: Path) -> list[dict]:
+    if not path.exists():
+        return []
+    out: list[dict] = []
+    try:
+        with path.open("r", encoding="utf-8") as fh:
+            for ln in fh:
+                ln = ln.strip()
+                if not ln:
+                    continue
+                try:
+                    out.append(json.loads(ln))
+                except json.JSONDecodeError:
+                    continue
+    except OSError:
+        return []
+    return out
+
+
+def _sweep_state() -> dict:
+    """Summarise the autopilot sweep harness (paper_artifacts/sweep/).
+
+    Returns a dict the dashboard JSON / HTML render directly:
+    queue/done/in-flight counts, daemon liveness, the N most recent
+    results, and the currently-running job (if any).
+    """
+    queue = _read_jsonl(SWEEP_QUEUE)
+    results = _read_jsonl(SWEEP_RESULTS)
+    results_by_id = {r.get("job_id"): r for r in results}
+    in_flight_ids: list[str] = []
+    if SWEEP_INFLIGHT_DIR.exists():
+        in_flight_ids = sorted(
+            p.stem for p in SWEEP_INFLIGHT_DIR.glob("*.lock")
+        )
+    in_flight_set = set(in_flight_ids)
+
+    n_done = sum(1 for j in queue if j.get("job_id") in results_by_id)
+    n_in_flight = sum(1 for j in queue if j.get("job_id") in in_flight_set)
+    n_pending = max(0, len(queue) - n_done - n_in_flight)
+
+    daemon_pid: Optional[int] = None
+    if SWEEP_DAEMON_PID.exists():
+        try:
+            daemon_pid = int(SWEEP_DAEMON_PID.read_text().strip() or 0)
+        except ValueError:
+            daemon_pid = None
+    daemon_alive = bool(daemon_pid) and _is_pid_alive(daemon_pid)
+
+    recent = results[-10:] if results else []
+    # Mirror render_status's headline fields. Each entry already has
+    # status / duration / clicks / union / stop_reason from
+    # sweep_harness._summarise_run.
+    recent_view = [
+        {
+            "job_id": r.get("job_id"),
+            "status": r.get("status"),
+            "duration_s": r.get("duration_s"),
+            "n_clicks": r.get("n_clicks"),
+            "union_voxels": r.get("union_voxels"),
+            "stop_reason": r.get("stop_reason"),
+            "timed_out": r.get("timed_out"),
+            "params_override": r.get("params_override"),
+            "media_id": r.get("media_id"),
+        }
+        for r in recent
+    ]
+
+    current_job: Optional[dict] = None
+    for jid in in_flight_ids:
+        # The lock file holds a small JSON blob with claimed_at + pid.
+        lock = SWEEP_INFLIGHT_DIR / f"{jid}.lock"
+        meta = {}
+        try:
+            meta = json.loads(lock.read_text())
+        except (OSError, json.JSONDecodeError):
+            pass
+        current_job = {
+            "job_id": jid,
+            "claimed_at": meta.get("claimed_at"),
+            "claimed_by_pid": meta.get("pid"),
+        }
+        break  # one daemon -> at most one in-flight job
+
+    # Per-specimen mini summary (e.g. "mouse" / "felis"): how many
+    # configurations completed, mean duration, count failed.
+    by_media: dict[str, dict] = {}
+    for r in results:
+        mid = r.get("media_id") or "unknown"
+        bucket = by_media.setdefault(mid, {
+            "completed": 0, "failed": 0, "timed_out": 0,
+            "total_duration_s": 0.0,
+        })
+        if r.get("status") == "success":
+            bucket["completed"] += 1
+        else:
+            bucket["failed"] += 1
+            if r.get("timed_out"):
+                bucket["timed_out"] += 1
+        bucket["total_duration_s"] += float(r.get("duration_s") or 0)
+
+    return {
+        "state_dir": str(SWEEP_DIR),
+        "queue_size": len(queue),
+        "done": n_done,
+        "in_flight": n_in_flight,
+        "pending": n_pending,
+        "daemon_pid": daemon_pid,
+        "daemon_alive": daemon_alive,
+        "current_job": current_job,
+        "recent_results": recent_view,
+        "by_media": by_media,
+    }
+
+
 def _collect_state() -> dict:
     manifest = _load_manifest()
     progress = _load_progress_rows()
     current = _current_run_from_log()
     orch = _orchestrator_state()
+    sweep = _sweep_state()
 
     # Map slug -> all specs needed
     pairs = manifest.get("pairs", [])
@@ -325,6 +452,7 @@ def _collect_state() -> dict:
         },
         "specimens": specimens,
         "current_run": current,
+        "sweep": sweep,
         "github": {
             "repo": GH_REPO,
             "actions_url": f"https://github.com/{GH_REPO}/actions",
@@ -538,6 +666,27 @@ INDEX_HTML = r"""<!doctype html>
     <span class="muted">Nothing in flight.</span>
   </div>
 
+  <div class="section-title">
+    Autopilot sweep
+    <span class="muted" style="text-transform:none;letter-spacing:normal;font-weight:normal;font-size:12px">
+      &mdash; bright-seed parameter exploration on Dell GPU
+    </span>
+  </div>
+  <div class="grid" id="sweep-cards"></div>
+  <div class="card" id="sweep-current-card" style="margin-bottom:18px">
+    <span class="muted">No sweep job currently in flight.</span>
+  </div>
+  <table id="sweep-results-table" style="margin-bottom:18px">
+    <thead><tr>
+      <th>Job</th><th>Status</th>
+      <th class="right">Duration</th>
+      <th class="right">Clicks</th>
+      <th class="right">Union voxels</th>
+      <th>Stop reason</th>
+    </tr></thead>
+    <tbody></tbody>
+  </table>
+
   <div class="section-title">Specimens</div>
   <table id="specimen-table">
     <thead><tr>
@@ -678,6 +827,85 @@ async function refresh() {
   } else {
     document.getElementById("current-card").innerHTML =
       `<span class="muted">Orchestrator not running.</span>`;
+  }
+
+  // --- sweep cards ---
+  const sw = st.sweep || {};
+  const sweepCards = [
+    {label: "Sweep progress",
+     value: `${sw.done || 0} / ${sw.queue_size || 0}`,
+     bar: sw.queue_size ? (sw.done / sw.queue_size) : 0,
+     subtitle: `${sw.pending || 0} pending`},
+    {label: "Daemon",
+     value: sw.daemon_alive
+       ? `<span class="pill pill-alive">alive</span>`
+       : `<span class="pill pill-down">down</span>`,
+     subtitle: sw.daemon_pid ? `pid ${sw.daemon_pid}` : "no pid file"},
+    {label: "In flight",
+     value: sw.in_flight || 0,
+     subtitle: sw.in_flight ? "GPU busy" : "idle"},
+    {label: "Recent failures",
+     value: (sw.recent_results || [])
+       .filter(r => r.status !== "success").length,
+     subtitle: "in last 10"},
+  ];
+  // Per-media badges (mouse / felis / ...).
+  const byMedia = sw.by_media || {};
+  for (const [mid, b] of Object.entries(byMedia)) {
+    const total = (b.completed || 0) + (b.failed || 0);
+    const mean = total ? (b.total_duration_s / total) : 0;
+    sweepCards.push({
+      label: mid,
+      value: `${b.completed || 0} ok`,
+      subtitle: `${b.failed || 0} failed` +
+                (b.timed_out ? ` (${b.timed_out} timeout)` : "") +
+                ` &middot; avg ${fmtDuration(mean)}`,
+    });
+  }
+  document.getElementById("sweep-cards").innerHTML =
+    sweepCards.map(c => `
+      <div class="card">
+        <div class="label">${c.label}</div>
+        <div class="value">${c.value}</div>
+        ${c.subtitle ? `<div class="subtitle">${c.subtitle}</div>` : ""}
+        ${c.bar !== undefined ? `<div class="progress-bar"><div style="width:${(c.bar*100).toFixed(1)}%"></div></div>` : ""}
+      </div>`).join("");
+
+  // --- sweep current job ---
+  if (sw.current_job) {
+    const cj = sw.current_job;
+    document.getElementById("sweep-current-card").innerHTML = `
+      <div style="display:flex; gap:18px; align-items:center; flex-wrap:wrap">
+        ${pill("in_progress")}
+        <div class="mono" style="font-size:13px">${cj.job_id}</div>
+        <div class="muted">claimed ${fmtAgo(cj.claimed_at)}</div>
+        <div class="muted">pid ${cj.claimed_by_pid || "?"}</div>
+      </div>`;
+  } else {
+    document.getElementById("sweep-current-card").innerHTML =
+      `<span class="muted">No sweep job currently in flight.</span>`;
+  }
+
+  // --- sweep results table (most recent first) ---
+  const swTbody = document.querySelector("#sweep-results-table tbody");
+  const recent = (sw.recent_results || []).slice().reverse();
+  if (!recent.length) {
+    swTbody.innerHTML = `<tr><td colspan="6" class="muted">No sweep results yet.</td></tr>`;
+  } else {
+    swTbody.innerHTML = recent.map(r => {
+      const status = r.status === "success" ? "completed" :
+                     (r.timed_out ? "failed" : "failed");
+      const rowCls = r.status === "success" ? "completed" : "failed";
+      return `
+        <tr class="${rowCls}">
+          <td class="mono" style="font-size:11px">${r.job_id || ""}</td>
+          <td>${pill(status)}</td>
+          <td class="right mono">${fmtDuration(r.duration_s)}</td>
+          <td class="right mono">${r.n_clicks === null || r.n_clicks === undefined ? '<span class="muted">&mdash;</span>' : r.n_clicks}</td>
+          <td class="right mono">${r.union_voxels ? Number(r.union_voxels).toLocaleString() : '<span class="muted">&mdash;</span>'}</td>
+          <td class="muted" style="font-size:12px">${r.stop_reason || (r.timed_out ? "timeout" : "")}</td>
+        </tr>`;
+    }).join("");
   }
 
   // --- specimens table ---

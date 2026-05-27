@@ -190,12 +190,14 @@ def test_run_one_job_records_summary(tmp_path, monkeypatch):
         summary = {
             "n_clicks": 7,
             "union_voxels": 12345,
-            "stop_reason": "intensity_below_obvious",
+            # Mirror the real bright-seed shape: stop_reason is a dict.
+            "stop_reason": {"reason": "intensity_below_obvious",
+                            "step": 7, "intensity": 177.0},
             "params": {"intensity_drop_floor_frac": 0.2},
             "labelmap_path": str(out_dir
                                  / f"{media_id}_nni_labelmap.nii.gz"),
         }
-        (out_dir / f"{media_id}_bright_summary.json").write_text(
+        (out_dir / f"{media_id}_nni_summary.json").write_text(
             json.dumps(summary)
         )
 
@@ -211,6 +213,7 @@ def test_run_one_job_records_summary(tmp_path, monkeypatch):
     assert result["n_clicks"] == 7
     assert result["union_voxels"] == 12345
     assert result["stop_reason"] == "intensity_below_obvious"
+    assert result["stop_block"]["step"] == 7
     # File markers + paths exist
     assert Path(result["output_dir"]).exists()
     assert Path(result["log_path"]).exists()
@@ -246,9 +249,10 @@ def test_run_daemon_loops_through_queue_once(tmp_path, monkeypatch):
         media_idx = cmd.index("--media-id")
         media_id = cmd[media_idx + 1]
         out_dir.mkdir(parents=True, exist_ok=True)
-        (out_dir / f"{media_id}_bright_summary.json").write_text(
+        (out_dir / f"{media_id}_nni_summary.json").write_text(
             json.dumps({"n_clicks": 5, "union_voxels": 1000,
-                        "stop_reason": "candidates_exhausted",
+                        "stop_reason": {"reason":
+                                        "candidates_exhausted"},
                         "params": {}, "labelmap_path": "x"})
         )
 

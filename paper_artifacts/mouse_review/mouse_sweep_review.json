@@ -1,0 +1,362 @@
+{
+  "reference": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_skull_session_001/composite.nii.gz",
+  "ref_voxels": 434805,
+  "n_successful": 8,
+  "n_unique_param_groups": 4,
+  "ranked_unique": [
+    {
+      "job_id": "impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4",
+      "status": "success",
+      "params": {
+        "intensity_percentile": 99.0,
+        "intensity_drop_floor_frac": 0.2,
+        "min_local_density": 0.4
+      },
+      "n_clicks": 28,
+      "union_voxels": 388155,
+      "duration_s": 3423.8,
+      "stop_reason": "intensity_below_obvious",
+      "dice": 0.942398,
+      "iou": 0.891071,
+      "pred_voxels": 388155,
+      "ref_voxels": 434805,
+      "coverage_vs_ref": 0.891843,
+      "composite_score": 0.84133,
+      "output_dir": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4",
+      "labelmap_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4/impc_mouse_nni_labelmap.nii.gz",
+      "multilabel_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4/impc_mouse_nni_multilabel.nii.gz"
+    },
+    {
+      "job_id": "impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_95p0__min_local_density_0p0",
+      "status": "success",
+      "params": {
+        "intensity_percentile": 95.0,
+        "intensity_drop_floor_frac": 0.5,
+        "min_local_density": 0.0
+      },
+      "n_clicks": 13,
+      "union_voxels": 303121,
+      "duration_s": 548.2,
+      "stop_reason": "intensity_below_obvious",
+      "dice": 0.801069,
+      "iou": 0.668153,
+      "pred_voxels": 303121,
+      "ref_voxels": 434805,
+      "coverage_vs_ref": 0.679764,
+      "composite_score": 0.716869,
+      "output_dir": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_95p0__min_local_density_0p0",
+      "labelmap_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_95p0__min_local_density_0p0/impc_mouse_nni_labelmap.nii.gz",
+      "multilabel_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_95p0__min_local_density_0p0/impc_mouse_nni_multilabel.nii.gz"
+    },
+    {
+      "job_id": "impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_97p0__min_local_density_0p4",
+      "status": "success",
+      "params": {
+        "intensity_percentile": 97.0,
+        "intensity_drop_floor_frac": 0.5,
+        "min_local_density": 0.4
+      },
+      "n_clicks": 12,
+      "union_voxels": 287661,
+      "duration_s": 337.7,
+      "stop_reason": "intensity_below_obvious",
+      "dice": 0.796134,
+      "iou": 0.661315,
+      "pred_voxels": 287661,
+      "ref_voxels": 434805,
+      "coverage_vs_ref": 0.661423,
+      "composite_score": 0.712999,
+      "output_dir": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_97p0__min_local_density_0p4",
+      "labelmap_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_97p0__min_local_density_0p4/impc_mouse_nni_labelmap.nii.gz",
+      "multilabel_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_97p0__min_local_density_0p4/impc_mouse_nni_multilabel.nii.gz"
+    },
+    {
+      "job_id": "impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_99p0__min_local_density_0p0",
+      "status": "success",
+      "params": {
+        "intensity_percentile": 99.0,
+        "intensity_drop_floor_frac": 0.5,
+        "min_local_density": 0.0
+      },
+      "n_clicks": 8,
+      "union_voxels": 229216,
+      "duration_s": 164.1,
+      "stop_reason": "intensity_below_obvious",
+      "dice": 0.690346,
+      "iou": 0.52712,
+      "pred_voxels": 229216,
+      "ref_voxels": 434805,
+      "coverage_vs_ref": 0.527137,
+      "composite_score": 0.602501,
+      "output_dir": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_99p0__min_local_density_0p0",
+      "labelmap_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_99p0__min_local_density_0p0/impc_mouse_nni_labelmap.nii.gz",
+      "multilabel_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_99p0__min_local_density_0p0/impc_mouse_nni_multilabel.nii.gz"
+    }
+  ],
+  "all_runs": [
+    {
+      "job_id": "impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_95p0__min_local_density_0p0",
+      "status": "failure",
+      "params": {
+        "intensity_percentile": 95.0,
+        "intensity_drop_floor_frac": 0.2,
+        "min_local_density": 0.0
+      },
+      "n_clicks": null,
+      "union_voxels": null,
+      "duration_s": 600.5,
+      "stop_reason": null,
+      "dice": null,
+      "iou": null,
+      "pred_voxels": null,
+      "ref_voxels": 434805,
+      "coverage_vs_ref": null,
+      "composite_score": null,
+      "output_dir": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_95p0__min_local_density_0p0",
+      "labelmap_path": null,
+      "multilabel_path": null
+    },
+    {
+      "job_id": "impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_95p0__min_local_density_0p4",
+      "status": "failure",
+      "params": {
+        "intensity_percentile": 95.0,
+        "intensity_drop_floor_frac": 0.2,
+        "min_local_density": 0.4
+      },
+      "n_clicks": null,
+      "union_voxels": null,
+      "duration_s": 5400.5,
+      "stop_reason": null,
+      "dice": null,
+      "iou": null,
+      "pred_voxels": null,
+      "ref_voxels": 434805,
+      "coverage_vs_ref": null,
+      "composite_score": null,
+      "output_dir": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_95p0__min_local_density_0p4",
+      "labelmap_path": null,
+      "multilabel_path": null
+    },
+    {
+      "job_id": "impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_95p0__min_local_density_0p0",
+      "status": "success",
+      "params": {
+        "intensity_percentile": 95.0,
+        "intensity_drop_floor_frac": 0.5,
+        "min_local_density": 0.0
+      },
+      "n_clicks": 13,
+      "union_voxels": 303121,
+      "duration_s": 548.2,
+      "stop_reason": "intensity_below_obvious",
+      "dice": 0.801069,
+      "iou": 0.668153,
+      "pred_voxels": 303121,
+      "ref_voxels": 434805,
+      "coverage_vs_ref": 0.679764,
+      "composite_score": 0.716869,
+      "output_dir": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_95p0__min_local_density_0p0",
+      "labelmap_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_95p0__min_local_density_0p0/impc_mouse_nni_labelmap.nii.gz",
+      "multilabel_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_95p0__min_local_density_0p0/impc_mouse_nni_multilabel.nii.gz"
+    },
+    {
+      "job_id": "impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_95p0__min_local_density_0p4",
+      "status": "success",
+      "params": {
+        "intensity_percentile": 95.0,
+        "intensity_drop_floor_frac": 0.5,
+        "min_local_density": 0.4
+      },
+      "n_clicks": 13,
+      "union_voxels": 303121,
+      "duration_s": 548.6,
+      "stop_reason": "intensity_below_obvious",
+      "dice": 0.801069,
+      "iou": 0.668153,
+      "pred_voxels": 303121,
+      "ref_voxels": 434805,
+      "coverage_vs_ref": 0.679764,
+      "composite_score": 0.716865,
+      "output_dir": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_95p0__min_local_density_0p4",
+      "labelmap_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_95p0__min_local_density_0p4/impc_mouse_nni_labelmap.nii.gz",
+      "multilabel_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_95p0__min_local_density_0p4/impc_mouse_nni_multilabel.nii.gz"
+    },
+    {
+      "job_id": "impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_97p0__min_local_density_0p0",
+      "status": "failure",
+      "params": {
+        "intensity_percentile": 97.0,
+        "intensity_drop_floor_frac": 0.2,
+        "min_local_density": 0.0
+      },
+      "n_clicks": null,
+      "union_voxels": null,
+      "duration_s": 5400.9,
+      "stop_reason": null,
+      "dice": null,
+      "iou": null,
+      "pred_voxels": null,
+      "ref_voxels": 434805,
+      "coverage_vs_ref": null,
+      "composite_score": null,
+      "output_dir": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_97p0__min_local_density_0p0",
+      "labelmap_path": null,
+      "multilabel_path": null
+    },
+    {
+      "job_id": "impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_97p0__min_local_density_0p4",
+      "status": "failure",
+      "params": {
+        "intensity_percentile": 97.0,
+        "intensity_drop_floor_frac": 0.2,
+        "min_local_density": 0.4
+      },
+      "n_clicks": null,
+      "union_voxels": null,
+      "duration_s": 5400.6,
+      "stop_reason": null,
+      "dice": null,
+      "iou": null,
+      "pred_voxels": null,
+      "ref_voxels": 434805,
+      "coverage_vs_ref": null,
+      "composite_score": null,
+      "output_dir": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_97p0__min_local_density_0p4",
+      "labelmap_path": null,
+      "multilabel_path": null
+    },
+    {
+      "job_id": "impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_97p0__min_local_density_0p0",
+      "status": "success",
+      "params": {
+        "intensity_percentile": 97.0,
+        "intensity_drop_floor_frac": 0.5,
+        "min_local_density": 0.0
+      },
+      "n_clicks": 12,
+      "union_voxels": 287661,
+      "duration_s": 340.5,
+      "stop_reason": "intensity_below_obvious",
+      "dice": 0.796134,
+      "iou": 0.661315,
+      "pred_voxels": 287661,
+      "ref_voxels": 434805,
+      "coverage_vs_ref": 0.661423,
+      "composite_score": 0.712971,
+      "output_dir": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_97p0__min_local_density_0p0",
+      "labelmap_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_97p0__min_local_density_0p0/impc_mouse_nni_labelmap.nii.gz",
+      "multilabel_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_97p0__min_local_density_0p0/impc_mouse_nni_multilabel.nii.gz"
+    },
+    {
+      "job_id": "impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_97p0__min_local_density_0p4",
+      "status": "success",
+      "params": {
+        "intensity_percentile": 97.0,
+        "intensity_drop_floor_frac": 0.5,
+        "min_local_density": 0.4
+      },
+      "n_clicks": 12,
+      "union_voxels": 287661,
+      "duration_s": 337.7,
+      "stop_reason": "intensity_below_obvious",
+      "dice": 0.796134,
+      "iou": 0.661315,
+      "pred_voxels": 287661,
+      "ref_voxels": 434805,
+      "coverage_vs_ref": 0.661423,
+      "composite_score": 0.712999,
+      "output_dir": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_97p0__min_local_density_0p4",
+      "labelmap_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_97p0__min_local_density_0p4/impc_mouse_nni_labelmap.nii.gz",
+      "multilabel_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_97p0__min_local_density_0p4/impc_mouse_nni_multilabel.nii.gz"
+    },
+    {
+      "job_id": "impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p0",
+      "status": "success",
+      "params": {
+        "intensity_percentile": 99.0,
+        "intensity_drop_floor_frac": 0.2,
+        "min_local_density": 0.0
+      },
+      "n_clicks": 31,
+      "union_voxels": 389215,
+      "duration_s": 3503.6,
+      "stop_reason": "intensity_below_obvious",
+      "dice": 0.943628,
+      "iou": 0.893272,
+      "pred_voxels": 389215,
+      "ref_voxels": 434805,
+      "coverage_vs_ref": 0.894157,
+      "composite_score": 0.837437,
+      "output_dir": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p0",
+      "labelmap_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p0/impc_mouse_nni_labelmap.nii.gz",
+      "multilabel_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p0/impc_mouse_nni_multilabel.nii.gz"
+    },
+    {
+      "job_id": "impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4",
+      "status": "success",
+      "params": {
+        "intensity_percentile": 99.0,
+        "intensity_drop_floor_frac": 0.2,
+        "min_local_density": 0.4
+      },
+      "n_clicks": 28,
+      "union_voxels": 388155,
+      "duration_s": 3423.8,
+      "stop_reason": "intensity_below_obvious",
+      "dice": 0.942398,
+      "iou": 0.891071,
+      "pred_voxels": 388155,
+      "ref_voxels": 434805,
+      "coverage_vs_ref": 0.891843,
+      "composite_score": 0.84133,
+      "output_dir": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4",
+      "labelmap_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4/impc_mouse_nni_labelmap.nii.gz",
+      "multilabel_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4/impc_mouse_nni_multilabel.nii.gz"
+    },
+    {
+      "job_id": "impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_99p0__min_local_density_0p0",
+      "status": "success",
+      "params": {
+        "intensity_percentile": 99.0,
+        "intensity_drop_floor_frac": 0.5,
+        "min_local_density": 0.0
+      },
+      "n_clicks": 8,
+      "union_voxels": 229216,
+      "duration_s": 164.1,
+      "stop_reason": "intensity_below_obvious",
+      "dice": 0.690346,
+      "iou": 0.52712,
+      "pred_voxels": 229216,
+      "ref_voxels": 434805,
+      "coverage_vs_ref": 0.527137,
+      "composite_score": 0.602501,
+      "output_dir": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_99p0__min_local_density_0p0",
+      "labelmap_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_99p0__min_local_density_0p0/impc_mouse_nni_labelmap.nii.gz",
+      "multilabel_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_99p0__min_local_density_0p0/impc_mouse_nni_multilabel.nii.gz"
+    },
+    {
+      "job_id": "impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_99p0__min_local_density_0p4",
+      "status": "success",
+      "params": {
+        "intensity_percentile": 99.0,
+        "intensity_drop_floor_frac": 0.5,
+        "min_local_density": 0.4
+      },
+      "n_clicks": 8,
+      "union_voxels": 229216,
+      "duration_s": 164.3,
+      "stop_reason": "intensity_below_obvious",
+      "dice": 0.690346,
+      "iou": 0.52712,
+      "pred_voxels": 229216,
+      "ref_voxels": 434805,
+      "coverage_vs_ref": 0.527137,
+      "composite_score": 0.6025,
+      "output_dir": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_99p0__min_local_density_0p4",
+      "labelmap_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_99p0__min_local_density_0p4/impc_mouse_nni_labelmap.nii.gz",
+      "multilabel_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/sweep/done/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_99p0__min_local_density_0p4/impc_mouse_nni_multilabel.nii.gz"
+    }
+  ]
+}
