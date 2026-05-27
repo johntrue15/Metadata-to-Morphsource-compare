@@ -507,6 +507,31 @@ def push_volume(base_url: str, nifti_path: Path,
     return final
 
 
+def load_volume_from_remote_path(
+    base_url: str,
+    path: str,
+    name: Optional[str] = None,
+    sha256_expected: str = "",
+    timeout: float = 240.0,
+) -> dict:
+    """Load a NIfTI/NRRD already on the Jetstream filesystem into Slicer."""
+    path = str(path)
+    if name is None:
+        stem = Path(path).name
+        if stem.endswith(".nii.gz"):
+            stem = stem[:-7]
+        elif stem.endswith(".nrrd"):
+            stem = stem[:-5]
+        name = Path(stem).stem
+    return _post_python(
+        base_url,
+        _build_load_from_path_source(
+            path=path, name=name, sha256_expected=sha256_expected
+        ),
+        timeout=timeout,
+    )
+
+
 def list_volumes(base_url: str, timeout: float = 30) -> dict:
     return _post_python(base_url, LIST_VOLUMES_SRC, timeout=timeout)
 
@@ -524,6 +549,7 @@ __all__ = [
     "LIST_VOLUMES_SRC",
     "SET_ACTIVE_VOLUME_SRC_TEMPLATE",
     "push_volume",
+    "load_volume_from_remote_path",
     "list_volumes",
     "set_active_volume",
 ]

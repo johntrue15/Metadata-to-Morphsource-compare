@@ -58,16 +58,19 @@ from typing import Optional
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 ENV_PATH = REPO_ROOT / ".env"
 REMOTE_SH_LOCAL = REPO_ROOT / ".github" / "scripts" / "jetstream_remote_restart.sh"
+ECU_INSTALL_LOCAL = REPO_ROOT / "scripts" / "jetstream" / "install_ecu.sh"
 SLICER_SNIPPET_PATH = REPO_ROOT / ".github" / "scripts" / "slicer_start_webserver.py"
 REMOTE_SH_DEST = "/tmp/jetstream_remote_restart.sh"
 
 DEFAULT_NNI_PORT = 1527
 DEFAULT_WEBSERVER_PORT = 2016
+DEFAULT_ECU_PORT = 18765
 
 ENV_KEYS_TO_REWRITE = (
     "JETSTREAM_PUBLIC_IP",
     "NNI_REMOTE_URL",
     "SLICER_WEBSERVER_URL",
+    "MORPHOCLAW_ECU_URL",
 )
 
 IPV4_RE = re.compile(r"^(?:\d{1,3}\.){3}\d{1,3}$")
@@ -172,6 +175,7 @@ def ssh_preflight(user: str, ip: str, ssh_key: Optional[str]) -> None:
 
 def rewrite_env(env_path: Path, ip: str,
                 nni_url: str, ws_url: str,
+                ecu_url: str,
                 dry_run: bool) -> Optional[Path]:
     """Replace IP + URL fields in ``env_path``. Returns backup path (or None
     if dry-run / no changes / file missing)."""
@@ -185,6 +189,7 @@ def rewrite_env(env_path: Path, ip: str,
         "JETSTREAM_PUBLIC_IP": ip,
         "NNI_REMOTE_URL": nni_url,
         "SLICER_WEBSERVER_URL": ws_url,
+        "MORPHOCLAW_ECU_URL": ecu_url,
     }
 
     lines = original.splitlines(keepends=False)
@@ -241,6 +246,26 @@ def rewrite_env(env_path: Path, ip: str,
 # ---------------------------------------------------------------------------
 # Remote restart
 # ---------------------------------------------------------------------------
+
+def remote_ecu_install(user: str, ip: str, ssh_key: Optional[str],
+                      dry_run: bool) -> None:
+    """Run install_ecu.sh on the box over SSH (clone + start ECU server)."""
+    install_url = (
+        "https://raw.githubusercontent.com/johntrue15/MorphoClaw/main/"
+        "scripts/jetstream/install_ecu.sh"
+    )
+    remote_cmd = (
+        _ssh_base(user, ip, ssh_key)
+        + ["bash", "-lc", f"curl -fsSL {install_url!r} | bash"]
+    )
+    info("$ " + " ".join(remote_cmd))
+    if dry_run:
+        info("[dry-run] skipping ECU install.")
+        return
+    proc = subprocess.run(remote_cmd)
+    if proc.returncode != 0:
+        warn(f"ECU install exited {proc.returncode} — install manually in Guacamole.")
+
 
 def remote_restart(user: str, ip: str, ssh_key: Optional[str],
                    reuse: bool, dry_run: bool) -> None:
@@ -344,8 +369,8 @@ print(slicer.modules.WebServerWidget.logic.server)
 # READY banner
 # ---------------------------------------------------------------------------
 
-def ready_banner(ip: str, nni_url: str, ws_url: str,
-                 nni_ok: bool, ws_ok: Optional[bool]) -> None:
+def ready_banner(ip: str, nni_url: str, ws_url: str, ecu_url: str,
+                 nni_ok: bool, ws_ok: Optional[bool], ecu_ok: Optional[bool]) -> None:
     print("")
     print("=" * 74)
     print("READY")
@@ -356,10 +381,20 @@ def ready_banner(ip: str, nni_url: str, ws_url: str,
         print(f"  Slicer WS (:2016)    : {ws_url}  [skipped]")
     else:
         print(f"  Slicer WS (:2016)    : {ws_url}  [{'OK' if ws_ok else 'NOT REACHABLE'}]")
+    if ecu_ok is None:
+        print(f"  MorphoClaw ECU (:18765): {ecu_url}  [skipped]")
+    else:
+        print(f"  MorphoClaw ECU (:18765): {ecu_url}  [{'OK' if ecu_ok else 'NOT REACHABLE'}]")
     print("")
-    print("Local `.env` is updated. Next:")
+    print("Controller (Mac) — run jobs on ECU with localhost Slicer:")
+    print('  set -a && source .env && set +a')
+    print('  python3 .github/scripts/jetstream_controller.py health')
+    print('  python3 .github/scripts/jetstream_controller.py preset pcb-copper-test --wait')
     print("")
-    print("  # 10-click bright-seed pilot against the remote (uses .env automatically):")
+    print("One-line ECU install (Guacamole terminal):")
+    print('  curl -fsSL https://raw.githubusercontent.com/johntrue15/MorphoClaw/main/scripts/jetstream/install_ecu.sh | bash')
+    print("")
+    print("Legacy direct Slicer proxy (may 504 on long clicks):")
     print('  set -a && source .env && set +a')
     print('  "$HOME/.autoresearchclaw/nninteractive/bin/python" \\')
     print('      .github/scripts/eval_project358382_pilot.py \\')
@@ -407,6 +442,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--non-interactive", action="store_true",
                    help="Don't prompt for the Slicer Web Server fallback; "
                         "exit non-zero if :2016 is unreachable.")
+    p.add_argument("--ecu", action="store_true",
+                   help="Install/start MorphoClaw ECU (:18765) on the remote "
+                        "box via SSH (curl | bash install_ecu.sh).")
+    p.add_argument("--probe-ecu", action="store_true",
+                   help="Probe MorphoClaw ECU /health on :18765.")
     p.add_argument("--probe-attempts", type=int, default=6,
                    help="HTTPS probe retry budget (default: 6).")
     p.add_argument("--probe-delay", type=float, default=5.0,
@@ -420,11 +460,13 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     nni_url = exosphere_url(args.ip, DEFAULT_NNI_PORT)
     ws_url = exosphere_url(args.ip, DEFAULT_WEBSERVER_PORT)
+    ecu_url = exosphere_url(args.ip, DEFAULT_ECU_PORT)
     ssh_key = args.ssh_key or None
 
     step(f"Target: {args.user}@{args.ip}")
     info(f"  NNI URL : {nni_url}")
     info(f"  WS URL  : {ws_url}")
+    info(f"  ECU URL : {ecu_url}")
 
     # Only require SSH if we're going to use it — pure-local runs (no
     # --nninteractive) should still be able to rewrite .env and probe the
@@ -432,7 +474,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     if args.dry_run:
         step("SSH preflight")
         info("[dry-run] skipping SSH preflight.")
-    elif args.nninteractive:
+    elif args.nninteractive or args.ecu:
         step("SSH preflight")
         ssh_preflight(args.user, args.ip, ssh_key)
     else:
@@ -442,7 +484,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     if args.no_env_update:
         info("--no-env-update: skipping .env rewrite.")
     else:
-        rewrite_env(ENV_PATH, args.ip, nni_url, ws_url, args.dry_run)
+        rewrite_env(ENV_PATH, args.ip, nni_url, ws_url, ecu_url, args.dry_run)
 
     if args.nninteractive:
         step("Restart nninteractive-slicer-server on :1527 (remote)")
@@ -450,6 +492,10 @@ def main(argv: Optional[list[str]] = None) -> int:
                        reuse=args.reuse_server, dry_run=args.dry_run)
     else:
         info("(--nninteractive not set: skipping remote restart)")
+
+    if args.ecu:
+        step("Install MorphoClaw ECU on :18765 (remote)")
+        remote_ecu_install(args.user, args.ip, ssh_key, dry_run=args.dry_run)
 
     if args.dry_run:
         info("[dry-run] skipping HTTPS probes.")
@@ -486,12 +532,21 @@ def main(argv: Optional[list[str]] = None) -> int:
                         delay=args.probe_delay,
                     )
 
-    ready_banner(args.ip, nni_url, ws_url, nni_ok, ws_ok)
+    ecu_ok: Optional[bool] = None
+    if args.probe_ecu:
+        ecu_ok = probe_with_retry(
+            ecu_url + "health", "MorphoClaw ECU (:18765)",
+            max_attempts=args.probe_attempts, delay=args.probe_delay,
+        )
+
+    ready_banner(args.ip, nni_url, ws_url, ecu_url, nni_ok, ws_ok, ecu_ok)
 
     if not nni_ok:
         return 6
     if args.webserver and ws_ok is False:
         return 7
+    if args.probe_ecu and ecu_ok is False:
+        return 8
     return 0
 
 

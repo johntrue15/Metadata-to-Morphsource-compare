@@ -1,7 +1,7 @@
 # Makefile for Metadata-to-Morphsource-Compare
 # Provides convenient shortcuts for common development tasks
 
-.PHONY: help install install-dev test test-cov test-seg-train test-seg-train-full test-seg-train-live nni-smoke lint format clean pre-commit all unshelve test-eval358382 test-eval-replay build-replay-fixtures unshelve-dry-run
+.PHONY: help install install-dev test test-cov test-seg-train test-seg-train-full test-seg-train-live nni-smoke lint format clean pre-commit all unshelve test-eval358382 test-eval-replay build-replay-fixtures unshelve-dry-run ecu-install ecu-health
 
 # Default target - show help
 help:
@@ -17,6 +17,8 @@ help:
 	@echo "  make test-seg-train-live - Real end-to-end on chameleon stapes (~10 min)"
 	@echo "  make nni-smoke     - Cached-fixture smoke for nninteractive_compare.py (~2s, no GPU)"
 	@echo "  make unshelve IP=A.B.C.D - Reattach to an unshelved Jetstream2 instance"
+	@echo "  make ecu-install IP=...   - One-line ECU install over SSH (needs key auth)"
+	@echo "  make ecu-health           - Probe MorphoClaw ECU /health (uses .env)"
 	@echo "                            (rewrites .env URLs, restarts nninteractive-slicer-server"
 	@echo "                             over SSH, probes :1527 and :2016). See docs/JETSTREAM_UNSHELVE.md."
 	@echo "  make unshelve-dry-run IP=... - Print unshelve steps without SSH or .env writes"
@@ -89,7 +91,7 @@ unshelve:
 		exit 2; \
 	fi
 	python3 .github/scripts/jetstream_unshelve_start.py \
-	    --ip $(IP) --nninteractive --webserver $(UNSHELVE_FLAGS)
+	    --ip $(IP) --nninteractive --webserver --probe-ecu $(UNSHELVE_FLAGS)
 
 unshelve-dry-run:
 	@if [ -z "$(IP)" ]; then \
@@ -98,6 +100,19 @@ unshelve-dry-run:
 	fi
 	python3 .github/scripts/jetstream_unshelve_start.py \
 	    --ip $(IP) --nninteractive --webserver --dry-run $(UNSHELVE_FLAGS)
+
+# Install MorphoClaw ECU on Jetstream (clone repo + job server :18765).
+ecu-install:
+	@if [ -z "$(IP)" ]; then \
+		echo "Usage: make ecu-install IP=<public-ip>"; \
+		exit 2; \
+	fi
+	python3 .github/scripts/jetstream_unshelve_start.py \
+	    --ip $(IP) --ecu --probe-ecu --no-env-update $(UNSHELVE_FLAGS)
+
+ecu-health:
+	@set -a && [ -f .env ] && . ./.env && set +a; \
+	python3 .github/scripts/jetstream_controller.py health
 
 test-eval358382:
 	Tests/test_eval_project358382.sh

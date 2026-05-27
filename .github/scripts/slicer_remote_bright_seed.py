@@ -48,6 +48,7 @@ import argparse
 import base64
 import json
 import os
+import socket
 import sys
 import textwrap
 import time
@@ -106,28 +107,45 @@ def http_get(url: str, timeout: float = 20) -> bytes:
         return resp.read()
 
 
-def post_python(base_url: str, source: str, timeout: float = 240) -> dict:
+def post_python(base_url: str, source: str, timeout: float = 240,
+                retries: int = 3) -> dict:
     body = source.encode("utf-8")
     req = urllib.request.Request(
         base_url + "/slicer/exec", data=body, method="POST",
         headers={"Content-Type": "text/plain"},
     )
-    t0 = time.time()
-    try:
-        with urlopen_via_session(req, timeout=timeout) as resp:
-            content = resp.read()
-            status = resp.status
-    except urllib.error.HTTPError as e:
-        content = e.read()
-        status = e.code
-    if status != 200:
-        raise RuntimeError(f"/slicer/exec -> HTTP {status}: {content[:300]!r}")
-    try:
-        result = json.loads(content)
-    except Exception:
-        raise RuntimeError(f"non-JSON exec reply: {content[:300]!r}")
-    result["_dt_s"] = round(time.time() - t0, 3)
-    return result
+    last_err = None
+    for attempt in range(max(1, retries)):
+        t0 = time.time()
+        try:
+            with urlopen_via_session(req, timeout=timeout) as resp:
+                content = resp.read()
+                status = resp.status
+        except urllib.error.HTTPError as e:
+            content = e.read()
+            status = e.code
+        except (TimeoutError, socket.timeout, urllib.error.URLError) as e:
+            last_err = e
+            if attempt + 1 < retries:
+                time.sleep(min(30.0, 2.0 ** attempt))
+                continue
+            raise
+        if status in (502, 503, 504) and attempt + 1 < retries:
+            time.sleep(min(45.0, 5.0 * (attempt + 1)))
+            continue
+        if status != 200:
+            raise RuntimeError(
+                f"/slicer/exec -> HTTP {status}: {content[:300]!r}"
+            )
+        try:
+            result = json.loads(content)
+        except Exception:
+            raise RuntimeError(f"non-JSON exec reply: {content[:300]!r}")
+        result["_dt_s"] = round(time.time() - t0, 3)
+        return result
+    if last_err is not None:
+        raise last_err
+    raise RuntimeError("post_python: no attempts made")
 
 
 # Recipe that returns base64-encoded PNGs of each Slicer widget's *actual*
@@ -623,6 +641,11 @@ def main(argv: list[str] | None = None) -> int:
                         "(e.g. 'mouse_skull')")
     p.add_argument("--out-dir", type=Path,
                    default=Path("runs") / time.strftime("bright_%Y%m%d_%H%M%S"))
+    p.add_argument("--skip-remote-env", action="store_true",
+                   help="skip slow Slicer/plugin env probe (continuation runs)")
+    p.add_argument("--skip-failed-steps", action="store_true",
+                   help="on transport/remote step errors, log and continue "
+                        "instead of aborting the run")
     args = p.parse_args(argv)
 
     if args.no_stop_rules:
@@ -661,22 +684,25 @@ def main(argv: list[str] | None = None) -> int:
                    "may not match the script that's running.")
 
     # Remote environment (Slicer + plugin + nnInteractive + torch + device)
-    logger.log("-> Capturing remote environment (Slicer/plugin/torch)…")
-    try:
-        remote_env = post_python(base_url, CAPTURE_REMOTE_ENV_SRC, timeout=60)
-        logger.record_remote_env(remote_env)
-        logger.log(f"   slicer       : {remote_env.get('slicer_version')}")
-        logger.log(f"   torch        : {remote_env.get('torch_version')}  "
-                   f"cuda={remote_env.get('torch_cuda_available')}  "
-                   f"mps={remote_env.get('torch_mps_available')}")
-        logger.log(f"   nnInteractive: {remote_env.get('nninteractive_version')}")
-        if "slicernninteractive_git_commit" in remote_env:
-            logger.log(f"   plugin commit: {remote_env['slicernninteractive_git_commit']}")
-        if "nninteractive_model_total_bytes" in remote_env:
-            logger.log(f"   model bytes  : {remote_env['nninteractive_model_total_bytes']:,}")
-    except Exception as e:
-        logger.log(f"   remote env capture failed: {e!r}")
-        logger.event("remote_env_failed", error=repr(e))
+    if args.skip_remote_env:
+        logger.log("-> Skipping remote environment capture (--skip-remote-env)")
+    else:
+        logger.log("-> Capturing remote environment (Slicer/plugin/torch)…")
+        try:
+            remote_env = post_python(base_url, CAPTURE_REMOTE_ENV_SRC, timeout=60)
+            logger.record_remote_env(remote_env)
+            logger.log(f"   slicer       : {remote_env.get('slicer_version')}")
+            logger.log(f"   torch        : {remote_env.get('torch_version')}  "
+                       f"cuda={remote_env.get('torch_cuda_available')}  "
+                       f"mps={remote_env.get('torch_mps_available')}")
+            logger.log(f"   nnInteractive: {remote_env.get('nninteractive_version')}")
+            if "slicernninteractive_git_commit" in remote_env:
+                logger.log(f"   plugin commit: {remote_env['slicernninteractive_git_commit']}")
+            if "nninteractive_model_total_bytes" in remote_env:
+                logger.log(f"   model bytes  : {remote_env['nninteractive_model_total_bytes']:,}")
+        except Exception as e:
+            logger.log(f"   remote env capture failed: {e!r}")
+            logger.event("remote_env_failed", error=repr(e))
 
     # ------------------------------------------------------------------
     # Volume selection + reset + visibility
@@ -685,7 +711,7 @@ def main(argv: list[str] | None = None) -> int:
         logger.log(f"-> Setting active volume to {args.volume!r}")
         r = post_python(base_url,
                         SET_ACTIVE_VOLUME_SRC_TEMPLATE.format(target_name=args.volume),
-                        timeout=20)
+                        timeout=180)
         if r.get("status") != "ok":
             logger.log(f"   FAILED: {r}")
             logger.event("volume_set_failed", **r)
@@ -760,14 +786,18 @@ def main(argv: list[str] | None = None) -> int:
         logger.log(f"--- Step {step:02d} -----------------------------------------")
         logger.event("step_begin", step=step)
         t_step0 = time.time()
-        r = post_python(
-            base_url,
-            STEP_SRC_TEMPLATE.format(
-                click_positive=True,
-                new_segment=new_segment_per_click,
-            ),
-            timeout=240,
-        )
+        try:
+            r = post_python(
+                base_url,
+                STEP_SRC_TEMPLATE.format(
+                    click_positive=True,
+                    new_segment=new_segment_per_click,
+                ),
+                timeout=360,
+                retries=8,
+            )
+        except RuntimeError as e:
+            r = {"status": "transport_error", "error": repr(e)}
         r["step"] = step
         r["step_wallclock_s"] = round(time.time() - t_step0, 3)
 
@@ -785,6 +815,10 @@ def main(argv: list[str] | None = None) -> int:
             logger.log(f"  STEP FAILED: {r}")
             (step_dir / "state.json").write_text(json.dumps(r, indent=2))
             logger.event("step_failed", **r)
+            if args.skip_failed_steps:
+                logger.log("  (continuing — --skip-failed-steps)")
+                history.append(r)
+                continue
             stop_reason = {"reason": "step_failed", "step": step, "details": r}
             logger.finalize(stop_reason=stop_reason,
                              summary={"steps": len(history), "history": history})
