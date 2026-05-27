@@ -71,7 +71,9 @@ defaults:
 jobs:
   slicer-load-cache:
     name: Slicer loads cached MorphoSource model
-    runs-on: self-hosted
+    # Slicer + VTK/numpy belong on the Dell GPU host. See
+    # docs/RUNNER_TOPOLOGY.md and .cursor/rules/morphoclaw-runner.mdc.
+    runs-on: [self-hosted, slicer]
     timeout-minutes: 25
     env:
       SLICER_REQUIRE_INTEGRATION: '1'

@@ -2224,7 +2224,50 @@ def _parse_args():
                         "frac. 0 disables. 0.5 = strict (mouse-style), "
                         "0.2 = permissive (skull-bone-style narrow "
                         "intensity range).")
+    p.add_argument("--force-local", action="store_true",
+                   help="Override the driver/tool doctrine guard (docs/"
+                        "RUNNER_TOPOLOGY.md). Allows a live compare run on "
+                        "the Mac mini driver. Use with care — the morning of "
+                        "2026-05-24 is the cautionary tale. Equivalent to "
+                        "MORPHOCLAW_FORCE_MAC_PILOT=1.")
     return p.parse_args()
+
+
+def _enforce_driver_doctrine_compare(args) -> None:
+    """Refuse live nninteractive_compare runs on the Mac mini driver.
+
+    See ``eval_project358382_pilot._enforce_driver_doctrine`` for the
+    rationale. Compare has its own escape hatches (``--from-fixture``,
+    ``--skip-paint-loop``) that don't trigger the guard.
+    """
+    if sys.platform != "darwin":
+        return
+    if os.environ.get("MORPHOCLAW_FORCE_MAC_PILOT") == "1":
+        return
+    if getattr(args, "force_local", False):
+        return
+    if getattr(args, "from_fixture", ""):
+        return
+    if getattr(args, "skip_paint_loop", False):
+        return
+
+    sys.stderr.write(
+        "\n"
+        "================================================================\n"
+        "REFUSING: live nninteractive_compare run on the Mac mini driver.\n"
+        "================================================================\n"
+        "docs/RUNNER_TOPOLOGY.md forbids local nnInteractive inference,\n"
+        "Slicer compute, mesh voxelization, and full-resolution SimpleITK\n"
+        "on the Mac mini. Use one of:\n"
+        "\n"
+        "  make nni-compare-dell      # gh workflow run on the Dell GPU runner\n"
+        "  python ... --from-fixture <DIR>           # PR smoke test, no GPU\n"
+        "  python ... --skip-paint-loop              # alignment-only dry run\n"
+        "\n"
+        "Escape hatch: --force-local  /  MORPHOCLAW_FORCE_MAC_PILOT=1\n"
+        "================================================================\n"
+    )
+    sys.exit(2)
 
 
 def _apply_regression_gates(result: dict, args, log_) -> int:
@@ -2254,6 +2297,7 @@ def main() -> int:
         format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
     )
     args = _parse_args()
+    _enforce_driver_doctrine_compare(args)
 
     # ---- Fast path: cached fixture run (PR smoke test) ----
     if args.from_fixture:

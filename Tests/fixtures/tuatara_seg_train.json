@@ -1,0 +1,16 @@
+[
+  {
+    "media_id": "000011009",
+    "physical_object_id": "tuatara_skull_000358663",
+    "taxonomy": "Sphenodon punctatus",
+    "morphosource_query": "tuatara skull sample",
+    "goal": "Segment the tuatara skull from CT using mesh-derived ground truth guidance",
+    "volume_path": "data/sample/tuatara_skull_000358663_ct.nrrd",
+    "gt_mesh_path": "data/morphosource-download-000358663/morphosource_media-id-000358663_download-51dc92ae/Media 000358663 - Skull Mesh CT/sphenodon-punctatus-UF-herp-11978-000358663.ply",
+    "gt_label_path": "data/sample/tuatara_skull_000358663_gt_labelmap.nrrd",
+    "ct_media_id": "000011009",
+    "gt_media_id": "000358663",
+    "slicer_volume_name": "tuatara_skull_000358663_ct",
+    "github_ct_url": "https://raw.githubusercontent.com/johntrue15/MorphoClaw/main/data/sample/tuatara_skull_000358663_ct.nrrd"
+  }
+]

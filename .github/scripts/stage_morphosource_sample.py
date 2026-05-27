@@ -762,14 +762,152 @@ def _sha256(path: Path, chunk: int = 1 << 20) -> str:
     return h.hexdigest()
 
 
+PHASE_CT_ONLY = "ct-only"
+PHASE_VOXELIZE_ONLY = "voxelize-only"
+PHASE_ALL = "all"
+PHASES = (PHASE_CT_ONLY, PHASE_VOXELIZE_ONLY, PHASE_ALL)
+
+
+def _assert_phase_allowed_on_host(phase: str) -> None:
+    """Hard-stop heavy work on the Mac mini driver.
+
+    The Mac is fine for the CT phase (TIFF streaming, crop, gzip NRRD
+    write) but the voxelization phase is the one that hung the
+    ``vtkPolyDataToImageStencil`` for 52 hours and ate trimesh's
+    ``contains()`` for another 7 — see ``docs/RUNNER_TOPOLOGY.md``. Set
+    ``MORPHOCLAW_FORCE_MAC_VOXELIZE=1`` only if you really want to babysit
+    it on the Mac.
+    """
+    if phase in (PHASE_VOXELIZE_ONLY, PHASE_ALL) and sys.platform == "darwin":
+        if os.environ.get("MORPHOCLAW_FORCE_MAC_VOXELIZE") != "1":
+            raise SystemExit(
+                f"Refusing to run --phase={phase} on darwin. The mesh "
+                f"voxelization step is GPU-host work (Dell or Jetstream). "
+                f"Use --phase {PHASE_CT_ONLY} here and run the voxelize "
+                f"phase on a GPU runner, or set "
+                f"MORPHOCLAW_FORCE_MAC_VOXELIZE=1 to override. "
+                f"See docs/RUNNER_TOPOLOGY.md."
+            )
+
+
+def _grid_from_ct_nrrd(ct_path: Path):
+    """Reconstruct a :class:`GridSpec` from a previously-staged CT NRRD.
+
+    Used by ``--phase voxelize-only`` so the Dell runner doesn't have to
+    re-derive crop indices / strides: the gzipped NRRD header on disk is
+    the canonical grid. ``crop_index_min``/``crop_index_max``/``stride``
+    are filled in with no-op values because the voxelizer never re-crops
+    or re-strides; it just writes onto exactly this grid.
+    """
+    np, sitk, *_ = _import_deps()
+    img = sitk.ReadImage(str(ct_path))
+    size_xyz = tuple(int(v) for v in img.GetSize())
+    spacing_xyz = tuple(float(v) for v in img.GetSpacing())
+    origin_xyz = tuple(float(v) for v in img.GetOrigin())
+    # We don't carry the mesh transform in the NRRD; the voxelize phase
+    # re-derives it from the (mesh_bounds, CT extent) pair.
+    return GridSpec(
+        size_xyz=size_xyz,
+        spacing_xyz=spacing_xyz,
+        origin_xyz=origin_xyz,
+        crop_index_min=(0, 0, 0),
+        crop_index_max=(size_xyz[0] - 1, size_xyz[1] - 1, size_xyz[2] - 1),
+        stride=1,
+        full_size_xyz=size_xyz,
+        mesh_M=tuple(tuple(int(v) for v in row) for row in np.eye(3, dtype=np.int8)),
+        mesh_M_label="+x+y+z",
+        origin_convention="from_ct_nrrd",
+    )
+
+
+def _ct_meta_block(ct_media_id: str, ct_meta: dict, spacing,
+                   nx: int, ny: int, nz: int, tiff_dir: Path) -> dict:
+    return {
+        "id": ct_media_id,
+        "title": safe_first(ct_meta.get("title")),
+        "taxonomy": safe_first(ct_meta.get("physical_object_taxonomy_name")),
+        "physical_object_id": safe_first(ct_meta.get("physical_object_id")),
+        "physical_object_title": safe_first(ct_meta.get("physical_object_title")),
+        "doi": safe_first(ct_meta.get("doi")),
+        "ark": safe_first(ct_meta.get("ark")),
+        "visibility": safe_first(ct_meta.get("visibility")),
+        "x_pixel_spacing_mm": spacing[0],
+        "y_pixel_spacing_mm": spacing[1],
+        "z_pixel_spacing_mm": spacing[2],
+        "native_voxel_dims_xyz": [nx, ny, nz],
+        "tiff_stack_root": str(tiff_dir),
+    }
+
+
+def _mesh_meta_block(mesh_media_id: str, mesh_meta: dict, mesh_path: Path,
+                     mesh_bounds) -> dict:
+    return {
+        "id": mesh_media_id,
+        "title": safe_first(mesh_meta.get("title")),
+        "media_parent_id": safe_first(mesh_meta.get("media_parent_id")),
+        "doi": safe_first(mesh_meta.get("doi")),
+        "ark": safe_first(mesh_meta.get("ark")),
+        "visibility": safe_first(mesh_meta.get("visibility")),
+        "file": str(mesh_path),
+        "world_bounds_xyz_mm": list(mesh_bounds),
+    }
+
+
+def _load_provenance(prov_path: Path) -> dict:
+    if prov_path.exists():
+        try:
+            return json.loads(prov_path.read_text())
+        except json.JSONDecodeError:
+            log.warning("Ignoring unreadable provenance JSON at %s", prov_path)
+    return {}
+
+
+def _write_provenance(prov_path: Path, provenance: dict) -> None:
+    prov_path.write_text(json.dumps(provenance, indent=2))
+    log.info("Provenance: %s", prov_path)
+
+
 def stage_sample(ct_media_id: str, mesh_media_id: str, out_dir: Path,
                  slug: str, max_axis: int, margin_mm: float,
                  origin_convention: str, mesh_axis_perm: str,
                  ct_dtype: str, mesh_decimate_to: int,
                  voxelize_backend: str,
                  force_download: bool,
-                 download_root: Path) -> dict:
+                 download_root: Path,
+                 phase: str = PHASE_ALL) -> dict:
+    if phase not in PHASES:
+        raise ValueError(f"Unknown phase {phase!r}; expected one of {PHASES}.")
+    _assert_phase_allowed_on_host(phase)
     np, sitk, vtk, _, Image, trimesh = _import_deps()
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    ct_path = out_dir / f"{slug}_ct.nrrd"
+    gt_path = out_dir / f"{slug}_gt_labelmap.nrrd"
+    prov_path = out_dir / f"{slug}.provenance.json"
+
+    if phase == PHASE_VOXELIZE_ONLY:
+        if not ct_path.exists():
+            raise FileNotFoundError(
+                f"--phase {PHASE_VOXELIZE_ONLY} requires a pre-staged "
+                f"CT NRRD at {ct_path}. Run --phase {PHASE_CT_ONLY} on "
+                f"the driver host first, then ship the NRRD to this "
+                f"host (or use --phase {PHASE_ALL})."
+            )
+        return _run_voxelize_phase(
+            mesh_media_id=mesh_media_id,
+            ct_path=ct_path,
+            gt_path=gt_path,
+            prov_path=prov_path,
+            slug=slug,
+            mesh_axis_perm=mesh_axis_perm,
+            origin_convention=origin_convention,
+            mesh_decimate_to=mesh_decimate_to,
+            voxelize_backend=voxelize_backend,
+            force_download=force_download,
+            download_root=download_root,
+        )
+
+    # phase ∈ {ct-only, all}
     client = MorphoSourceClient()
 
     log.info("Resolving metadata for CT %s and mesh %s",
@@ -830,30 +968,6 @@ def stage_sample(ct_media_id: str, mesh_media_id: str, out_dir: Path,
         mesh_axis_perm=mesh_axis_perm,
     )
 
-    # Apply the auto-detected axis permutation to the mesh polydata so the
-    # voxelizer can use the same world frame as the CT.
-    if grid.mesh_M_label != "+x+y+z":
-        log.info("Applying signed permutation %s to mesh polydata",
-                 grid.mesh_M_label)
-        poly_oriented = _apply_signed_permutation_to_poly(np, vtk, poly, grid.mesh_M)
-    else:
-        poly_oriented = poly
-
-    # Decimate before voxelization. `vtk_stencil` backend scales linearly in
-    # polygon count and stalls on the multi-million-triangle MorphoSource
-    # meshes. `trimesh` backend uses rtree-accelerated ray-casting so the
-    # only reason to decimate there is for slightly smaller per-query
-    # overhead.
-    n_poly_in = poly_oriented.GetNumberOfPolys() or poly_oriented.GetNumberOfCells()
-    if voxelize_backend == "vtk_stencil" and mesh_decimate_to > 0:
-        poly_for_voxelize = _decimate_poly(vtk, poly_oriented, mesh_decimate_to)
-    elif voxelize_backend == "trimesh" and mesh_decimate_to > 0 and n_poly_in > mesh_decimate_to:
-        poly_for_voxelize = _decimate_poly(vtk, poly_oriented, mesh_decimate_to)
-    else:
-        poly_for_voxelize = poly_oriented
-    n_poly_out = (poly_for_voxelize.GetNumberOfPolys()
-                  or poly_for_voxelize.GetNumberOfCells())
-
     # Stream CT slices into a small numpy volume.
     volume_zyx = _stream_load_volume(tiff_files, grid)
     if ct_dtype == "uint8":
@@ -875,7 +989,6 @@ def stage_sample(ct_media_id: str, mesh_media_id: str, out_dir: Path,
         raise ValueError(f"Unknown --ct-dtype: {ct_dtype!r}")
 
     # Write CT NRRD.
-    ct_path = out_dir / f"{slug}_ct.nrrd"
     ct_img = _write_nrrd(np, sitk, volume_zyx,
                          spacing_xyz=grid.spacing_xyz,
                          origin_xyz=grid.origin_xyz,
@@ -884,8 +997,179 @@ def stage_sample(ct_media_id: str, mesh_media_id: str, out_dir: Path,
              ct_img.GetSize(), ct_img.GetSpacing(), ct_img.GetOrigin(),
              volume_zyx.dtype)
 
-    # Voxelize mesh onto the same downsampled grid.
-    gt_path = out_dir / f"{slug}_gt_labelmap.nrrd"
+    # CT-phase provenance. We always write it: the voxelize phase will
+    # merge in the GT-labelmap block. Including a "phases_completed"
+    # list makes the file self-describing across two-host runs.
+    provenance = _load_provenance(prov_path)
+    provenance.update({
+        "tool": "stage_morphosource_sample.py",
+        "generated_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "ct_media": _ct_meta_block(ct_media_id, ct_meta, spacing,
+                                   nx, ny, nz, tiff_dir),
+        "mesh_media": _mesh_meta_block(mesh_media_id, mesh_meta,
+                                       mesh_path, mesh_bounds),
+        "grid": {
+            "max_axis_target": max_axis,
+            "margin_mm": margin_mm,
+            "stride": grid.stride,
+            "origin_convention": grid.origin_convention,
+            "crop_index_min": list(grid.crop_index_min),
+            "crop_index_max": list(grid.crop_index_max),
+            "mesh_axis_perm": grid.mesh_M_label,
+            "mesh_axis_matrix": [list(row) for row in grid.mesh_M],
+            "ct_dtype": ct_dtype,
+        },
+    })
+    provenance.setdefault("outputs", {})
+    provenance["outputs"]["ct_nrrd"] = {
+        "path": str(ct_path),
+        "size_bytes": ct_path.stat().st_size,
+        "sha256": _sha256(ct_path),
+        "voxel_dims_xyz": list(grid.size_xyz),
+        "spacing_xyz_mm": list(grid.spacing_xyz),
+        "origin_xyz_mm": list(grid.origin_xyz),
+        "dtype": dtype_name,
+    }
+    phases_completed = set(provenance.get("phases_completed") or [])
+    phases_completed.add(PHASE_CT_ONLY)
+    provenance["phases_completed"] = sorted(phases_completed)
+    _write_provenance(prov_path, provenance)
+
+    if phase == PHASE_CT_ONLY:
+        log.info("Phase ct-only complete. CT NRRD: %s (%.1f MB). "
+                 "Ship this file + provenance to a GPU host and run "
+                 "--phase %s there to add the GT labelmap.",
+                 ct_path, ct_path.stat().st_size / 1e6, PHASE_VOXELIZE_ONLY)
+        return provenance
+
+    # phase == all: continue with voxelization in-process. We already have
+    # `poly` and `mesh_bounds` from above, so call the voxelize phase
+    # with them prewired to avoid a second mesh load.
+    return _run_voxelize_phase(
+        mesh_media_id=mesh_media_id,
+        ct_path=ct_path,
+        gt_path=gt_path,
+        prov_path=prov_path,
+        slug=slug,
+        mesh_axis_perm=mesh_axis_perm,
+        origin_convention=origin_convention,
+        mesh_decimate_to=mesh_decimate_to,
+        voxelize_backend=voxelize_backend,
+        force_download=force_download,
+        download_root=download_root,
+        _preloaded_poly=poly,
+        _preloaded_mesh_bounds=mesh_bounds,
+        _preloaded_mesh_path=mesh_path,
+        _preloaded_grid=grid,
+    )
+
+
+def _run_voxelize_phase(*, mesh_media_id: str, ct_path: Path, gt_path: Path,
+                        prov_path: Path, slug: str,
+                        mesh_axis_perm: str, origin_convention: str,
+                        mesh_decimate_to: int, voxelize_backend: str,
+                        force_download: bool, download_root: Path,
+                        _preloaded_poly=None,
+                        _preloaded_mesh_bounds=None,
+                        _preloaded_mesh_path: Optional[Path] = None,
+                        _preloaded_grid: Optional[GridSpec] = None) -> dict:
+    """The mesh → labelmap leg of the staging pipeline.
+
+    Self-contained: given a staged CT NRRD on disk and a mesh media ID,
+    it (re)downloads the mesh into the cache, locates the file, applies
+    the auto-detected signed-permutation transform against the CT's
+    actual extent, voxelizes onto the CT grid, gzip-writes the labelmap
+    NRRD, and merges the result into ``*.provenance.json``.
+
+    This is the function the Dell / Jetstream Actions runner calls
+    after downloading the CT-only artifact from the Mac runner.
+    """
+    np, sitk, vtk, _, Image, trimesh = _import_deps()
+
+    # Resolve the mesh: re-fetch metadata + download if we don't already
+    # have it from the in-process CT phase.
+    if _preloaded_mesh_path is not None and _preloaded_poly is not None \
+            and _preloaded_mesh_bounds is not None:
+        mesh_path = _preloaded_mesh_path
+        poly = _preloaded_poly
+        mesh_bounds = _preloaded_mesh_bounds
+        mesh_meta = None
+    else:
+        client = MorphoSourceClient()
+        log.info("Resolving metadata for mesh %s", mesh_media_id)
+        mesh_meta = _fetch_metadata(client, mesh_media_id)
+        if safe_first(mesh_meta.get("visibility")).lower() != "open":
+            raise RuntimeError(
+                f"Mesh media {mesh_media_id} visibility is "
+                f"{safe_first(mesh_meta.get('visibility'))!r} -- must be "
+                f"'open' to download"
+            )
+        mesh_dir = download_root / f"morphosource-download-{mesh_media_id}"
+        mesh_dl = _download_cached(mesh_media_id, mesh_dir, force=force_download)
+        if not mesh_dl.get("success"):
+            raise RuntimeError(f"Mesh download failed: {mesh_dl.get('error')}")
+        mesh_path = _find_mesh(mesh_dir)
+        poly, mesh_bounds = _read_mesh_bounds_and_poly(mesh_path)
+
+    # Grid is the staged CT NRRD on disk. We re-derive the mesh axis
+    # perm against it (so the voxelize-only path is self-contained and
+    # doesn't trust a possibly-stale provenance file).
+    if _preloaded_grid is not None:
+        grid_base = _preloaded_grid
+    else:
+        grid_base = _grid_from_ct_nrrd(ct_path)
+
+    if _preloaded_grid is None or _preloaded_grid.mesh_M_label == "+x+y+z":
+        # Recompute orientation against the actual CT extent.
+        # _compute_grid expects native-CT dims + native spacing + a mesh
+        # bbox; since we're starting from the *cropped* NRRD we just feed
+        # the cropped grid in.
+        from mesh_ct_alignment import find_best_mesh_orientation
+        orient = find_best_mesh_orientation(
+            tuple(mesh_bounds),
+            grid_base.size_xyz,
+            grid_base.spacing_xyz,
+            volume_origin=grid_base.origin_xyz,
+            origin_convention=origin_convention,
+            mesh_axis_perm=mesh_axis_perm,
+        )
+        mesh_M = np.array(orient["mesh_M"], dtype=np.int8)
+        mesh_M_label = orient["mesh_M_label"]
+    else:
+        mesh_M = _preloaded_grid.mesh_M
+        mesh_M_label = _preloaded_grid.mesh_M_label
+
+    grid = GridSpec(
+        size_xyz=grid_base.size_xyz,
+        spacing_xyz=grid_base.spacing_xyz,
+        origin_xyz=grid_base.origin_xyz,
+        crop_index_min=grid_base.crop_index_min,
+        crop_index_max=grid_base.crop_index_max,
+        stride=grid_base.stride,
+        full_size_xyz=grid_base.full_size_xyz,
+        mesh_M=mesh_M,
+        mesh_M_label=mesh_M_label,
+        origin_convention=grid_base.origin_convention,
+    )
+    log.info("Voxelize phase grid: size=%s spacing=%s origin=%s mesh_perm=%s",
+             grid.size_xyz, grid.spacing_xyz, grid.origin_xyz, mesh_M_label)
+
+    if mesh_M_label != "+x+y+z":
+        log.info("Applying signed permutation %s to mesh polydata", mesh_M_label)
+        poly_oriented = _apply_signed_permutation_to_poly(np, vtk, poly, mesh_M)
+    else:
+        poly_oriented = poly
+
+    n_poly_in = poly_oriented.GetNumberOfPolys() or poly_oriented.GetNumberOfCells()
+    if voxelize_backend == "vtk_stencil" and mesh_decimate_to > 0:
+        poly_for_voxelize = _decimate_poly(vtk, poly_oriented, mesh_decimate_to)
+    elif voxelize_backend == "trimesh" and mesh_decimate_to > 0 and n_poly_in > mesh_decimate_to:
+        poly_for_voxelize = _decimate_poly(vtk, poly_oriented, mesh_decimate_to)
+    else:
+        poly_for_voxelize = poly_oriented
+    n_poly_out = (poly_for_voxelize.GetNumberOfPolys()
+                  or poly_for_voxelize.GetNumberOfCells())
+
     log.info("Voxelizing mesh onto grid using backend=%s", voxelize_backend)
     if voxelize_backend == "trimesh":
         vox_summary = _voxelize_onto_grid_trimesh(
@@ -898,67 +1182,29 @@ def stage_sample(ct_media_id: str, mesh_media_id: str, out_dir: Path,
     vox_summary["mesh_n_polys_input"] = int(n_poly_in)
     vox_summary["mesh_n_polys_voxelized"] = int(n_poly_out)
 
-    # Provenance.
-    provenance = {
-        "tool": "stage_morphosource_sample.py",
-        "generated_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "ct_media": {
-            "id": ct_media_id,
-            "title": safe_first(ct_meta.get("title")),
-            "taxonomy": safe_first(ct_meta.get("physical_object_taxonomy_name")),
-            "physical_object_id": safe_first(ct_meta.get("physical_object_id")),
-            "physical_object_title": safe_first(ct_meta.get("physical_object_title")),
-            "doi": safe_first(ct_meta.get("doi")),
-            "ark": safe_first(ct_meta.get("ark")),
-            "visibility": safe_first(ct_meta.get("visibility")),
-            "x_pixel_spacing_mm": spacing[0],
-            "y_pixel_spacing_mm": spacing[1],
-            "z_pixel_spacing_mm": spacing[2],
-            "native_voxel_dims_xyz": [nx, ny, nz],
-            "tiff_stack_root": str(tiff_dir),
-        },
-        "mesh_media": {
-            "id": mesh_media_id,
-            "title": safe_first(mesh_meta.get("title")),
-            "media_parent_id": safe_first(mesh_meta.get("media_parent_id")),
-            "doi": safe_first(mesh_meta.get("doi")),
-            "ark": safe_first(mesh_meta.get("ark")),
-            "visibility": safe_first(mesh_meta.get("visibility")),
-            "file": str(mesh_path),
-            "world_bounds_xyz_mm": list(mesh_bounds),
-        },
-        "outputs": {
-            "ct_nrrd": {
-                "path": str(ct_path),
-                "size_bytes": ct_path.stat().st_size,
-                "sha256": _sha256(ct_path),
-                "voxel_dims_xyz": list(grid.size_xyz),
-                "spacing_xyz_mm": list(grid.spacing_xyz),
-                "origin_xyz_mm": list(grid.origin_xyz),
-                "dtype": dtype_name,
-            },
-            "gt_labelmap_nrrd": {
-                "path": str(gt_path),
-                "size_bytes": gt_path.stat().st_size,
-                "sha256": _sha256(gt_path),
-                **vox_summary,
-            },
-        },
-        "grid": {
-            "max_axis_target": max_axis,
-            "margin_mm": margin_mm,
-            "stride": grid.stride,
-            "origin_convention": grid.origin_convention,
-            "crop_index_min": list(grid.crop_index_min),
-            "crop_index_max": list(grid.crop_index_max),
-            "mesh_axis_perm": grid.mesh_M_label,
-            "mesh_axis_matrix": [list(row) for row in grid.mesh_M],
-            "ct_dtype": ct_dtype,
-        },
+    # Merge into provenance.
+    provenance = _load_provenance(prov_path)
+    provenance.setdefault("tool", "stage_morphosource_sample.py")
+    provenance["voxelize_generated_utc"] = time.strftime(
+        "%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    if mesh_meta is not None:
+        # In voxelize-only mode we have fresh metadata; record/overwrite it.
+        provenance["mesh_media"] = _mesh_meta_block(
+            mesh_media_id, mesh_meta, mesh_path, mesh_bounds)
+    provenance.setdefault("outputs", {})
+    provenance["outputs"]["gt_labelmap_nrrd"] = {
+        "path": str(gt_path),
+        "size_bytes": gt_path.stat().st_size,
+        "sha256": _sha256(gt_path),
+        **vox_summary,
     }
-    prov_path = out_dir / f"{slug}.provenance.json"
-    prov_path.write_text(json.dumps(provenance, indent=2))
-    log.info("Provenance: %s", prov_path)
+    grid_block = provenance.setdefault("grid", {})
+    grid_block.setdefault("mesh_axis_perm", mesh_M_label)
+    grid_block.setdefault("mesh_axis_matrix", [list(row) for row in mesh_M])
+    phases_completed = set(provenance.get("phases_completed") or [])
+    phases_completed.add(PHASE_VOXELIZE_ONLY)
+    provenance["phases_completed"] = sorted(phases_completed)
+    _write_provenance(prov_path, provenance)
     return provenance
 
 
@@ -1015,6 +1261,16 @@ def _parse_args():
                    help="Where to cache MorphoSource downloads (gitignored).")
     p.add_argument("--force-download", action="store_true",
                    help="Ignore download cache and refetch from MorphoSource.")
+    p.add_argument("--phase", default=PHASE_ALL, choices=PHASES,
+                   help=(
+                       "Which leg of the pipeline to run. 'ct-only' is the "
+                       "Mac-mini-safe driver leg (TIFF stream + crop + gzip "
+                       "NRRD); 'voxelize-only' is the Dell/Jetstream leg "
+                       "(mesh -> labelmap onto an existing staged CT NRRD); "
+                       "'all' (default) runs both in one process and is only "
+                       "appropriate on a GPU host. See "
+                       "docs/RUNNER_TOPOLOGY.md for the split."
+                   ))
     p.add_argument("-v", "--verbose", action="store_true")
     return p.parse_args()
 
@@ -1046,6 +1302,7 @@ def main() -> int:
             voxelize_backend=args.voxelize_backend,
             force_download=args.force_download,
             download_root=Path(args.download_root),
+            phase=args.phase,
         )
     except Exception as exc:
         log.error("Staging failed: %s", exc, exc_info=True)

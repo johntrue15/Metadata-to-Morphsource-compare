@@ -1,5 +1,11 @@
 name: Project 358382 offline replay
 
+# Hermetic CI for the project-358382 pilot. Runs on github-hosted
+# ubuntu-latest, no secrets, no Jetstream, no Mac-mini drivers — every
+# remote is mocked through the JSONL fixtures under
+# Tests/fixtures/jetstream_replay/sessions/. See docs/RUNNER_TOPOLOGY.md
+# for how this fits into the larger driver / GPU runner architecture.
+
 on:
   pull_request:
     branches: [main, develop]
@@ -17,39 +23,70 @@ on:
   workflow_dispatch:
 
 jobs:
-  replay-smoke:
+  driver-only:
+    name: Driver-only replay (no heavy deps)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-
+    timeout-minutes: 10
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
-      - name: Install nnInteractive stack (SimpleITK, VTK, numpy)
+      - name: Install pytest only (driver surface)
         run: |
           python -m pip install --upgrade pip
-          pip install numpy scipy SimpleITK vtk pytest
-          pip install -r requirements-test.txt
+          pip install pytest
 
-      - name: Tier 1 + offline replay (RUN_REPLAY=1)
+      - name: Tier 1 + Tier 4 driver-only (RUN_REPLAY=1)
         env:
           RUN_REPLAY: '1'
-          SLICER_WEBSERVER_URL: http://127.0.0.1:2016/
-          NNI_REMOTE_URL: http://127.0.0.1:2016/
-          NNI_PY_BIN: python
+          # Force the script down the system-python path so we exercise
+          # exactly what the Mac-mini driver runs.
+          NNI_PY_BIN: '/nonexistent'
+          NNINTERACTIVE_HOME: '/nonexistent'
         run: |
-          Tests/test_eval_project358382.sh
+          bash Tests/test_eval_project358382.sh
 
-      - name: Unit tests (alignment, replay wiring, offline flags)
+      - name: Driver-side unit tests (no SimpleITK/numpy/vtk)
         run: |
-          pytest Tests/test_mesh_ct_alignment.py \
-                 Tests/test_eval_project358382_offline.py \
+          pytest Tests/test_eval_project358382_offline.py \
                  Tests/test_jetstream_replay_recorder.py \
                  Tests/test_jetstream_replay_wiring.py \
                  Tests/test_jetstream_replay_cache_index.py \
                  -v --tb=short
+
+  full-replay:
+    name: Full pilot replay (heavy deps, ubuntu-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install nnInteractive driver stack (SimpleITK, VTK, numpy)
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy scipy SimpleITK vtk pytest
+          if [[ -f requirements-test.txt ]]; then
+            pip install -r requirements-test.txt
+          fi
+
+      - name: Tier 1 + Tier 4 + Tier 4-FULL (RUN_FULL_REPLAY=1)
+        env:
+          RUN_REPLAY: '1'
+          RUN_FULL_REPLAY: '1'
+          NNI_PY_BIN: python
+          # Bogus URL — the JETSTREAM_REPLAY env var (set per-specimen by
+          # the orchestrator) makes this address irrelevant. We still set
+          # it so the orchestrator's env-validation paths succeed.
+          SLICER_WEBSERVER_URL: http://127.0.0.1:2016/
+          NNI_REMOTE_URL: http://127.0.0.1:2016/
+        run: |
+          bash Tests/test_eval_project358382.sh
+
+      - name: Heavy-deps unit tests (bundle generator)
+        run: |
+          pytest Tests/test_jetstream_replay_bundle.py -v --tb=short

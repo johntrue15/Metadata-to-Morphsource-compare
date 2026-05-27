@@ -519,7 +519,128 @@ __execResult.update(out)
 """
 
 
-# Hash the active volume's voxel content + record its essential identity.
+# Lightweight resource snapshot — safe to call every click step. Unlike
+# CAPTURE_REMOTE_ENV_SRC this does not probe FastAPI endpoints or hash
+# model weights, so it returns in a few hundred ms even under load.
+CAPTURE_REMOTE_RESOURCES_SRC = """\
+import os, re, subprocess, time, traceback
+out = {"captured_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+def _mem_from_proc():
+    info = {}
+    try:
+        with open("/proc/meminfo") as f:
+            for line in f:
+                k, _, v = line.partition(":")
+                info[k.strip()] = int(v.strip().split()[0])  # kB
+        total_kb = info.get("MemTotal", 0)
+        avail_kb = info.get("MemAvailable", info.get("MemFree", 0))
+        if total_kb:
+            out["sys_total_mem_gb"] = round(total_kb * 1024 / 1e9, 2)
+            out["sys_available_mem_gb"] = round(avail_kb * 1024 / 1e9, 2)
+            used = max(0, total_kb - avail_kb)
+            out["sys_used_pct"] = round(100.0 * used / total_kb, 1)
+    except Exception as e:
+        out["proc_meminfo_err"] = repr(e)
+try:
+    try:
+        out["sys_load_1"] = round(os.getloadavg()[0], 2)
+    except Exception:
+        pass
+    got_psutil = False
+    try:
+        import psutil
+        got_psutil = True
+        vm = psutil.virtual_memory()
+        out["sys_total_mem_gb"] = round(vm.total / 1e9, 2)
+        out["sys_available_mem_gb"] = round(vm.available / 1e9, 2)
+        out["sys_used_pct"] = round(vm.percent, 1)
+        proc = psutil.Process()
+        mi = proc.memory_info()
+        out["slicer_pid"] = proc.pid
+        out["slicer_rss_mb"] = round(mi.rss / 1e6, 1)
+        children_rss = 0.0
+        n_children = 0
+        for c in proc.children(recursive=True):
+            try:
+                if c.is_running():
+                    children_rss += c.memory_info().rss
+                    n_children += 1
+            except Exception:
+                pass
+        out["slicer_children_rss_mb"] = round(children_rss / 1e6, 1)
+        out["slicer_children_count"] = n_children
+        out["slicer_family_rss_mb"] = round((mi.rss + children_rss) / 1e6, 1)
+    except Exception as e:
+        out["psutil_err"] = repr(e)
+    if not got_psutil or "sys_available_mem_gb" not in out:
+        _mem_from_proc()
+    if "slicer_rss_mb" not in out:
+        try:
+            with open("/proc/self/status") as f:
+                for line in f:
+                    if line.startswith("VmRSS:"):
+                        kb = int(line.split()[1])
+                        out["slicer_rss_mb"] = round(kb / 1000.0, 1)
+                        out["slicer_pid"] = os.getpid()
+                        break
+            out["slicer_family_rss_mb"] = out.get("slicer_rss_mb", 0)
+        except Exception as e:
+            out["proc_status_err"] = repr(e)
+    # nnInteractive FastAPI (default port 1527)
+    fastapi_pid = None
+    for port in (1527,):
+        for cmd in (["lsof", "-tiTCP:%d" % port, "-sTCP:LISTEN"],
+                    ["ss", "-ltnp", "sport", "=", ":%d" % port]):
+            try:
+                o = subprocess.check_output(cmd, stderr=subprocess.STDOUT,
+                                             timeout=3).decode().strip()
+                if cmd[0] == "lsof" and o:
+                    fastapi_pid = int(o.splitlines()[0])
+                    break
+                m = re.search(r"pid=(\\d+)", o)
+                if m:
+                    fastapi_pid = int(m.group(1))
+                    break
+            except Exception:
+                pass
+        if fastapi_pid:
+            break
+    if fastapi_pid:
+        try:
+            rss_kb = None
+            with open(f"/proc/{fastapi_pid}/status") as f:
+                for line in f:
+                    if line.startswith("VmRSS:"):
+                        rss_kb = int(line.split()[1])
+                        break
+            out["fastapi_pid"] = fastapi_pid
+            if rss_kb is not None:
+                out["fastapi_rss_mb"] = round(rss_kb / 1000.0, 1)
+        except Exception as e:
+            out["fastapi_rss_err"] = repr(e)
+    # Scene size hints (cheap MRML counts)
+    try:
+        import slicer
+        out["n_segmentation_nodes"] = len(
+            slicer.util.getNodesByClass("vtkMRMLSegmentationNode"))
+        out["n_volume_nodes"] = len(
+            slicer.util.getNodesByClass("vtkMRMLScalarVolumeNode"))
+        out["n_scene_nodes"] = slicer.mrmlScene.GetNumberOfNodes()
+    except Exception as e:
+        out["scene_count_err"] = repr(e)
+    out["status"] = "ok"
+except Exception as e:
+    out["status"] = "exception"
+    out["error"] = repr(e)
+    out["traceback"] = traceback.format_exc()
+__execResult.update(out)
+"""
+
+
+PING_SLICER_SRC = """\
+import time
+__execResult.update({"status": "ok", "ping_utc": time.time()})
+"""
 # This is the single most important piece of provenance: without it,
 # anyone re-running can't verify they're operating on the same image.
 HASH_ACTIVE_VOLUME_SRC = """\
@@ -760,7 +881,7 @@ class RunLogger:
         line = f"[{ts}] {msg}" if msg else ""
         self._log_fh.write(line + "\n")
         if echo:
-            print(msg)
+            print(msg, flush=True)
 
     # --- environment + inputs ----------------------------------------
 

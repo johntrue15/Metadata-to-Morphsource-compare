@@ -198,6 +198,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         "--max-steps", str(max_steps),
         "--intensity-percentile", str(intensity),
         "--no-stop-rules",
+        "--skip-remote-env",
+        "--skip-volume-hash",
         "--out-dir", str(out_dir),
         *(["--no-screenshots"] if args.no_screenshots else []),
         *(["--reset-first"] if args.reset_first else []),

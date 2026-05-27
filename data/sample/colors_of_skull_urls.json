@@ -21,8 +21,8 @@
   },
   "slicer_volume_name": "crotalus_skull_000445108_ct",
   "pilot_defaults": {
-    "budgets": [10],
-    "max_steps": 10,
+    "budgets": [10, 25, 50, 100],
+    "max_steps": 100,
     "intensity_percentile": 99.0
   }
 }

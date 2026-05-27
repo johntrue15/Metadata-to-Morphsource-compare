@@ -86,7 +86,11 @@ on:
 jobs:
   iterate:
     name: Iterative training round
-    runs-on: self-hosted
+    # Route to the DellXPS-wsl-gpu host (has CUDA + nnInteractive + Slicer).
+    # See .cursor/rules/morphoclaw-runner.mdc + docs/RUNNER_TOPOLOGY.md —
+    # bare `self-hosted` would happily land on the Mac mini, which is
+    # the wrong target for multi-round training.
+    runs-on: [self-hosted, gpu, nninteractive]
     permissions:
       contents: read
       issues: write

@@ -1,25 +1,95 @@
 ---
 description: MorphoClaw self-hosted runner inventory + ops (Mac mini + Dell XPS WSL GPU)
-globs: .github/workflows/**,scripts/runners/**,docs/self-hosted-gpu-runner.md
+globs: .github/workflows/**,scripts/runners/**,docs/self-hosted-gpu-runner.md,.github/scripts/stage_morphosource_sample.py
 alwaysApply: false
 ---
 
 # Self-hosted runners on this repo
 
-| Runner            | OS                         | Labels                                                                                   | Use for                                |
-| ----------------- | -------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------- |
-| `m4-morphosource` | macOS ARM64                | `self-hosted, macOS, ARM64, morphosource`                                                | MorphoSource scraping, light scripting |
-| `DellXPS-wsl-gpu` | Linux x64 (WSL2 + Ubuntu)  | `self-hosted, Linux, X64, gpu, cuda, nvidia, wsl, nninteractive, slicer, host-dellxps`   | nnInteractive / GPU training / Slicer  |
+Planning source of truth: `docs/RUNNER_TOPOLOGY.md`.
 
-## Routing a workflow at the GPU runner
+| Runner            | OS                         | Role        | Use for                                                                 |
+| ----------------- | -------------------------- | ----------- | ----------------------------------------------------------------------- |
+| `m4-morphosource` | macOS ARM64                | **Driver**  | MorphoSource, research agent, `make unshelve`, pilot/export as HTTP client to Jetstream, `stage_morphosource_sample.py --phase ct-only` (TIFF stream + crop + gzip NRRD), other "compression and NRRD generation" tasks — **not** local Slicer/nnInteractive, **not** mesh voxelization |
+| `DellXPS-wsl-gpu` | Linux x64 (WSL2 + Ubuntu)  | **Light GPU** | Mesh morphometrics, embeddings, `nninteractive_compare` batch jobs, bootstrap smoke, `stage_morphosource_sample.py --phase voxelize-only` (mesh → labelmap on the Mac-built CT grid) — **not** the Jetstream interactive Slicer stack |
 
-Use **the most specific label set** so the job picks the right host:
+## What the Mac mini does and doesn't do
 
-```yaml
-runs-on: [self-hosted, gpu, nninteractive]   # routes to DellXPS-wsl-gpu
+OK on the Mac mini:
+
+- MorphoSource API, manifest/JSONL/CSV parsing
+- TIFF/DICOM streaming, crop + stride downsample, gzipped NRRD/NIfTI **writing**
+- SHA256, provenance JSON, git ops, GH issue API, `make unshelve`
+- HTTP/SSH driver clients to Jetstream / Dell (`slicer_remote_*`, `nninteractive_remote.py`, `eval_project358382_pilot.py`)
+- `stage_morphosource_sample.py --phase ct-only`
+
+NOT OK on the Mac mini (route to Dell or Jetstream):
+
+- `vtkPolyDataToImageStencil`, `vtkSelectEnclosedPoints`, `trimesh.contains`, or any per-voxel mesh → labelmap pipeline on a > ~1 M-poly mesh
+- nnInteractive / nnU-Net inference, MONAI training, CUDA/MPS inference loops
+- Headless or GUI Slicer compute
+- `numpy` / `SimpleITK` ops on full-resolution multi-GB volumes
+- `stage_morphosource_sample.py --phase voxelize-only` or `--phase all` (the script refuses on `darwin` unless `MORPHOCLAW_FORCE_MAC_VOXELIZE=1`)
+
+If a script you're editing crosses the line (does mesh voxelization or
+nnInteractive inference *and* gets called from a Mac runner), split it
+into a driver leg + a tool leg, the way `stage_morphosource_sample.py`
+splits into `--phase ct-only` + `--phase voxelize-only`.
+
+## Heavy work always goes through `gh workflow run`, never a local Mac terminal
+
+This rule is enforced both by docs (`docs/RUNNER_TOPOLOGY.md`) and by
+the scripts themselves: `eval_project358382_pilot.py` and
+`nninteractive_compare.py` have Darwin guards that refuse a live run on
+macOS, and `morphosource_api_download.download_media()` has a free-disk
+pre-check (default 5 GiB; `MORPHOSOURCE_MIN_FREE_GB` to override).
+
+If the user asks you to run the 10-click pilot, the comparison, or any
+similar heavy job, the dispatch path is:
+
+```sh
+make pilot-dell        # default, works today
+make pilot-jetstream   # once the JS2 GHA runner is registered (Phase 3)
+make nni-compare-dell  # Phase 2 -- still TODO; use raw gh until then
+make tail RUN_ID=<id>  # or: make tail (most recent run)
 ```
 
-`[self-hosted]` alone is wrong — it can land on the Mac mini.
+**Never** propose pasting `python .github/scripts/eval_project358382_pilot.py …`
+into a Mac terminal as the way to run the pilot. The script will refuse;
+that refusal is intentional. The cautionary tale is the 2026-05-24
+incident — a local run filled the workspace disk to 100% mid-pilot and
+lost two of three specimens. See "2026-05-24 cautionary tale" in
+`docs/RUNNER_TOPOLOGY.md`.
+
+The only `python` paths that are still OK in a Mac terminal:
+
+| Path | Why |
+| --- | --- |
+| `… --help` | argparse only; no compute |
+| `… --dry-run` | discovery + validation only |
+| `… --replay-from <DIR>` | offline fixture playback; no network, no GPU |
+| `… --cached-specimens <FILE> --no-download` | driver orchestration against pre-prepared inputs |
+| `… --from-fixture <DIR>` (compare) | PR smoke test path |
+| `… --skip-paint-loop` (compare) | alignment-only dry run |
+| `make unshelve IP=…` | SSH-only driver work; the one Mac-terminal flow this rule allows for live infra |
+
+Escape hatch (use only after explaining the failure mode to the user):
+`--force-local` CLI flag, or `MORPHOCLAW_FORCE_MAC_PILOT=1` env var.
+
+## Routing workflows
+
+Use **the most specific label set**:
+
+```yaml
+runs-on: [self-hosted, gpu, nninteractive]   # DellXPS-wsl-gpu (light GPU)
+runs-on: [self-hosted, jetstream]            # Jetstream box (when registered)
+runs-on: [self-hosted, morphosource]         # Mac mini driver
+```
+
+`runs-on: self-hosted` alone is wrong — it can land on the Mac mini for GPU jobs.
+
+Live 10-click / `export_session` from a dev machine: driver on Mac, tool on
+Jetstream via `SLICER_WEBSERVER_URL` in `.env` (see `docs/JETSTREAM_UNSHELVE.md`).
 
 ## Dell XPS GPU runner operational commands (run from a Cursor terminal on the Dell)
 

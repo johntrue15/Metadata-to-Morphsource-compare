@@ -1,0 +1,112 @@
+name: Project 358382 record mock fixtures
+
+# Regenerates the committed JSONL replay fixtures by running the
+# orchestrator against the in-process mock_slicer_server. Hermetic, no
+# secrets, no Jetstream — anyone can reproduce these. The resulting
+# .jsonl files are uploaded as a workflow artefact and (on
+# workflow_dispatch with `commit_back: true`) opened as a PR.
+#
+# See docs/RUNNER_TOPOLOGY.md and docs/PROJECT358382_REPLAY.md.
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_back:
+        description: 'Open a PR with the regenerated fixtures'
+        type: boolean
+        required: false
+        default: false
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'metadata_to_morphsource/jetstream_replay/mock_slicer_server.py'
+      - 'metadata_to_morphsource/jetstream_replay/record_fixtures.py'
+      - 'metadata_to_morphsource/jetstream_replay/build_replay_bundle.py'
+      - 'metadata_to_morphsource/jetstream_replay/stage_for_replay.py'
+      - '.github/scripts/slicer_remote_bright_seed.py'
+      - '.github/workflows/eval_project358382_record_mock.yml'
+
+jobs:
+  record:
+    name: Record JSONL fixtures via mock Slicer
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install nnInteractive driver stack (SimpleITK, VTK, numpy)
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy scipy SimpleITK vtk pytest
+
+      - name: Snapshot pre-record fixtures
+        id: pre
+        run: |
+          mkdir -p /tmp/pre
+          if [[ -d Tests/fixtures/jetstream_replay/sessions ]]; then
+            cp -r Tests/fixtures/jetstream_replay/sessions /tmp/pre/
+          fi
+          ls -la Tests/fixtures/jetstream_replay/sessions || true
+
+      - name: Run record_fixtures against mock_slicer_server
+        env:
+          NNI_PY_BIN: python
+        run: |
+          python -m metadata_to_morphsource.jetstream_replay.record_fixtures
+
+      - name: Verify regenerated fixtures replay cleanly
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json, sys
+          sys.path.insert(0, '.')
+          from metadata_to_morphsource.jetstream_replay.recorder import (
+              ReplaySession, HTTPCall,
+          )
+          sess_dir = Path("Tests/fixtures/jetstream_replay/sessions")
+          files = sorted(sess_dir.glob("*.jsonl"))
+          assert files, "no JSONL fixtures produced"
+          for fp in files:
+              rs = ReplaySession(fp)
+              assert rs.n_calls > 0, f"empty fixture: {fp}"
+              for raw in fp.read_text().splitlines():
+                  if raw.strip():
+                      HTTPCall.from_dict(json.loads(raw))
+              print(f"  {fp.name}: {rs.n_calls} calls — ok")
+          PY
+
+      - name: Diff vs pre-record snapshot
+        run: |
+          if [[ -d /tmp/pre/sessions ]]; then
+            diff -ruN /tmp/pre/sessions Tests/fixtures/jetstream_replay/sessions \
+              | tee /tmp/fixture_diff.txt | head -200 || true
+          else
+            echo "(no previous snapshot)"
+          fi
+
+      - name: Upload regenerated fixtures
+        uses: actions/upload-artifact@v4
+        with:
+          name: jetstream_replay_sessions
+          path: Tests/fixtures/jetstream_replay/sessions/*.jsonl
+          if-no-files-found: error
+
+      - name: Open PR with regenerated fixtures
+        if: ${{ github.event.inputs.commit_back == 'true' && github.event_name == 'workflow_dispatch' }}
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: 'fix(replay): regenerate JSONL fixtures from mock_slicer_server'
+          title: 'replay: refresh committed JSONL fixtures'
+          body: |
+            Regenerated `Tests/fixtures/jetstream_replay/sessions/*.jsonl`
+            via `python -m metadata_to_morphsource.jetstream_replay.record_fixtures`
+            against the in-process `mock_slicer_server`.
+
+            Triggered by ${{ github.actor }} via `workflow_dispatch`.
+          branch: replay/refresh-mock-fixtures
+          add-paths: |
+            Tests/fixtures/jetstream_replay/sessions/*.jsonl

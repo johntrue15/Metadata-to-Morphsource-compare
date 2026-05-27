@@ -48,15 +48,36 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
+#
+# Driver-only mode (Mac mini = orchestrator)
+# ------------------------------------------
+# Tiers 1 + 4 only need a stock python3 — they exercise the driver
+# surface (argparse, manifest reading, urllib record/replay, recipe
+# template compilation). Heavy libs (SimpleITK, vtk, numpy) are lazy-
+# imported inside the functions that need them, so we don't have to
+# carry them on the Mac mini just to run the offline tests.
+#
+# Tiers 2, 3, 5 are explicitly opt-in and use the nninteractive venv
+# when present, falling back to stock python3 otherwise (most of
+# them will then fail at the heavy import line, which is exactly the
+# behaviour we want — those tiers belong on Jetstream / a self-hosted
+# GPU runner, not on the Mac mini).
+#
+# See docs/RUNNER_TOPOLOGY.md for the full driver / tool split.
 NNI_HOME="${NNINTERACTIVE_HOME:-$HOME/.autoresearchclaw/nninteractive}"
-PY="${NNI_PY_BIN:-$NNI_HOME/bin/python}"
-if [[ ! -x "$PY" ]]; then
-    echo "ERROR: nnInteractive venv Python not found at $PY"
-    echo "       Run .github/scripts/install_nninteractive.sh first, or"
-    echo "       set NNI_PY_BIN to a Python with SimpleITK + VTK."
-    exit 2
+NNI_PY="${NNI_PY_BIN:-$NNI_HOME/bin/python}"
+if [[ -x "$NNI_PY" ]]; then
+    PY="$NNI_PY"
+    PY_KIND="nninteractive-venv"
+else
+    PY="$(command -v python3 || true)"
+    if [[ -z "$PY" ]]; then
+        echo "ERROR: no python3 on PATH. Install Python 3.9+ and rerun."
+        exit 2
+    fi
+    PY_KIND="system"
 fi
-echo "Using $PY ($($PY -c 'import sys; print(sys.version.split()[0])'))"
+echo "Using $PY ($PY_KIND, $($PY -c 'import sys; print(sys.version.split()[0])'))"
 
 if [[ -f .env ]]; then
     set -a; source .env; set +a
@@ -190,15 +211,127 @@ else
 fi
 
 # ----------------------------------------------------------------- tier 4
+#
+# Tier 4 has two flavours:
+#
+#   RUN_REPLAY=1      (driver-runnable — no SimpleITK/numpy/vtk needed)
+#                     Validates the offline replay plumbing: cache_index
+#                     manifests parse, recorder/replay sessions roundtrip,
+#                     committed JSONL fixtures replay cleanly, and the
+#                     orchestrator argparse accepts --cached-specimens /
+#                     --replay-from / --no-download.
+#                     This is the only Tier 4 mode safe to run on the
+#                     Mac mini.
+#
+#   RUN_FULL_REPLAY=1 (heavy — requires the nninteractive venv)
+#                     Drives the full pilot end-to-end against the
+#                     committed JSONL fixtures. Belongs on a self-hosted
+#                     runner (Jetstream / Dell GPU) or CI ubuntu-latest
+#                     with the heavy pip install. The Mac mini falls
+#                     back to RUN_REPLAY=1 by design — see
+#                     docs/RUNNER_TOPOLOGY.md.
 if [[ "${RUN_REPLAY:-0}" == "1" ]]; then
     echo
-    echo "=== Tier 4: offline cached-specimens replay ==="
+    echo "=== Tier 4: offline replay plumbing (driver-runnable) ==="
+    MANIFEST="$REPO_ROOT/Tests/fixtures/jetstream_replay/cached_specimens.json"
+    FIXTURE_SESSIONS="$REPO_ROOT/Tests/fixtures/jetstream_replay/sessions"
+
+    # 4.a — pytest the cache_index, recorder, wiring, and offline-flag
+    # tests. None of them touch SimpleITK / numpy / vtk; the driver
+    # surface is enough.
+    #
+    # We first probe for an interpreter that already has pytest. If
+    # nothing on the system does, we emit a clear "pytest unavailable"
+    # message and fall back to running the tests via importlib (which
+    # only catches collection-time errors, not assertion failures —
+    # but it's better than nothing on a locked-down environment).
+    PYTEST_PY=""
+    for cand in "$PY" "$NNI_PY" "$(command -v python3 || true)" /usr/bin/python3; do
+        [[ -z "$cand" || ! -x "$cand" ]] && continue
+        if "$cand" -c "import pytest" >/dev/null 2>&1; then
+            PYTEST_PY="$cand"
+            break
+        fi
+    done
+    if [[ -n "$PYTEST_PY" ]]; then
+        echo "  using pytest from: $PYTEST_PY"
+        "$PYTEST_PY" -m pytest \
+            Tests/test_jetstream_replay_cache_index.py \
+            Tests/test_jetstream_replay_recorder.py \
+            Tests/test_jetstream_replay_wiring.py \
+            Tests/test_eval_project358382_offline.py \
+            -v --no-header \
+            || { echo "FAIL: driver-side replay tests"; exit 5; }
+    else
+        echo "  pytest not found on any candidate Python; running smoke import"
+        "$PY" - <<'PY'
+import importlib, sys
+sys.path.insert(0, '.')
+sys.path.insert(0, '.github/scripts')
+mods = [
+    "metadata_to_morphsource.jetstream_replay.cache_index",
+    "metadata_to_morphsource.jetstream_replay.recorder",
+]
+for m in mods:
+    importlib.import_module(m)
+    print(f"  import: {m} ok")
+print("  (skipped pytest collection; install pytest for deeper checks)")
+PY
+    fi
+
+    # 4.b — verify every committed JSONL fixture replays without
+    # divergence (just opens + drains via ReplaySession).
+    "$PY" - <<'PY'
+import json, sys
+from pathlib import Path
+sys.path.insert(0, '.')
+from metadata_to_morphsource.jetstream_replay.recorder import (
+    ReplaySession, HTTPCall,
+)
+
+sess_dir = Path("Tests/fixtures/jetstream_replay/sessions")
+if not sess_dir.is_dir():
+    print("  (no sessions dir yet; skip)")
+    sys.exit(0)
+files = sorted(sess_dir.glob("*.jsonl"))
+if not files:
+    print("  (no committed JSONL fixtures yet; skip)")
+    sys.exit(0)
+total = 0
+for fp in files:
+    rs = ReplaySession(fp)
+    total += rs.n_calls
+    print(f"  {fp.name}: {rs.n_calls} calls")
+    # Round-trip every line through HTTPCall.from_dict to validate
+    # the schema independently of the ReplaySession state.
+    for i, raw in enumerate(fp.read_text().splitlines()):
+        if not raw.strip():
+            continue
+        HTTPCall.from_dict(json.loads(raw))
+print(f"  every committed fixture is well-formed ({len(files)} files, {total} calls)")
+PY
+
+    echo "  driver-runnable replay tier passed"
+else
+    echo
+    echo "=== Tier 4: skipped (set RUN_REPLAY=1 to enable) ==="
+fi
+
+# ---------------------------------------------------------- tier 4-FULL
+if [[ "${RUN_FULL_REPLAY:-0}" == "1" ]]; then
+    echo
+    echo "=== Tier 4-FULL: end-to-end pilot replay (requires heavy venv) ==="
+    if [[ "$PY_KIND" != "nninteractive-venv" ]]; then
+        echo "ERROR: Tier 4-FULL needs SimpleITK/numpy/vtk. Mac-mini drivers"
+        echo "       should not run this; route it to a self-hosted runner"
+        echo "       per docs/RUNNER_TOPOLOGY.md."
+        exit 5
+    fi
     MANIFEST="$REPO_ROOT/Tests/fixtures/jetstream_replay/cached_specimens.json"
     FIXTURE_SESSIONS="$REPO_ROOT/Tests/fixtures/jetstream_replay/sessions"
     REPLAY_OUT="$OUT_ROOT/replay_$(date +%Y%m%dT%H%M%S)"
     mkdir -p "$FIXTURE_SESSIONS"
 
-  # Ensure at least one JSONL transcript exists (stub or recorded).
     if ! ls "$FIXTURE_SESSIONS"/*.jsonl >/dev/null 2>&1; then
         echo "  no session fixtures found; generating stub transcripts..."
         "$PY" -m metadata_to_morphsource.jetstream_replay.build_replay_bundle \
@@ -232,8 +365,7 @@ if [[ "${RUN_REPLAY:-0}" == "1" ]]; then
     # Synthetic stub fixtures cover only the first few protocol calls,
     # so the orchestrator may fail when the transcript is exhausted.
     # We still assert the run got far enough to write its manifest +
-    # event stream, which is what catches regressions in the
-    # offline-replay plumbing itself.
+    # event stream, which catches regressions in the orchestration.
     test -f "$REPLAY_OUT/manifest.json" \
         || { echo "FAIL: manifest.json missing"; exit 5; }
     test -f "$REPLAY_OUT/events.jsonl"  \
@@ -242,16 +374,22 @@ if [[ "${RUN_REPLAY:-0}" == "1" ]]; then
         echo "  orchestrator exit=$REPLAY_EXIT (expected for stub transcripts; "
         echo "  bundle artifacts were still written)"
     fi
-    echo "  replay output -> $REPLAY_OUT"
+    echo "  full-replay output -> $REPLAY_OUT"
 else
     echo
-    echo "=== Tier 4: skipped (set RUN_REPLAY=1 to enable) ==="
+    echo "=== Tier 4-FULL: skipped (set RUN_FULL_REPLAY=1 to enable) ==="
 fi
 
 # ----------------------------------------------------------------- tier 5
 if [[ "${RUN_RECORD:-0}" == "1" ]]; then
     echo
     echo "=== Tier 5: re-record JSONL fixtures (mock-Slicer or live) ==="
+    if [[ "$PY_KIND" != "nninteractive-venv" ]]; then
+        echo "ERROR: Tier 5 requires the nninteractive venv (SimpleITK/numpy)."
+        echo "       Mac-mini drivers should not run this tier; route it to"
+        echo "       a self-hosted runner per docs/RUNNER_TOPOLOGY.md."
+        exit 6
+    fi
     # Two flavours, controlled by RECORD_TARGET:
     #   mock (default) - run against the in-process mock_slicer_server,
     #                    producing committable fixtures with no Jetstream.

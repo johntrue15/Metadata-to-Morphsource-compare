@@ -52,6 +52,8 @@ temp/
 
 # Environment variables
 .env
+.env.bak*
+*.env.bak*
 
 # Backup files
 *-old.*

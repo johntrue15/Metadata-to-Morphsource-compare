@@ -1,0 +1,221 @@
+name: Stage MorphoSource sample (CT on Mac, GT on Dell)
+
+# Two-host pipeline that produces the paired CT + GT-labelmap NRRDs in
+# data/sample/ that the README ships URL-loadable into Jetstream2 / 3D
+# Slicer. The split matches docs/RUNNER_TOPOLOGY.md:
+#
+#   ct-on-mac:  driver work -- MorphoSource API, TIFF stream, crop +
+#               stride downsample, gzip NRRD. Cheap and Mac-friendly
+#               (~30 s + ~5-10 min download on a cold cache).
+#
+#   gt-on-dell: GPU-host work -- load the staged CT, voxelize the
+#               multi-million-polygon MorphoSource mesh onto the CT
+#               grid with trimesh + rtree ray-casting. This is the
+#               step that hung vtkPolyDataToImageStencil for 52 hours
+#               on the Mac mini, so it lives on the Dell.
+#
+# Manually triggered. Set `commit_outputs=true` to have the Dell open a
+# PR that adds (or refreshes) data/sample/*.nrrd + the merged provenance.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ct_media_id:
+        description: 'MorphoSource media ID for the CT volume (TIFF z-stack)'
+        required: false
+        type: string
+        default: '000011009'
+      mesh_media_id:
+        description: 'MorphoSource media ID for the surface mesh'
+        required: false
+        type: string
+        default: '000358663'
+      slug:
+        description: 'File-name prefix for staged outputs'
+        required: false
+        type: string
+        default: 'tuatara_skull_000358663'
+      max_axis:
+        description: 'Max output voxel count along any axis (drives stride)'
+        required: false
+        type: string
+        default: '384'
+      ct_dtype:
+        description: 'Output CT dtype'
+        required: false
+        type: choice
+        default: 'uint16'
+        options: ['uint16', 'int16', 'uint8']
+      commit_outputs:
+        description: 'Open a PR adding data/sample/*.nrrd + provenance'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  ct-on-mac:
+    name: Stage CT NRRD on the Mac mini driver
+    runs-on: [self-hosted, morphosource]
+    timeout-minutes: 60
+    outputs:
+      ct_artifact: ct-nrrd-${{ github.run_id }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Show runner identity
+        run: |
+          echo "host: $(hostname)"
+          uname -a
+
+      - name: Resolve nnInteractive venv path
+        run: |
+          : "${NNINTERACTIVE_HOME:=$HOME/.autoresearchclaw/nninteractive}"
+          PY="$NNINTERACTIVE_HOME/bin/python"
+          if [[ ! -x "$PY" ]]; then
+            echo "ERROR: nnInteractive venv missing at $PY"
+            exit 1
+          fi
+          echo "PY=$PY"            >> "$GITHUB_ENV"
+          echo "NNINTERACTIVE_HOME=$NNINTERACTIVE_HOME" >> "$GITHUB_ENV"
+
+      - name: Run --phase ct-only
+        env:
+          MORPHOSOURCE_API_KEY: ${{ secrets.MORPHOSOURCE_API_KEY }}
+          CT_MEDIA_ID:   ${{ github.event.inputs.ct_media_id }}
+          MESH_MEDIA_ID: ${{ github.event.inputs.mesh_media_id }}
+          SLUG:          ${{ github.event.inputs.slug }}
+          MAX_AXIS:      ${{ github.event.inputs.max_axis }}
+          CT_DTYPE:      ${{ github.event.inputs.ct_dtype }}
+        run: |
+          mkdir -p runs data/sample
+          "$PY" -u .github/scripts/stage_morphosource_sample.py \
+              --phase ct-only \
+              --ct-media-id "$CT_MEDIA_ID" \
+              --mesh-media-id "$MESH_MEDIA_ID" \
+              --slug "$SLUG" \
+              --max-axis "$MAX_AXIS" \
+              --ct-dtype "$CT_DTYPE" \
+              2>&1 | tee runs/stage_sample_ct_${{ github.run_id }}.log
+
+      - name: List staged CT outputs
+        run: |
+          ls -lh data/sample/ || true
+          du -sh data/sample/ || true
+
+      - name: Upload CT NRRD + provenance artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ct-nrrd-${{ github.run_id }}
+          path: |
+            data/sample/${{ github.event.inputs.slug }}_ct.nrrd
+            data/sample/${{ github.event.inputs.slug }}.provenance.json
+            runs/stage_sample_ct_${{ github.run_id }}.log
+          if-no-files-found: error
+          retention-days: 7
+
+  gt-on-dell:
+    name: Voxelize mesh into GT labelmap on the Dell GPU runner
+    needs: ct-on-mac
+    runs-on: [self-hosted, gpu, nninteractive]
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Show runner identity
+        run: |
+          echo "host: $(hostname)"
+          uname -a
+          if command -v nvidia-smi >/dev/null 2>&1; then
+            nvidia-smi || true
+          fi
+
+      - name: Resolve runner env (NNINTERACTIVE_HOME, ...)
+        run: |
+          if [[ -f "$HOME/.morphoclaw/runner.env" ]]; then
+            set -a; . "$HOME/.morphoclaw/runner.env"; set +a
+          fi
+          : "${NNINTERACTIVE_HOME:=$HOME/.autoresearchclaw/nninteractive}"
+          PY="$NNINTERACTIVE_HOME/bin/python"
+          if [[ ! -x "$PY" ]]; then
+            echo "ERROR: nnInteractive venv missing at $PY"
+            exit 1
+          fi
+          echo "PY=$PY"            >> "$GITHUB_ENV"
+          echo "NNINTERACTIVE_HOME=$NNINTERACTIVE_HOME" >> "$GITHUB_ENV"
+
+      - name: Sanity import (no GPU yet)
+        run: |
+          "$PY" -c "import numpy, SimpleITK, vtk, trimesh, rtree; \
+                    print('numpy', numpy.__version__, \
+                          'trimesh', trimesh.__version__, \
+                          'rtree', rtree.__version__)"
+
+      - name: Download CT artifact from the Mac job
+        uses: actions/download-artifact@v4
+        with:
+          name: ct-nrrd-${{ github.run_id }}
+          path: data/sample/
+
+      - name: Move log out of data/sample/ (we only stage NRRDs there)
+        run: |
+          mkdir -p runs
+          if [[ -f "data/sample/stage_sample_ct_${{ github.run_id }}.log" ]]; then
+            mv "data/sample/stage_sample_ct_${{ github.run_id }}.log" \
+               "runs/stage_sample_ct_${{ github.run_id }}.log"
+          fi
+
+      - name: Run --phase voxelize-only
+        env:
+          MORPHOSOURCE_API_KEY: ${{ secrets.MORPHOSOURCE_API_KEY }}
+          MESH_MEDIA_ID: ${{ github.event.inputs.mesh_media_id }}
+          CT_MEDIA_ID:   ${{ github.event.inputs.ct_media_id }}
+          SLUG:          ${{ github.event.inputs.slug }}
+        run: |
+          mkdir -p runs
+          "$PY" -u .github/scripts/stage_morphosource_sample.py \
+              --phase voxelize-only \
+              --ct-media-id "$CT_MEDIA_ID" \
+              --mesh-media-id "$MESH_MEDIA_ID" \
+              --slug "$SLUG" \
+              2>&1 | tee runs/stage_sample_gt_${{ github.run_id }}.log
+
+      - name: List staged outputs
+        run: |
+          ls -lh data/sample/ || true
+
+      - name: Upload paired CT + GT bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: sample-bundle-${{ github.run_id }}
+          path: |
+            data/sample/${{ github.event.inputs.slug }}_ct.nrrd
+            data/sample/${{ github.event.inputs.slug }}_gt_labelmap.nrrd
+            data/sample/${{ github.event.inputs.slug }}.provenance.json
+            runs/stage_sample_ct_${{ github.run_id }}.log
+            runs/stage_sample_gt_${{ github.run_id }}.log
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Open PR with refreshed sample data
+        if: ${{ github.event.inputs.commit_outputs == 'true' }}
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: 'data(sample): refresh ${{ github.event.inputs.slug }} CT+GT NRRDs'
+          title: 'data(sample): refresh ${{ github.event.inputs.slug }} CT+GT NRRDs'
+          body: |
+            Refreshed paired CT + GT-labelmap NRRDs under `data/sample/`
+            via the two-host `stage_morphosource_sample.yml` pipeline.
+
+            - CT phase (`m4-morphosource`): `--phase ct-only` on
+              MorphoSource ${{ github.event.inputs.ct_media_id }}
+            - GT phase (`DellXPS-wsl-gpu`): `--phase voxelize-only`
+              against mesh ${{ github.event.inputs.mesh_media_id }}
+
+            See `docs/RUNNER_TOPOLOGY.md` for the split rationale.
+          branch: data-sample/refresh-${{ github.event.inputs.slug }}
+          add-paths: |
+            data/sample/${{ github.event.inputs.slug }}_ct.nrrd
+            data/sample/${{ github.event.inputs.slug }}_gt_labelmap.nrrd
+            data/sample/${{ github.event.inputs.slug }}.provenance.json

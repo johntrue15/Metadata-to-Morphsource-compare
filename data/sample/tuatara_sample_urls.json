@@ -1,0 +1,18 @@
+{
+  "github_repo": "johntrue15/MorphoClaw",
+  "github_ref": "main",
+  "slug": "tuatara_skull_000358663",
+  "ct_media_id": "000011009",
+  "mesh_media_id": "000358663",
+  "files": {
+    "ct_nrrd": "data/sample/tuatara_skull_000358663_ct.nrrd",
+    "gt_labelmap_nrrd": "data/sample/tuatara_skull_000358663_gt_labelmap.nrrd",
+    "provenance_json": "data/sample/tuatara_skull_000358663.provenance.json"
+  },
+  "slicer_volume_name": "tuatara_skull_000358663_ct",
+  "pilot_defaults": {
+    "budgets": [10, 25, 50, 100],
+    "max_steps": 100,
+    "intensity_percentile": 99.0
+  }
+}

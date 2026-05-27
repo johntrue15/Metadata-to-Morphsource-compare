@@ -1,10 +1,18 @@
 # MorphoClaw self-hosted runner scripts
 
 Idempotent bootstrap scripts for adding a new self-hosted GitHub Actions
-runner to this repository. The headline use case is turning a Windows host
-with an NVIDIA GPU into a GPU-capable runner for the nnInteractive and
-SlicerMorph workflows, but the same scripts work on any Debian/Ubuntu Linux
-box with CUDA passthrough (bare metal, WSL2, or LXD/Proxmox VM).
+runner to this repository.
+
+**Compute plan:** [docs/RUNNER_TOPOLOGY.md](../../docs/RUNNER_TOPOLOGY.md) —
+the Mac mini (`m4-morphosource`) is a **driver**; these scripts target the
+**Dell light-GPU** box (mesh, embeddings, batch `nninteractive_compare`,
+Linux Slicer integration tests). Interactive Slicer + nnInteractive paint
+(10-click pilot, session export) runs on **Jetstream2**, driven by HTTP from
+the Mac, not by installing Slicer on the Mac mini.
+
+The headline use case here is turning a Windows host with an NVIDIA GPU into
+`DellXPS-wsl-gpu`. The same scripts work on any Debian/Ubuntu Linux box with
+CUDA passthrough (bare metal, WSL2, or LXD/Proxmox VM).
 
 ## Files
 

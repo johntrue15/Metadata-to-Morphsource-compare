@@ -147,6 +147,17 @@ Read the full methodology, ontology, and calibration plan in
 
 ## Self-hosted execution
 
-The heavy lifting (3D Slicer, nnInteractive, specimen cache) runs on a
-self-hosted Mac mini runner. See [**Workflows**](reference/workflows.md) for
-the matrix of jobs and which ones target `self-hosted` vs `ubuntu-latest`.
+Compute is split across three tiers; the Mac mini **does not** run Slicer or
+nnInteractive locally anymore. See [**Runner topology**](RUNNER_TOPOLOGY.md)
+for the full plan:
+
+- **Driver** — Mac mini self-hosted runner (`m4-morphosource`): orchestration,
+  MorphoSource, HTTP clients to remote tools, offline replay orchestration.
+- **Heavy GPU tool** — Jetstream2: Slicer Web Server + nnInteractive (10-click
+  pilot, segmentation export).
+- **Light GPU tool** — Dell WSL runner (`DellXPS-wsl-gpu`): mesh morphometrics,
+  embeddings, smaller training jobs.
+
+CI replay and fixture tests use **`ubuntu-latest`** with committed JSONL
+transcripts. See [**Workflows**](reference/workflows.md) for which jobs target
+each runner label.

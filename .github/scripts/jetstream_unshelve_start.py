@@ -66,6 +66,15 @@ DEFAULT_NNI_PORT = 1527
 DEFAULT_WEBSERVER_PORT = 2016
 DEFAULT_ECU_PORT = 18765
 
+# IMPC sample data — same .nrrd you load manually via Slicer's Sample Data
+# module. Hosted in SlicerMorph/SampleData. Lives in Slicer's tempdir after
+# first load, so re-runs are near-instant.
+DEFAULT_SAMPLE_URL = (
+    "https://raw.githubusercontent.com/SlicerMorph/SampleData/master/"
+    "IMPC_sample_data.nrrd"
+)
+DEFAULT_SAMPLE_NAME = "IMPC_sample_data"
+
 ENV_KEYS_TO_REWRITE = (
     "JETSTREAM_PUBLIC_IP",
     "NNI_REMOTE_URL",
@@ -74,6 +83,60 @@ ENV_KEYS_TO_REWRITE = (
 )
 
 IPV4_RE = re.compile(r"^(?:\d{1,3}\.){3}\d{1,3}$")
+
+
+# Slicer-side recipe to fetch a NRRD/NIfTI URL into the tempdir (cached
+# across invocations by URL filename) and load it into the scene as the
+# active background volume. Returns shape + spacing for confirmation in
+# the READY banner. Mirrors the recipe shape used by
+# .github/scripts/remote_volume_io.py:_LOAD_FROM_PATH_BODY.
+LOAD_SAMPLE_FROM_URL_RECIPE = """\
+import slicer, os, tempfile, urllib.request, traceback
+out = {}
+try:
+    td = os.path.join(tempfile.gettempdir(), "ms_remote_samples")
+    os.makedirs(td, exist_ok=True)
+    safe = "".join(c if c.isalnum() or c in "._-" else "_" for c in _NAME)
+    local_path = os.path.join(td, safe + os.path.splitext(_URL)[1])
+    out["local_path"] = local_path
+    if not os.path.exists(local_path) or os.path.getsize(local_path) == 0:
+        with urllib.request.urlopen(_URL, timeout=120) as r:
+            with open(local_path, "wb") as f:
+                while True:
+                    blk = r.read(1 << 20)
+                    if not blk:
+                        break
+                    f.write(blk)
+        out["downloaded"] = True
+    else:
+        out["downloaded"] = False
+    out["size_bytes"] = os.path.getsize(local_path)
+    # Replace any existing copy with the same name so re-runs don't pile up.
+    for existing in slicer.util.getNodesByClass("vtkMRMLScalarVolumeNode"):
+        if existing.GetName() == _NAME:
+            slicer.mrmlScene.RemoveNode(existing)
+    node = slicer.util.loadVolume(local_path, properties={"name": _NAME})
+    if node is None:
+        out["status"] = "load_failed"
+    else:
+        sel = slicer.app.applicationLogic().GetSelectionNode()
+        sel.SetActiveVolumeID(node.GetID())
+        slicer.app.applicationLogic().PropagateVolumeSelection(0)
+        slicer.util.setSliceViewerLayers(background=node, fit=True)
+        arr = slicer.util.arrayFromVolume(node)
+        out["status"] = "ok"
+        out["volume_id"] = node.GetID()
+        out["volume_name"] = node.GetName()
+        out["shape_kji"] = list(arr.shape)
+        out["dtype"] = str(arr.dtype)
+        out["spacing_mm"] = [round(s, 6) for s in node.GetSpacing()]
+        out["origin"] = [round(o, 6) for o in node.GetOrigin()]
+except Exception as e:
+    out["status"] = "exception"
+    out["error"] = repr(e)
+    out["traceback"] = traceback.format_exc()
+__execResult.update(out)
+"""
 
 
 # ---------------------------------------------------------------------------
@@ -313,6 +376,67 @@ def _http_get_status(url: str, timeout: float = 8.0) -> int:
         return 0
 
 
+def post_slicer_exec(base_url: str, source: str,
+                     timeout: float = 180.0) -> dict:
+    """POST a Python source string to /slicer/exec and return parsed JSON.
+
+    Stdlib-only mirror of remote_volume_io._post_python so the local
+    half stays dependency-free (this script runs from the Mac's system
+    Python, not the nnInteractive venv).
+    """
+    body = source.encode("utf-8")
+    req = urllib.request.Request(
+        base_url.rstrip("/") + "/slicer/exec",
+        data=body, method="POST",
+        headers={"Content-Type": "text/plain",
+                 "User-Agent": "jetstream-unshelve/1"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            content = resp.read()
+            status = int(resp.status)
+    except urllib.error.HTTPError as e:
+        return {"status": "http_error", "http_code": e.code,
+                "body_preview": (e.read() or b"")[:300].decode(
+                    "utf-8", errors="replace")}
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        return {"status": "transport_error", "error": repr(e)}
+    if status != 200:
+        return {"status": "http_error", "http_code": status,
+                "body_preview": content[:300].decode("utf-8", errors="replace")}
+    try:
+        import json as _json
+        return _json.loads(content)
+    except Exception as e:
+        return {"status": "non_json_body", "error": repr(e),
+                "body_preview": content[:300].decode("utf-8", errors="replace")}
+
+
+def load_sample_in_slicer(ws_url: str, sample_url: str,
+                          sample_name: str) -> dict:
+    """Download `sample_url` inside Slicer and load it into the scene."""
+    info(f"Loading sample into Slicer: {sample_name}")
+    info(f"  URL: {sample_url}")
+    # Prelude assigns recipe inputs as plain top-level vars (mirrors the
+    # pattern remote_volume_io.py uses to avoid str.format brace headaches).
+    prelude = (
+        f"_URL = {sample_url!r}\n"
+        f"_NAME = {sample_name!r}\n"
+    )
+    result = post_slicer_exec(ws_url, prelude + LOAD_SAMPLE_FROM_URL_RECIPE)
+    status = result.get("status")
+    if status == "ok":
+        downloaded = result.get("downloaded", False)
+        info(f"  [OK]  loaded {result.get('volume_name')!r}  "
+             f"shape={result.get('shape_kji')}  "
+             f"spacing={result.get('spacing_mm')}  "
+             f"({'downloaded ' if downloaded else 'cached '}"
+             f"{result.get('size_bytes', 0):,} bytes)")
+    else:
+        warn(f"  load_sample returned status={status!r}: {result}")
+    return result
+
+
 def probe_with_retry(url: str, label: str, *,
                      max_attempts: int = 6, delay: float = 5.0,
                      ok_codes: tuple[int, ...] = (200,)) -> bool:
@@ -370,7 +494,8 @@ print(slicer.modules.WebServerWidget.logic.server)
 # ---------------------------------------------------------------------------
 
 def ready_banner(ip: str, nni_url: str, ws_url: str, ecu_url: str,
-                 nni_ok: bool, ws_ok: Optional[bool], ecu_ok: Optional[bool]) -> None:
+                 nni_ok: bool, ws_ok: Optional[bool], ecu_ok: Optional[bool],
+                 sample_loaded: Optional[dict] = None) -> None:
     print("")
     print("=" * 74)
     print("READY")
@@ -385,6 +510,12 @@ def ready_banner(ip: str, nni_url: str, ws_url: str, ecu_url: str,
         print(f"  MorphoClaw ECU (:18765): {ecu_url}  [skipped]")
     else:
         print(f"  MorphoClaw ECU (:18765): {ecu_url}  [{'OK' if ecu_ok else 'NOT REACHABLE'}]")
+    if sample_loaded is not None:
+        if sample_loaded.get("status") == "ok":
+            print(f"  Sample in scene      : {sample_loaded.get('volume_name')!r}  "
+                  f"shape={sample_loaded.get('shape_kji')}")
+        else:
+            print(f"  Sample in scene      : NOT LOADED ({sample_loaded.get('status')!r})")
     print("")
     print("Controller (Mac) — run jobs on ECU with localhost Slicer:")
     print('  set -a && source .env && set +a')
@@ -394,15 +525,24 @@ def ready_banner(ip: str, nni_url: str, ws_url: str, ecu_url: str,
     print("One-line ECU install (Guacamole terminal):")
     print('  curl -fsSL https://raw.githubusercontent.com/johntrue15/MorphoClaw/main/scripts/jetstream/install_ecu.sh | bash')
     print("")
-    print("Legacy direct Slicer proxy (may 504 on long clicks):")
-    print('  set -a && source .env && set +a')
-    print('  "$HOME/.autoresearchclaw/nninteractive/bin/python" \\')
-    print('      .github/scripts/eval_project358382_pilot.py \\')
-    print('      --project-id 000358382 \\')
-    print('      --project-query "Colors of Skull Anatomy" \\')
-    print('      --specimens 3 \\')
-    print('      --budgets 10,25,50,100 \\')
-    print('      --out-dir "runs/pilot_project358382_$(date +%Y%m%dT%H%M%S)"')
+    print("  # Dispatch the 10-click pilot via GitHub Actions on the Dell GPU")
+    print("  # runner. Mac mini stays a driver (docs/RUNNER_TOPOLOGY.md).")
+    print("  make pilot-dell")
+    print("")
+    print("  # Override the defaults (specimens, budgets, manifest, record_to):")
+    print("  make pilot-dell SPECIMENS=5 BUDGETS=10,25")
+    print("")
+    print("  # Tail the most recent GH Actions run:")
+    print("  make tail")
+    print("")
+    print("  # Once the JS2 GHA runner is registered (Phase 3 of")
+    print("  # docs/RUNNER_TOPOLOGY.md), this replaces pilot-dell for runs")
+    print("  # that should land on the JS2 box this unshelve just brought up:")
+    print("  make pilot-jetstream")
+    print("")
+    print("  ! DO NOT run eval_project358382_pilot.py in this terminal. The")
+    print("  ! script's Darwin guard refuses on macOS; see")
+    print("  ! docs/RUNNER_TOPOLOGY.md \"2026-05-24 cautionary tale\".")
     print("=" * 74)
 
 
@@ -431,6 +571,17 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--webserver", action="store_true",
                    help="Also probe the Slicer Web Server on :2016. If "
                         "unreachable, print the Python Interactor snippet.")
+    p.add_argument("--load-sample", action="store_true",
+                   help="After :2016 is healthy, POST a /slicer/exec recipe "
+                        "that downloads + loads the IMPC sample data into "
+                        "Slicer's scene (same effect as Sample Data > IMPC). "
+                        "Implies --webserver.")
+    p.add_argument("--sample-url", default=DEFAULT_SAMPLE_URL,
+                   help=f"Override the sample URL used by --load-sample "
+                        f"(default: {DEFAULT_SAMPLE_URL}).")
+    p.add_argument("--sample-name", default=DEFAULT_SAMPLE_NAME,
+                   help=f"Override the Slicer scene node name used by "
+                        f"--load-sample (default: {DEFAULT_SAMPLE_NAME}).")
     p.add_argument("--no-env-update", action="store_true",
                    help="Skip rewriting the local .env (URLs are still built "
                         "and printed).")
@@ -457,6 +608,12 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Optional[list[str]] = None) -> int:
     args = build_parser().parse_args(argv)
     validate_ip(args.ip)
+
+    # --load-sample inherently needs the Slicer Web Server probe to pass
+    # (it POSTs to /slicer/exec), so promote --webserver automatically.
+    if args.load_sample and not args.webserver:
+        info("--load-sample implies --webserver; enabling it.")
+        args.webserver = True
 
     nni_url = exosphere_url(args.ip, DEFAULT_NNI_PORT)
     ws_url = exosphere_url(args.ip, DEFAULT_WEBSERVER_PORT)
@@ -539,7 +696,20 @@ def main(argv: Optional[list[str]] = None) -> int:
             max_attempts=args.probe_attempts, delay=args.probe_delay,
         )
 
-    ready_banner(args.ip, nni_url, ws_url, ecu_url, nni_ok, ws_ok, ecu_ok)
+    sample_loaded: Optional[dict] = None
+    if args.load_sample:
+        if ws_ok:
+            step(f"Load sample into Slicer ({args.sample_name})")
+            sample_loaded = load_sample_in_slicer(
+                ws_url, args.sample_url, args.sample_name,
+            )
+        else:
+            warn("--load-sample requested but :2016 is not reachable; "
+                 "skipping. Start the Slicer Web Server first and re-run "
+                 "with --load-sample.")
+
+    ready_banner(args.ip, nni_url, ws_url, ecu_url, nni_ok, ws_ok, ecu_ok,
+                 sample_loaded=sample_loaded)
 
     if not nni_ok:
         return 6
@@ -547,6 +717,9 @@ def main(argv: Optional[list[str]] = None) -> int:
         return 7
     if args.probe_ecu and ecu_ok is False:
         return 8
+    if args.load_sample and (sample_loaded is None
+                              or sample_loaded.get("status") != "ok"):
+        return 9
     return 0
 
 

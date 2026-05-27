@@ -1,51 +1,62 @@
 # Self-hosted GPU runner (WSL2 + NVIDIA)
 
-This guide turns any Windows host with an NVIDIA GPU into a MorphoClaw
-self-hosted GitHub Actions runner. The runner lives inside **WSL2 Ubuntu**
-with **CUDA passthrough**, which means:
+> **Compute planning:** see [RUNNER_TOPOLOGY.md](RUNNER_TOPOLOGY.md). The Mac
+> mini runner is a **driver** only. This guide is for the **Dell light-GPU**
+> box — mesh work, embeddings, batch nnInteractive compare, and Linux CUDA
+> smoke tests. **Interactive Slicer + nnInteractive paint loops** (10-click
+> pilot, `export_session` live upgrade) run on **Jetstream2**, driven by HTTP
+> from the Mac mini, not by installing Slicer on either desktop.
 
-* nnInteractive (`bootstrap_nninteractive.yml`,
+This guide turns a Windows host with an NVIDIA GPU (e.g. Dell XPS) into a
+MorphoClaw self-hosted GitHub Actions runner. The runner lives inside **WSL2
+Ubuntu** with **CUDA passthrough**, which means:
+
+* Batch / training workflows (`bootstrap_nninteractive.yml`,
   `nninteractive_compare.yml`, `iterative_segmentation_training.yml`,
-  `seg_train_live_chameleon.yml`) gets a real CUDA device instead of
-  CPU/MPS.
-* SlicerMorph (`slicer-integration.yml`) runs headlessly via `xvfb-run`
-  against a Linux Slicer install.
-* Everything else (`autoresearchclaw.yml`'s research pipeline) is faster
-  whenever the agent enables nnInteractive.
+  `eval_project358382_dellgpu.yml`) get a real CUDA device instead of
+  CPU/MPS on the Mac.
+* SlicerMorph (`slicer-integration.yml`) can run headlessly via `xvfb-run`
+  on Linux for integration tests.
+* The Mac mini (`m4-morphosource`) stays a **driver**: MorphoSource,
+  research, and Jetstream HTTP orchestration.
 
-The existing Mac mini runner keeps working unchanged. The two coexist by
-**runner labels**.
+The two hosts coexist by **runner labels** — never use bare `self-hosted`.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
     subgraph GH["GitHub Actions"]
-        WF1["nnInteractive workflows<br/>(runs-on: [self-hosted, gpu])"]
-        WF2["Slicer workflows<br/>(runs-on: [self-hosted, slicer])"]
-        WF3["Research pipeline<br/>(runs-on: [self-hosted])"]
+        WF1["Light GPU workflows<br/>(runs-on: [self-hosted, gpu])"]
+        WF2["Driver workflows<br/>(runs-on: [self-hosted, morphosource])"]
+        WF3["Jetstream pilot<br/>(HTTP from Mac or jetstream runner)"]
     end
 
-    subgraph Mac["Mac mini runner"]
-        MAC[("labels:<br/>self-hosted, macOS, ARM64,<br/>slicer, nninteractive, cpu")]
+    subgraph Mac["Mac mini — driver"]
+        MAC[("m4-morphosource<br/>orchestration only")]
     end
 
-    subgraph Dell["Dell XPS + GTX 1650 Ti (this guide)"]
-        WSL[("labels:<br/>self-hosted, Linux, X64,<br/>gpu, cuda, nvidia, wsl,<br/>slicer, nninteractive")]
+    subgraph Dell["Dell XPS — light GPU (this guide)"]
+        WSL[("DellXPS-wsl-gpu<br/>mesh / train / compare")]
     end
 
-    WF1 -.GPU jobs prefer.-> WSL
-    WF2 --> WSL
+    subgraph JS["Jetstream2 — heavy tool"]
+        JET[("Slicer + nnInteractive<br/>not a GH runner yet")]
+    end
+
+    WF1 --> WSL
     WF2 --> MAC
     WF3 --> MAC
-    WF3 -.also OK.-> WSL
+    MAC -->|SLICER_WEBSERVER_URL| JET
 ```
 
 Workflows pick the runner by labels:
 
-* `runs-on: [self-hosted, gpu]` — matches the WSL/CUDA runner only.
-* `runs-on: [self-hosted, slicer]` — either host (both have Slicer).
-* `runs-on: self-hosted` — either host.
+* `runs-on: [self-hosted, gpu, nninteractive]` — **Dell** light GPU jobs.
+* `runs-on: [self-hosted, morphosource]` — **Mac mini** driver.
+* `runs-on: self-hosted` — **avoid**; ambiguous and may steal GPU work.
+* Live Slicer paint — **Jetstream**, invoked from Mac via `.env` URLs (see
+  [JETSTREAM_UNSHELVE.md](JETSTREAM_UNSHELVE.md)).
 
 ## Prerequisites
 
@@ -225,37 +236,33 @@ The five self-hosted workflows have a small early step:
 ```
 
 Each runner's own `.env` overrides those values for jobs that land on it.
-Result: Mac mini keeps its existing behavior with **zero** config
-changes; the new WSL host advertises its Linux paths through `.env` and
-everything else is identical.
+Each runner's own `.env` overrides those values for jobs that land on it.
+The WSL host advertises Linux paths through `.env`; the Mac mini should
+**not** advertise `gpu` / `nninteractive` / `slicer` if it is driver-only
+(see [RUNNER_TOPOLOGY.md](RUNNER_TOPOLOGY.md)).
 
-## Recommended labels on the Mac mini
+## Recommended labels on the Mac mini (driver)
 
-If you want GPU/CUDA jobs to *prefer* the Dell, add `cpu` (and remove
-nothing) to the Mac mini runner's label set:
+Relabel the Mac mini so GPU workflows cannot schedule on it:
 
 ```bash
-# On the Mac mini, replace its labels:
+# On the Mac mini:
 cd ~/actions-runner-morphosource
 ./config.sh remove --token <removal-token-from-github>
 ./config.sh \
   --url    https://github.com/johntrue15/MorphoClaw \
   --token  <fresh-add-token-from-github> \
-  --name   "mac-mini" \
-  --labels "self-hosted,macOS,ARM64,slicer,nninteractive,cpu" \
+  --name   m4-morphosource \
+  --labels "self-hosted,macOS,ARM64,morphosource,driver" \
   --replace
 ```
 
-With that label set:
-
-| Workflow `runs-on` | Mac mini | Dell WSL |
+| Workflow `runs-on` | Mac mini (driver) | Dell WSL (light GPU) |
 | --- | --- | --- |
-| `[self-hosted, gpu]` | no | **yes** |
-| `[self-hosted, cpu]` | **yes** | no |
-| `[self-hosted, slicer]` | yes | yes |
-| `[self-hosted]` | yes | yes |
-
-GitHub will pick whichever matching runner is idle first.
+| `[self-hosted, gpu, nninteractive]` | no | **yes** |
+| `[self-hosted, morphosource]` | **yes** | no |
+| `[self-hosted, jetstream]` | no | no (separate JS2 agent when registered) |
+| `self-hosted` alone | **avoid** | **avoid** |
 
 ## Per-workflow recommendations
 

@@ -48,7 +48,6 @@ import argparse
 import base64
 import json
 import os
-import socket
 import sys
 import textwrap
 import time
@@ -68,8 +67,10 @@ if str(_REPO_ROOT) not in sys.path:
 
 from run_telemetry import (  # noqa: E402  (sibling module)
     CAPTURE_REMOTE_ENV_SRC,
+    CAPTURE_REMOTE_RESOURCES_SRC,
     EXPORT_SEGMENTATION_SRC,
     HASH_ACTIVE_VOLUME_SRC,
+    PING_SLICER_SRC,
     RunLogger,
 )
 
@@ -107,16 +108,37 @@ def http_get(url: str, timeout: float = 20) -> bytes:
         return resp.read()
 
 
-def post_python(base_url: str, source: str, timeout: float = 240,
-                retries: int = 3) -> dict:
-    body = source.encode("utf-8")
-    req = urllib.request.Request(
-        base_url + "/slicer/exec", data=body, method="POST",
-        headers={"Content-Type": "text/plain"},
+def _http_defaults() -> tuple[int, float, float]:
+    """(retries, retry_sleep_s, default_timeout_s) from env."""
+    return (
+        int(os.environ.get("MORPHOCLAW_HTTP_RETRIES", "8")),
+        float(os.environ.get("MORPHOCLAW_HTTP_RETRY_SLEEP", "20")),
+        float(os.environ.get("MORPHOCLAW_STEP_TIMEOUT", "180")),
     )
-    last_err = None
-    for attempt in range(max(1, retries)):
-        t0 = time.time()
+
+
+_RETRYABLE_HTTP = frozenset({502, 503, 504})
+
+
+def post_python(base_url: str, source: str, timeout: float | None = None,
+                retries: int | None = None, retry_sleep: float | None = None) -> dict:
+    """POST to /slicer/exec with retries on 5xx and transport errors."""
+    dr, ds, dt = _http_defaults()
+    if timeout is None:
+        timeout = dt
+    if retries is None:
+        retries = dr
+    if retry_sleep is None:
+        retry_sleep = ds
+
+    body = source.encode("utf-8")
+    last_exc: BaseException | None = None
+    t0 = time.time()
+    for attempt in range(retries + 1):
+        req = urllib.request.Request(
+            base_url + "/slicer/exec", data=body, method="POST",
+            headers={"Content-Type": "text/plain"},
+        )
         try:
             with urlopen_via_session(req, timeout=timeout) as resp:
                 content = resp.read()
@@ -124,28 +146,281 @@ def post_python(base_url: str, source: str, timeout: float = 240,
         except urllib.error.HTTPError as e:
             content = e.read()
             status = e.code
-        except (TimeoutError, socket.timeout, urllib.error.URLError) as e:
-            last_err = e
-            if attempt + 1 < retries:
-                time.sleep(min(30.0, 2.0 ** attempt))
+            if status in _RETRYABLE_HTTP and attempt < retries:
+                last_exc = RuntimeError(
+                    f"/slicer/exec -> HTTP {status}: {content[:300]!r}"
+                )
+                time.sleep(retry_sleep)
                 continue
-            raise
-        if status in (502, 503, 504) and attempt + 1 < retries:
-            time.sleep(min(45.0, 5.0 * (attempt + 1)))
-            continue
-        if status != 200:
+            if status != 200:
+                raise RuntimeError(
+                    f"/slicer/exec -> HTTP {status}: {content[:300]!r}"
+                )
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            if attempt < retries:
+                last_exc = e
+                time.sleep(retry_sleep)
+                continue
             raise RuntimeError(
-                f"/slicer/exec -> HTTP {status}: {content[:300]!r}"
-            )
+                f"/slicer/exec transport failure after {attempt + 1} attempt(s): {e!r}"
+            ) from e
+        else:
+            if status != 200:
+                if status in _RETRYABLE_HTTP and attempt < retries:
+                    last_exc = RuntimeError(
+                        f"/slicer/exec -> HTTP {status}: {content[:300]!r}"
+                    )
+                    time.sleep(retry_sleep)
+                    continue
+                raise RuntimeError(
+                    f"/slicer/exec -> HTTP {status}: {content[:300]!r}"
+                )
+            try:
+                result = json.loads(content)
+            except Exception:
+                raise RuntimeError(f"non-JSON exec reply: {content[:300]!r}")
+            result["_dt_s"] = round(time.time() - t0, 3)
+            result["_retries_used"] = attempt
+            return result
+
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError("/slicer/exec failed with no response")
+
+
+READ_TOTAL_VOXELS_SRC = """\
+import slicer, numpy as np
+out = {}
+try:
+    sel = slicer.app.applicationLogic().GetSelectionNode()
+    vol = slicer.mrmlScene.GetNodeByID(sel.GetActiveVolumeID()) if sel else None
+    if vol is None:
+        out["status"] = "no_volume"
+    else:
+        shape = tuple(slicer.util.arrayFromVolume(vol).shape)
+        total = np.zeros(shape, dtype=bool)
+        n_seg = 0
+        for sn in slicer.util.getNodesByClass("vtkMRMLSegmentationNode"):
+            if "do not touch" in sn.GetName().lower():
+                continue
+            seg = sn.GetSegmentation()
+            for ii in range(seg.GetNumberOfSegments()):
+                sid = seg.GetNthSegmentID(ii)
+                try:
+                    a = slicer.util.arrayFromSegmentBinaryLabelmap(sn, sid)
+                except Exception:
+                    a = None
+                if a is None or a.shape != shape:
+                    continue
+                total |= (a > 0)
+                n_seg += 1
+        out["status"] = "ok"
+        out["voxels"] = int(total.sum())
+        out["n_segments"] = n_seg
+except Exception as e:
+    out["status"] = "exception"
+    out["error"] = repr(e)
+__execResult.update(out)
+"""
+
+
+def _recover_after_timeout(base_url: str, voxels_before: int,
+                           logger: RunLogger, step: int) -> dict | None:
+    """If the proxy timed out, the click may still have landed — probe voxels."""
+    waits = (15, 25, 40)
+    for i, delay in enumerate(waits, 1):
+        logger.log(f"  504 recovery wait {i}/{len(waits)} ({delay}s)…")
+        time.sleep(delay)
         try:
-            result = json.loads(content)
-        except Exception:
-            raise RuntimeError(f"non-JSON exec reply: {content[:300]!r}")
-        result["_dt_s"] = round(time.time() - t0, 3)
-        return result
-    if last_err is not None:
-        raise last_err
-    raise RuntimeError("post_python: no attempts made")
+            probe = post_python(base_url, READ_TOTAL_VOXELS_SRC,
+                                timeout=90, retries=3, retry_sleep=10)
+        except Exception as exc:
+            logger.log(f"  recovery probe failed: {exc!r}")
+            continue
+        after = int(probe.get("voxels", 0))
+        if probe.get("status") == "ok" and after > voxels_before:
+            logger.log(f"  recovered: voxels {voxels_before:,} -> {after:,} "
+                       f"(+{after - voxels_before:,})")
+            return {
+                "status": "ok",
+                "recovered_after_timeout": True,
+                "voxels_before": voxels_before,
+                "voxels_after": after,
+                "delta": after - voxels_before,
+                "n_segments_after": probe.get("n_segments"),
+                "picked_ijk": [0, 0, 0],
+                "intensity": 0.0,
+                "skipped_inside": 0,
+                "candidates_left": -1,
+                "click_seconds": 0.0,
+                "made_new_segment": True,
+                "segment_id": "recovered",
+                "segment_voxels": after - voxels_before,
+            }
+    return None
+
+
+def _run_step_with_recovery(base_url: str, logger: RunLogger, step: int,
+                            voxels_before_hint: int,
+                            new_segment_per_click: bool) -> dict:
+    """One bright-seed step; survive 504 via retries + voxel probe."""
+    step_src = STEP_SRC_TEMPLATE.format(
+        click_positive=True,
+        new_segment=new_segment_per_click,
+    )
+    try:
+        r = post_python(base_url, step_src)
+    except RuntimeError as exc:
+        logger.log(f"  step transport error: {exc!r}")
+        logger.event("step_transport_error", step=step, error=repr(exc))
+        recovered = _recover_after_timeout(
+            base_url, voxels_before_hint, logger, step
+        )
+        if recovered is not None:
+            logger.event("step_recovered", step=step, **recovered)
+            return recovered
+        raise
+
+    if r.get("status") in ("ok", "no_more_candidates"):
+        return r
+
+    logger.log(f"  step returned {r.get('status')!r}, probing voxels…")
+    recovered = _recover_after_timeout(
+        base_url, voxels_before_hint, logger, step
+    )
+    if recovered is not None:
+        logger.event("step_recovered", step=step, **recovered)
+        return recovered
+    return r
+
+
+def _resource_config() -> dict:
+    return {
+        "min_available_gb": float(
+            os.environ.get("MORPHOCLAW_MIN_AVAILABLE_GB", "1.5")
+        ),
+        "max_slicer_family_mb": float(
+            os.environ.get("MORPHOCLAW_MAX_SLICER_FAMILY_MB", "0")
+        ),  # 0 = disabled
+        "ping_timeout_s": float(
+            os.environ.get("MORPHOCLAW_PING_TIMEOUT", "20")
+        ),
+        "ping_retries": int(os.environ.get("MORPHOCLAW_PING_RETRIES", "3")),
+        "ping_retry_sleep_s": float(
+            os.environ.get("MORPHOCLAW_PING_RETRY_SLEEP", "10")
+        ),
+    }
+
+
+def _format_resource_line(snap: dict) -> str:
+    parts = [
+        f"avail={snap.get('sys_available_mem_gb', '?')} GB",
+        f"slicer={snap.get('slicer_family_rss_mb', '?')} MB",
+    ]
+    if snap.get("fastapi_rss_mb") is not None:
+        parts.append(f"nnI={snap['fastapi_rss_mb']} MB")
+    if snap.get("sys_load_1") is not None:
+        parts.append(f"load={snap['sys_load_1']}")
+    if snap.get("n_scene_nodes") is not None:
+        parts.append(f"nodes={snap['n_scene_nodes']}")
+    return "  resources: " + "  ".join(parts)
+
+
+def _snapshot_resources(base_url: str, logger: RunLogger,
+                        step: int | None = None) -> dict:
+    try:
+        snap = post_python(
+            base_url, CAPTURE_REMOTE_RESOURCES_SRC,
+            timeout=30, retries=1, retry_sleep=5,
+        )
+    except RuntimeError as exc:
+        snap = {"status": "transport_error", "error": repr(exc)}
+    if step is not None:
+        snap["step"] = step
+    logger.event("resource_snapshot", **snap)
+    if snap.get("status") == "ok":
+        logger.log(_format_resource_line(snap))
+    else:
+        logger.log(f"  resources: probe failed ({snap.get('error', snap.get('status'))})")
+    return snap
+
+
+def _ping_slicer(base_url: str, timeout: float) -> bool:
+    try:
+        post_python(
+            base_url, PING_SLICER_SRC,
+            timeout=timeout, retries=0,
+        )
+        return True
+    except Exception:
+        return False
+
+
+def _ensure_slicer_responsive(base_url: str, logger: RunLogger,
+                              cfg: dict) -> bool:
+    """Ping Slicer; retry briefly on transient proxy timeouts."""
+    for attempt in range(1, cfg["ping_retries"] + 1):
+        if _ping_slicer(base_url, cfg["ping_timeout_s"]):
+            if attempt > 1:
+                logger.log(f"  slicer responsive (attempt {attempt})")
+            return True
+        if attempt < cfg["ping_retries"]:
+            logger.log(
+                f"  slicer ping failed — retry in {cfg['ping_retry_sleep_s']:.0f}s "
+                f"({attempt}/{cfg['ping_retries']})…"
+            )
+            logger.event(
+                "slicer_ping_failed",
+                attempt=attempt,
+                max_attempts=cfg["ping_retries"],
+            )
+            time.sleep(cfg["ping_retry_sleep_s"])
+    return False
+
+
+def _check_resource_exit(base_url: str, logger: RunLogger, step: int,
+                         cfg: dict) -> dict | None:
+    """Return a stop_reason when Jetstream is out of headroom; else None."""
+    if not _ensure_slicer_responsive(base_url, logger, cfg):
+        logger.log("  EXIT: Slicer unresponsive (resource / overload)")
+        logger.event("resource_exit", kind="slicer_unresponsive", step=step)
+        return {"reason": "resource_exhausted", "kind": "slicer_unresponsive",
+                "step": step}
+
+    snap = _snapshot_resources(base_url, logger, step=step)
+    if snap.get("status") != "ok":
+        logger.log("  EXIT: resource probe failed (Slicer overloaded)")
+        logger.event("resource_exit", kind="probe_failed", step=step, **snap)
+        return {"reason": "resource_exhausted", "kind": "probe_failed",
+                "step": step, "details": snap}
+
+    avail_raw = snap.get("sys_available_mem_gb")
+    family_raw = snap.get("slicer_family_rss_mb")
+    if avail_raw is not None:
+        avail = float(avail_raw)
+        if avail < cfg["min_available_gb"]:
+            logger.log(
+                f"  EXIT: available RAM {avail:.1f} GB "
+                f"< {cfg['min_available_gb']} GB"
+            )
+            logger.event("resource_exit", kind="low_memory", step=step, **snap)
+            return {"reason": "resource_exhausted", "kind": "low_memory",
+                    "step": step, "available_gb": avail,
+                    "threshold_gb": cfg["min_available_gb"], **snap}
+
+    if family_raw is not None and cfg["max_slicer_family_mb"] > 0:
+        family = float(family_raw)
+        if family > cfg["max_slicer_family_mb"]:
+            logger.log(
+                f"  EXIT: Slicer RSS {family:.0f} MB "
+                f"> {cfg['max_slicer_family_mb']:.0f} MB"
+            )
+            logger.event("resource_exit", kind="high_slicer_rss", step=step, **snap)
+            return {"reason": "resource_exhausted", "kind": "high_slicer_rss",
+                    "step": step, "slicer_family_mb": family,
+                    "threshold_mb": cfg["max_slicer_family_mb"], **snap}
+
+    return None
 
 
 # Recipe that returns base64-encoded PNGs of each Slicer widget's *actual*
@@ -636,16 +911,26 @@ def main(argv: list[str] | None = None) -> int:
                    help="skip exporting per-segment + composite NIfTI "
                         "labelmaps as run artifacts (saves bandwidth, but "
                         "results then aren't independently reproducible)")
+    p.add_argument("--skip-remote-env", action="store_true",
+                   help="skip heavy remote env capture (FastAPI probes, "
+                        "model hashes); use lightweight resource snapshot "
+                        "instead — recommended for long continuation runs")
+    p.add_argument("--skip-failed-steps", action="store_true",
+                   help="on transport/remote step errors, log and continue "
+                        "instead of aborting the run")
+    p.add_argument("--skip-volume-hash", action="store_true",
+                   help="skip hashing the active volume at startup (faster "
+                        "when continuing an existing scene)")
+    p.add_argument("--no-resource-monitor", action="store_true",
+                   help="disable per-step Slicer ping + memory exit checks")
+    p.add_argument("--min-available-gb", type=float, default=None,
+                   help="exit when Jetstream available RAM drops below this "
+                        "(default: MORPHOCLAW_MIN_AVAILABLE_GB or 1.5)")
     p.add_argument("--label", type=str, default=None,
                    help="optional label embedded in the run id "
                         "(e.g. 'mouse_skull')")
     p.add_argument("--out-dir", type=Path,
                    default=Path("runs") / time.strftime("bright_%Y%m%d_%H%M%S"))
-    p.add_argument("--skip-remote-env", action="store_true",
-                   help="skip slow Slicer/plugin env probe (continuation runs)")
-    p.add_argument("--skip-failed-steps", action="store_true",
-                   help="on transport/remote step errors, log and continue "
-                        "instead of aborting the run")
     args = p.parse_args(argv)
 
     if args.no_stop_rules:
@@ -654,6 +939,9 @@ def main(argv: list[str] | None = None) -> int:
         args.max_explosion_frac = 1.0
 
     base_url = _read_url()
+    resource_cfg = _resource_config()
+    if args.min_available_gb is not None:
+        resource_cfg["min_available_gb"] = args.min_available_gb
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
     # ------------------------------------------------------------------
@@ -673,6 +961,11 @@ def main(argv: list[str] | None = None) -> int:
     logger.log(f"percentile   : {args.intensity_percentile}")
     logger.log(f"max steps    : {args.max_steps}")
     logger.log(f"min delta    : {args.min_delta}  (patience={args.patience})")
+    if not args.no_resource_monitor:
+        logger.log(
+            f"resources    : exit if avail<{resource_cfg['min_available_gb']} GB  "
+            f"ping_timeout={resource_cfg['ping_timeout_s']}s"
+        )
     logger.log("")
 
     # Local environment (this Mac, git commit, package versions, env vars)
@@ -683,13 +976,23 @@ def main(argv: list[str] | None = None) -> int:
         logger.log("WARNING: working tree is dirty; the recorded git_commit "
                    "may not match the script that's running.")
 
-    # Remote environment (Slicer + plugin + nnInteractive + torch + device)
+    # Remote environment — full capture is slow and can wedge an overloaded
+    # Slicer; continuation runs should pass --skip-remote-env.
     if args.skip_remote_env:
-        logger.log("-> Skipping remote environment capture (--skip-remote-env)")
+        logger.log("-> Lightweight remote resource snapshot (skip heavy env)…")
+        try:
+            snap = _snapshot_resources(base_url, logger)
+            logger.record_remote_env({"lightweight": True, **snap})
+        except Exception as e:
+            logger.log(f"   resource snapshot failed: {e!r}")
+            logger.event("resource_snapshot_failed", error=repr(e))
     else:
         logger.log("-> Capturing remote environment (Slicer/plugin/torch)…")
         try:
-            remote_env = post_python(base_url, CAPTURE_REMOTE_ENV_SRC, timeout=60)
+            remote_env = post_python(
+                base_url, CAPTURE_REMOTE_ENV_SRC,
+                timeout=60, retries=1, retry_sleep=10,
+            )
             logger.record_remote_env(remote_env)
             logger.log(f"   slicer       : {remote_env.get('slicer_version')}")
             logger.log(f"   torch        : {remote_env.get('torch_version')}  "
@@ -700,9 +1003,15 @@ def main(argv: list[str] | None = None) -> int:
                 logger.log(f"   plugin commit: {remote_env['slicernninteractive_git_commit']}")
             if "nninteractive_model_total_bytes" in remote_env:
                 logger.log(f"   model bytes  : {remote_env['nninteractive_model_total_bytes']:,}")
+            logger.log(_format_resource_line(remote_env))
         except Exception as e:
             logger.log(f"   remote env capture failed: {e!r}")
             logger.event("remote_env_failed", error=repr(e))
+            try:
+                snap = _snapshot_resources(base_url, logger)
+                logger.log("   (fallback resource snapshot succeeded)")
+            except Exception as e2:
+                logger.log(f"   fallback resource snapshot also failed: {e2!r}")
 
     # ------------------------------------------------------------------
     # Volume selection + reset + visibility
@@ -711,7 +1020,7 @@ def main(argv: list[str] | None = None) -> int:
         logger.log(f"-> Setting active volume to {args.volume!r}")
         r = post_python(base_url,
                         SET_ACTIVE_VOLUME_SRC_TEMPLATE.format(target_name=args.volume),
-                        timeout=180)
+                        timeout=20)
         if r.get("status") != "ok":
             logger.log(f"   FAILED: {r}")
             logger.event("volume_set_failed", **r)
@@ -722,17 +1031,23 @@ def main(argv: list[str] | None = None) -> int:
                    f"spacing={r.get('spacing_mm')}")
 
     # Hash the input volume — the single most important provenance step
-    logger.log("-> Hashing active volume…")
-    vol_meta = post_python(base_url, HASH_ACTIVE_VOLUME_SRC, timeout=120)
-    if vol_meta.get("status") != "ok":
-        logger.log(f"   FAILED: {vol_meta}")
-        logger.event("volume_hash_failed", **vol_meta)
-        logger.finalize(stop_reason={"reason": "volume_hash_failed",
-                                     "details": vol_meta})
-        return 2
-    logger.record_inputs(vol_meta)
-    logger.log(f"   sha256(voxels) = {vol_meta['sha256_voxels'][:16]}…  "
-               f"shape={vol_meta['shape_kji']}  dtype={vol_meta['dtype']}")
+    if args.skip_volume_hash:
+        logger.log("-> Skipping volume hash (--skip-volume-hash)")
+        logger.event("volume_hash_skipped")
+    else:
+        logger.log("-> Hashing active volume…")
+        vol_meta = post_python(
+            base_url, HASH_ACTIVE_VOLUME_SRC, timeout=120, retries=2, retry_sleep=10,
+        )
+        if vol_meta.get("status") != "ok":
+            logger.log(f"   FAILED: {vol_meta}")
+            logger.event("volume_hash_failed", **vol_meta)
+            logger.finalize(stop_reason={"reason": "volume_hash_failed",
+                                         "details": vol_meta})
+            return 2
+        logger.record_inputs(vol_meta)
+        logger.log(f"   sha256(voxels) = {vol_meta['sha256_voxels'][:16]}…  "
+                   f"shape={vol_meta['shape_kji']}  dtype={vol_meta['dtype']}")
 
     if args.reset_first:
         logger.log("-> Resetting segmentation (server + scene)…")
@@ -785,19 +1100,32 @@ def main(argv: list[str] | None = None) -> int:
 
         logger.log(f"--- Step {step:02d} -----------------------------------------")
         logger.event("step_begin", step=step)
+
+        if not args.no_resource_monitor:
+            exit_reason = _check_resource_exit(
+                base_url, logger, step, resource_cfg,
+            )
+            if exit_reason is not None:
+                stop_reason = exit_reason
+                break
+
+        voxels_before_hint = int(history[-1]["voxels_after"]) if history else 0
         t_step0 = time.time()
         try:
-            r = post_python(
-                base_url,
-                STEP_SRC_TEMPLATE.format(
-                    click_positive=True,
-                    new_segment=new_segment_per_click,
-                ),
-                timeout=360,
-                retries=8,
+            r = _run_step_with_recovery(
+                base_url, logger, step, voxels_before_hint, new_segment_per_click,
             )
-        except RuntimeError as e:
-            r = {"status": "transport_error", "error": repr(e)}
+        except RuntimeError as exc:
+            logger.log(f"  STEP unrecoverable: {exc!r}")
+            logger.event("step_failed", step=step, error=repr(exc))
+            if args.skip_failed_steps:
+                logger.log("  (continuing — --skip-failed-steps)")
+                continue
+            stop_reason = {"reason": "step_failed", "step": step,
+                           "error": repr(exc)}
+            logger.finalize(stop_reason=stop_reason,
+                            summary={"steps": len(history), "history": history})
+            return 4
         r["step"] = step
         r["step_wallclock_s"] = round(time.time() - t_step0, 3)
 
@@ -821,7 +1149,7 @@ def main(argv: list[str] | None = None) -> int:
                 continue
             stop_reason = {"reason": "step_failed", "step": step, "details": r}
             logger.finalize(stop_reason=stop_reason,
-                             summary={"steps": len(history), "history": history})
+                            summary={"steps": len(history), "history": history})
             return 4
 
         ijk = r["picked_ijk"]
@@ -829,18 +1157,22 @@ def main(argv: list[str] | None = None) -> int:
         before = r["voxels_before"]
         after = r["voxels_after"]
         delta = r["delta"]
-        skipped = r["skipped_inside"]
-        cand_left = r["candidates_left"]
-        click_s = r["click_seconds"]
+        skipped = r.get("skipped_inside", 0)
+        cand_left = r.get("candidates_left", -1)
+        click_s = r.get("click_seconds", 0.0)
         seg_id = r.get("segment_id")
         seg_vox = r.get("segment_voxels", 0)
         n_segs = r.get("n_segments_after", "?")
         new_seg = "new-seg" if r.get("made_new_segment") else "same-seg"
-        logger.log(f"  picked ijk={ijk}  intensity={intensity:.1f}  {new_seg}  "
-                   f"segments={n_segs}  skipped_inside={skipped}  candidates_left={cand_left:,}")
-        logger.log(f"  voxels {before:>10,} -> {after:>10,}  delta={delta:+,}  "
-                   f"this segment: {seg_id} = {seg_vox:,} vox  ({click_s}s remote, "
-                   f"{r['step_wallclock_s']}s round-trip)")
+        if r.get("recovered_after_timeout"):
+            logger.log(f"  recovered after proxy timeout: voxels {before:,} -> {after:,} "
+                       f"(+{delta:,})  segments={n_segs}")
+        else:
+            logger.log(f"  picked ijk={ijk}  intensity={intensity:.1f}  {new_seg}  "
+                       f"segments={n_segs}  skipped_inside={skipped}  candidates_left={cand_left:,}")
+            logger.log(f"  voxels {before:>10,} -> {after:>10,}  delta={delta:+,}  "
+                       f"this segment: {seg_id} = {seg_vox:,} vox  ({click_s}s remote, "
+                       f"{r['step_wallclock_s']}s round-trip)")
 
         if not args.no_screenshots:
             try:

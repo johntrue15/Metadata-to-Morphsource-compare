@@ -147,7 +147,9 @@ jobs:
 
   research-pipeline:
     name: Run Iterative Research Pipeline
-    runs-on: self-hosted
+    # Light scraping / scripting — the Mac mini's `morphosource` runner
+    # is the intended target. See .cursor/rules/morphoclaw-runner.mdc.
+    runs-on: [self-hosted, morphosource]
     needs: create-research-issue
     permissions:
       issues: write

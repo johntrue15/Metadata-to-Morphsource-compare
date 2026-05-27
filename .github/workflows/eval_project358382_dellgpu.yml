@@ -1,0 +1,115 @@
+name: Project 358382 pilot — Dell GPU runner
+
+# Drives the project-358382 pilot on the DellXPS-wsl-gpu self-hosted
+# runner. This is the right place for the *light* GPU bits:
+#   - mesh-only morphometrics
+#   - voxelization at full resolution
+#   - quick MONAI inference passes
+#   - CT preparation (TIFF/DICOM → NIfTI)
+# Heavier interactive segmentation (Slicer + nnInteractive Web Server)
+# usually lives on Jetstream (see eval_project358382_jetstream.yml),
+# but this runner has nnInteractive + Slicer too — see the morphoclaw-runner
+# rule and docs/RUNNER_TOPOLOGY.md.
+#
+# Manually-triggered only until we want it on every PR; that lets us
+# add it without queuing new jobs against a runner that may be offline.
+
+on:
+  workflow_dispatch:
+    inputs:
+      manifest:
+        description: 'Path to specimen manifest (relative to repo root)'
+        required: false
+        type: string
+        default: 'Tests/fixtures/jetstream_replay/cached_specimens.json'
+      specimens:
+        description: 'Number of specimens to evaluate'
+        required: false
+        type: string
+        default: '1'
+      budgets:
+        description: 'Comma-separated click budgets'
+        required: false
+        type: string
+        default: '10,25'
+      record_to:
+        description: 'If set, --record-to <path> (relative); use to refresh fixtures'
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  pilot:
+    name: Project-358382 pilot on Dell GPU
+    # Use the most specific label set per .cursor/rules/morphoclaw-runner.mdc
+    # so the Mac mini doesn't accidentally pick this up.
+    runs-on: [self-hosted, gpu, nninteractive]
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Show runner identity
+        run: |
+          echo "host: $(hostname)"
+          echo "user: $(whoami)"
+          uname -a
+          if command -v nvidia-smi >/dev/null 2>&1; then
+            nvidia-smi || true
+          fi
+
+      - name: Resolve runner env (NNINTERACTIVE_HOME, SLICER_BIN, ...)
+        id: env
+        run: |
+          # Per the morphoclaw-runner rule, the runner ships a per-host .env
+          # next to the runner binary. The runner-smoke workflow is the
+          # canonical example; we mirror its lookup here.
+          if [[ -f "$HOME/.morphoclaw/runner.env" ]]; then
+            set -a; . "$HOME/.morphoclaw/runner.env"; set +a
+          fi
+          : "${NNINTERACTIVE_HOME:=$HOME/.autoresearchclaw/nninteractive}"
+          PY="$NNINTERACTIVE_HOME/bin/python"
+          if [[ ! -x "$PY" ]]; then
+            echo "ERROR: nnInteractive venv missing at $PY"
+            exit 1
+          fi
+          echo "PY=$PY"            >> "$GITHUB_ENV"
+          echo "NNI_PY_BIN=$PY"    >> "$GITHUB_ENV"
+          echo "NNINTERACTIVE_HOME=$NNINTERACTIVE_HOME" >> "$GITHUB_ENV"
+
+      - name: Sanity import (no GPU yet)
+        run: |
+          "$PY" -c "import numpy, SimpleITK, vtk; print('numpy', numpy.__version__)"
+
+      - name: Run the pilot
+        env:
+          MANIFEST: ${{ github.event.inputs.manifest }}
+          SPECIMENS: ${{ github.event.inputs.specimens }}
+          BUDGETS: ${{ github.event.inputs.budgets }}
+          RECORD_TO: ${{ github.event.inputs.record_to }}
+        run: |
+          OUT_DIR="${RUNNER_TEMP:-/tmp}/pilot_dellgpu_$(date +%Y%m%dT%H%M%S)"
+          mkdir -p "$OUT_DIR"
+          extra_args=()
+          if [[ -n "$RECORD_TO" ]]; then
+            mkdir -p "$RECORD_TO"
+            extra_args+=(--record-to "$RECORD_TO")
+          fi
+          "$PY" .github/scripts/eval_project358382_pilot.py \
+            --project-id 000358382 \
+            --project-query "Colors of Skull Anatomy" \
+            --cached-specimens "$MANIFEST" \
+            --specimens "$SPECIMENS" \
+            --budgets "$BUDGETS" \
+            --no-screenshots \
+            --out-dir "$OUT_DIR" \
+            "${extra_args[@]}"
+          echo "OUT_DIR=$OUT_DIR" >> "$GITHUB_ENV"
+
+      - name: Upload pilot bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pilot_bundle_dellgpu_${{ github.run_id }}
+          path: ${{ env.OUT_DIR }}
+          if-no-files-found: warn

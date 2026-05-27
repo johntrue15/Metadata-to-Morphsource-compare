@@ -61,7 +61,12 @@ concurrency:
 jobs:
   live:
     name: Real chameleon-stapes round
-    runs-on: self-hosted
+    # Per .cursor/rules/morphoclaw-runner.mdc + docs/RUNNER_TOPOLOGY.md:
+    # use the most specific label set so this lands on the DellXPS-wsl-gpu
+    # box (which has CUDA + nnInteractive + Slicer). Bare `self-hosted`
+    # could route to the Mac mini, which can no longer carry SimpleITK /
+    # vtk / numpy reliably.
+    runs-on: [self-hosted, gpu, nninteractive]
     permissions:
       contents: read
       issues: write

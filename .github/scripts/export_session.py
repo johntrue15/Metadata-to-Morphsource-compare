@@ -871,6 +871,20 @@ def main(argv: list[str] | None = None) -> int:
                    help="Do not contact the remote Slicer. Skip the "
                         "live volume + segmentation dump; reuse the "
                         "newest run's per-segment artifacts on disk.")
+    p.add_argument("--inline", action="store_true",
+                   help="Use legacy single-shot base64 /exec dumps "
+                        "(often hit the ~60 s proxy idle timeout). "
+                        "Default is chunked server-side save + 4 MB reads.")
+    p.add_argument("--seg-batch-size", type=int, default=5,
+                   help="Segments per server-side save batch when using "
+                        "chunked export (default: 5).")
+    p.add_argument("--inline", action="store_true",
+                   help="Use legacy single-shot base64 dumps (often hit "
+                        "the ~60 s Exosphere proxy idle timeout). "
+                        "Default is chunked server-side save + 4 MB reads.")
+    p.add_argument("--seg-batch-size", type=int, default=5,
+                   help="Segments per server-side save batch when using "
+                        "chunked export (default: 5).")
     p.add_argument("--target-volume-for-replay", type=str, default=None,
                    help="Default --target-volume passed to the generated "
                         "replay.sh. Defaults to the source volume name "
@@ -941,14 +955,23 @@ def main(argv: list[str] | None = None) -> int:
     volume_record = None
     seg_record = None
     if not args.offline:
-        print("\n• Live exports from Slicer:")
+        print("\n• Live exports from Slicer "
+              f"({'inline base64' if args.inline else 'chunked'}):")
         args.out.mkdir(parents=True, exist_ok=True)
         try:
-            volume_record = dump_active_volume(base_url, args.out)
+            if args.inline:
+                volume_record = dump_active_volume(base_url, args.out)
+            else:
+                volume_record = chunked_dump_volume(base_url, args.out)
         except Exception as e:
             print(f"  ! volume dump failed: {e!r}")
         try:
-            seg_record = dump_final_segmentation(base_url, args.out)
+            if args.inline:
+                seg_record = dump_final_segmentation(base_url, args.out)
+            else:
+                seg_record = chunked_dump_segmentation(
+                    base_url, args.out, batch_size=args.seg_batch_size,
+                )
         except Exception as e:
             print(f"  ! segmentation dump failed: {e!r}")
 

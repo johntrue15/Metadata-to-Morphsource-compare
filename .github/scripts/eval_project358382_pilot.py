@@ -700,7 +700,8 @@ def _resample_cap_axis(ct_path: Path, gt_path: Path,
 def run_bright_seed(volume_name: str, out_dir: Path, label: str,
                      max_steps: int,
                      intensity_percentile: float = 99.0,
-                     no_screenshots: bool = False) -> int:
+                     no_screenshots: bool = False,
+                     reset_first: bool = True) -> int:
     """Run slicer_remote_bright_seed.main() in-process.
 
     Always passes ``--no-stop-rules`` so we can post-hoc slice unions at
@@ -710,13 +711,17 @@ def run_bright_seed(volume_name: str, out_dir: Path, label: str,
     import slicer_remote_bright_seed as bs
     argv = [
         "--volume", volume_name,
-        "--reset-first",
         "--intensity-percentile", str(intensity_percentile),
         "--max-steps", str(max_steps),
         "--no-stop-rules",
         "--label", label,
         "--out-dir", str(out_dir),
+        "--skip-remote-env",
     ]
+    if reset_first:
+        argv.append("--reset-first")
+    else:
+        argv.append("--skip-volume-hash")
     if no_screenshots:
         argv.append("--no-screenshots")
     log.info("bright_seed argv: %s", " ".join(argv))
@@ -1057,10 +1062,14 @@ def run_specimen(pair: SpecimenPair, specimen_dir: Path,
                 )
                 last_pct[0] = pct
 
+        # NOTE: chunk_bytes / per_chunk_timeout / load_timeout deliberately
+        # left at the new push_volume defaults (2 MiB / 180 s / 300 s + 3
+        # retries) — see remote_volume_io.push_volume docstring. The old
+        # 6 MiB / 60 s tuning was empirically too tight: ~210 KB/s observed
+        # upstream meant a 6 MiB chunk could land in 30 s on average but
+        # occasionally exceed 60 s, killing the entire upload mid-stream
+        # (3/3 specimens failed in runs/pilot_project358382_20260524T140322).
         push = push_volume(base_url, cropped_ct, name=push_name,
-                            chunk_bytes=6 * 1024 * 1024,
-                            per_chunk_timeout=60.0,
-                            load_timeout=240.0,
                             progress=_push_progress)
     except Exception as exc:
         result.error = f"push_volume_failed: {exc!r}"
@@ -1519,11 +1528,97 @@ def _parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     p.add_argument("--max-pages", type=int, default=5,
                    help="Max pages to pull during discovery (default 5)")
     p.add_argument("-v", "--verbose", action="store_true")
+    p.add_argument("--force-local", action="store_true",
+                   help="Override the driver/tool doctrine guard (docs/"
+                        "RUNNER_TOPOLOGY.md). Allows a live pilot run on "
+                        "the Mac mini driver. Use with care — the morning "
+                        "of 2026-05-24 is the cautionary tale (17 GB of "
+                        "MorphoSource downloads + cropped NIfTI on the "
+                        "driver -> disk to 100 percent, OSError(28)). "
+                        "Equivalent to MORPHOCLAW_FORCE_MAC_PILOT=1.")
     return p.parse_args(argv)
+
+
+def _enforce_driver_doctrine(args: argparse.Namespace) -> None:
+    """Refuse live pilot runs on the Mac mini driver.
+
+    Per docs/RUNNER_TOPOLOGY.md, the Mac mini is a driver only. Live
+    `eval_project358382_pilot.py` runs download MorphoSource archives,
+    convert TIFF/DICOM to NIfTI, crop, voxelize, and push to Slicer —
+    most of those phases are explicitly "NOT OK on the Mac mini" in the
+    doctrine. This guard catches the case where someone (human or AI
+    agent) pastes the raw `python ... eval_project358382_pilot.py` command
+    into a local Mac terminal instead of dispatching to Dell/Jetstream.
+
+    Allowed on Darwin without override:
+
+    - ``--help`` / ``--dry-run`` (no heavy work)
+    - ``--replay-from <DIR>`` (deterministic fixture playback)
+    - ``--cached-specimens <FILE> --no-download`` (driver-only orchestration
+      using pre-prepared volumes; matches the offline replay path)
+
+    Override paths (escape hatches, for the rare case the Mac mini really
+    is the right host — e.g. one-shot debugging with a tiny specimen):
+
+    - CLI: ``--force-local``
+    - env: ``MORPHOCLAW_FORCE_MAC_PILOT=1``
+    """
+    if sys.platform != "darwin":
+        return
+    if os.environ.get("MORPHOCLAW_FORCE_MAC_PILOT") == "1":
+        return
+    if getattr(args, "force_local", False):
+        return
+    if getattr(args, "dry_run", False):
+        return
+    if getattr(args, "replay_from", None) is not None:
+        return
+    if (getattr(args, "cached_specimens", None) is not None
+            and getattr(args, "no_download", False)):
+        return
+
+    sys.stderr.write(
+        "\n"
+        "================================================================\n"
+        "REFUSING: live pilot run on the Mac mini driver.\n"
+        "================================================================\n"
+        "docs/RUNNER_TOPOLOGY.md classifies CT prep (TIFF/DICOM -> NIfTI),\n"
+        "crop, mesh voxelization, and full-res MorphoSource caches as\n"
+        "NOT-OK on the Mac mini. On 2026-05-24 a local run here filled\n"
+        "the workspace disk to 100% (17 GB of cached downloads + crops)\n"
+        "and the pilot died at OSError(28) after 1 of 3 specimens.\n"
+        "\n"
+        "Use one of the supported launch paths instead:\n"
+        "\n"
+        "  make pilot-dell SPECIMENS=3 BUDGETS=10,25,50,100\n"
+        "      Dispatch on the Dell GPU runner via gh workflow run.\n"
+        "      Works today; this is the recommended default.\n"
+        "\n"
+        "  make pilot-jetstream SPECIMENS=3 BUDGETS=10,25,50,100\n"
+        "      Dispatch on the Jetstream2 runner. Requires the JS2 GHA\n"
+        "      runner to be registered (Phase 3 of the runner-topology\n"
+        "      rollout; see docs/RUNNER_TOPOLOGY.md migration checklist).\n"
+        "\n"
+        "  python .github/scripts/eval_project358382_pilot.py --dry-run\n"
+        "      Validate discovery + arg parsing on Mac without touching\n"
+        "      MorphoSource, Slicer, or nnInteractive.\n"
+        "\n"
+        "  python .github/scripts/eval_project358382_pilot.py \\\n"
+        "      --cached-specimens <FILE> --no-download --replay-from <DIR>\n"
+        "      Offline replay against committed JSONL fixtures. Safe on\n"
+        "      Mac because no downloads + no live HTTP to Jetstream.\n"
+        "\n"
+        "Escape hatch (use only if you understand the failure mode):\n"
+        "  --force-local              (CLI flag)\n"
+        "  MORPHOCLAW_FORCE_MAC_PILOT=1   (environment variable)\n"
+        "================================================================\n"
+    )
+    sys.exit(2)
 
 
 def main(argv: Optional[list[str]] = None) -> int:
     args = _parse_args(argv)
+    _enforce_driver_doctrine(args)
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",

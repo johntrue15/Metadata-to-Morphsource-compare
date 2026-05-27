@@ -1,0 +1,137 @@
+name: Project 358382 pilot — Jetstream2 runner
+
+# Drives the project-358382 pilot on a Jetstream2 self-hosted runner.
+# Jetstream is the *heavy* GPU/Slicer host: full nnInteractive Web
+# Server, full Slicer, full base64-over-/slicer/exec push pipeline.
+#
+# The runner does not exist yet (label `jetstream` will be assigned once
+# the agent is registered next to Slicer). Until then this workflow is
+# `workflow_dispatch`-only and will queue indefinitely if invoked. See
+# docs/RUNNER_TOPOLOGY.md for the registration plan.
+#
+# When the runner is online, candidates for routine triggers:
+#   - on PR labels: `jetstream-pilot`
+#   - on schedule: weekly fixture refresh against live Jetstream
+#   - on tag: paper-grade results bundle generation
+
+on:
+  workflow_dispatch:
+    inputs:
+      manifest:
+        description: 'Path to specimen manifest (relative to repo root)'
+        required: false
+        type: string
+        default: 'Tests/fixtures/jetstream_replay/cached_specimens.json'
+      specimens:
+        description: 'Number of specimens to evaluate'
+        required: false
+        type: string
+        default: '3'
+      budgets:
+        description: 'Comma-separated click budgets'
+        required: false
+        type: string
+        default: '10,25,50,100'
+      slicer_url:
+        description: 'Slicer Web Server URL on the runner host'
+        required: false
+        type: string
+        default: 'http://127.0.0.1:2016/'
+      record_fixtures:
+        description: 'Capture HTTP transcripts to Tests/fixtures/jetstream_replay/sessions and open a PR'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  pilot:
+    name: Project-358382 pilot on Jetstream2
+    runs-on: [self-hosted, jetstream]
+    timeout-minutes: 240
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Show runner identity
+        run: |
+          echo "host: $(hostname)"
+          echo "user: $(whoami)"
+          uname -a
+          if command -v nvidia-smi >/dev/null 2>&1; then
+            nvidia-smi || true
+          fi
+
+      - name: Resolve Jetstream env
+        run: |
+          if [[ -f "$HOME/.morphoclaw/runner.env" ]]; then
+            set -a; . "$HOME/.morphoclaw/runner.env"; set +a
+          fi
+          : "${NNINTERACTIVE_HOME:=$HOME/.autoresearchclaw/nninteractive}"
+          PY="$NNINTERACTIVE_HOME/bin/python"
+          if [[ ! -x "$PY" ]]; then
+            echo "ERROR: nnInteractive venv missing at $PY"
+            exit 1
+          fi
+          echo "PY=$PY"            >> "$GITHUB_ENV"
+          echo "NNI_PY_BIN=$PY"    >> "$GITHUB_ENV"
+
+      - name: Slicer Web Server health probe
+        env:
+          SLICER_URL: ${{ github.event.inputs.slicer_url }}
+        run: |
+          # Don't fail the workflow if Slicer isn't up — emit a clear
+          # message so the operator knows what to start.
+          if curl -fsS -m 5 "$SLICER_URL" >/dev/null; then
+            echo "Slicer Web Server reachable at $SLICER_URL"
+          else
+            echo "WARNING: Slicer Web Server not reachable at $SLICER_URL"
+            echo "         Start Slicer with the WebServer extension before re-running."
+            exit 2
+          fi
+
+      - name: Run the pilot
+        env:
+          MANIFEST: ${{ github.event.inputs.manifest }}
+          SPECIMENS: ${{ github.event.inputs.specimens }}
+          BUDGETS: ${{ github.event.inputs.budgets }}
+          SLICER_WEBSERVER_URL: ${{ github.event.inputs.slicer_url }}
+          NNI_REMOTE_URL: ${{ github.event.inputs.slicer_url }}
+          RECORD_FIXTURES: ${{ github.event.inputs.record_fixtures }}
+        run: |
+          OUT_DIR="${RUNNER_TEMP:-/tmp}/pilot_jetstream_$(date +%Y%m%dT%H%M%S)"
+          mkdir -p "$OUT_DIR"
+          extra_args=()
+          if [[ "$RECORD_FIXTURES" == "true" ]]; then
+            extra_args+=(--record-to Tests/fixtures/jetstream_replay/sessions)
+          fi
+          "$PY" .github/scripts/eval_project358382_pilot.py \
+            --project-id 000358382 \
+            --project-query "Colors of Skull Anatomy" \
+            --cached-specimens "$MANIFEST" \
+            --specimens "$SPECIMENS" \
+            --budgets "$BUDGETS" \
+            --no-screenshots \
+            --out-dir "$OUT_DIR" \
+            "${extra_args[@]}"
+          echo "OUT_DIR=$OUT_DIR" >> "$GITHUB_ENV"
+
+      - name: Upload pilot bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pilot_bundle_jetstream_${{ github.run_id }}
+          path: ${{ env.OUT_DIR }}
+          if-no-files-found: warn
+
+      - name: Open PR with refreshed fixtures
+        if: ${{ github.event.inputs.record_fixtures == 'true' }}
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: 'fix(replay): refresh JSONL fixtures from live Jetstream'
+          title: 'replay: refresh JSONL fixtures from live Jetstream'
+          body: |
+            Refreshed `Tests/fixtures/jetstream_replay/sessions/*.jsonl` from a
+            live run against Jetstream2. Triggered by ${{ github.actor }}.
+          branch: replay/refresh-jetstream-fixtures
+          add-paths: |
+            Tests/fixtures/jetstream_replay/sessions/*.jsonl

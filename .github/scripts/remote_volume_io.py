@@ -63,31 +63,79 @@ except Exception:  # pragma: no cover
 # HTTP helper (mirrors the one in slicer_remote_bright_seed)
 # ---------------------------------------------------------------------------
 
-def _post_python(base_url: str, source: str, timeout: float = 600) -> dict:
+def _post_python(base_url: str, source: str, timeout: float = 600,
+                 retries: int = 0, retry_sleep: float = 5.0) -> dict:
+    """POST a Python source string to /slicer/exec and return the parsed JSON.
+
+    Parameters
+    ----------
+    base_url : str
+    source : str
+        Python source to evaluate inside Slicer's process.
+    timeout : float
+        Per-attempt POST timeout (seconds).
+    retries : int
+        Retry budget for *transient* failures (TimeoutError, URLError,
+        OSError, or HTTP 5xx). 0 means single-attempt (legacy behaviour).
+        Each retry sleeps ``retry_sleep`` seconds before reissuing.
+        Non-transient failures (HTTP 4xx, non-JSON 200 body) raise
+        immediately because they're programming errors in our recipe.
+    retry_sleep : float
+        Seconds to sleep between retry attempts.
+    """
     body = source.encode("utf-8")
-    req = urllib.request.Request(
-        base_url.rstrip("/") + "/slicer/exec",
-        data=body, method="POST",
-        headers={"Content-Type": "text/plain"},
-    )
+    last_exc: Optional[BaseException] = None
     t0 = time.time()
-    try:
-        with urlopen_via_session(req, timeout=timeout) as resp:
-            content = resp.read()
-            status = resp.status
-    except urllib.error.HTTPError as e:
-        content = e.read()
-        status = e.code
-    if status != 200:
-        raise RuntimeError(
-            f"/slicer/exec -> HTTP {status}: {content[:300]!r}"
+    for attempt in range(retries + 1):
+        req = urllib.request.Request(
+            base_url.rstrip("/") + "/slicer/exec",
+            data=body, method="POST",
+            headers={"Content-Type": "text/plain"},
         )
-    try:
-        result = json.loads(content)
-    except Exception:
-        raise RuntimeError(f"non-JSON exec reply: {content[:300]!r}")
-    result["_dt_s"] = round(time.time() - t0, 3)
-    return result
+        try:
+            with urlopen_via_session(req, timeout=timeout) as resp:
+                content = resp.read()
+                status = resp.status
+        except urllib.error.HTTPError as e:
+            content = e.read()
+            status = e.code
+            # 5xx is transient (proxy hiccup, Slicer exec hung). 4xx is
+            # a bug in our recipe — don't retry.
+            if status < 500 or attempt >= retries:
+                raise RuntimeError(
+                    f"/slicer/exec -> HTTP {status}: {content[:300]!r}"
+                )
+            last_exc = e
+            time.sleep(retry_sleep)
+            continue
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            if attempt >= retries:
+                raise RuntimeError(
+                    f"/slicer/exec transport failure after "
+                    f"{attempt + 1} attempt(s): {e!r}"
+                ) from e
+            last_exc = e
+            time.sleep(retry_sleep)
+            continue
+
+        if status != 200:
+            raise RuntimeError(
+                f"/slicer/exec -> HTTP {status}: {content[:300]!r}"
+            )
+        try:
+            result = json.loads(content)
+        except Exception:
+            raise RuntimeError(f"non-JSON exec reply: {content[:300]!r}")
+        result["_dt_s"] = round(time.time() - t0, 3)
+        if attempt > 0:
+            result["_retries_used"] = attempt
+        return result
+
+    # Unreachable (loop body either returns or raises), but keep the
+    # type-checker happy.
+    raise RuntimeError(
+        f"/slicer/exec exhausted retries: {last_exc!r}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -397,19 +445,31 @@ def _sha256_file(path: Path) -> str:
 
 def push_volume(base_url: str, nifti_path: Path,
                 name: Optional[str] = None,
-                chunk_bytes: int = 6 * 1024 * 1024,
-                per_chunk_timeout: float = 60.0,
-                load_timeout: float = 240.0,
+                chunk_bytes: int = 2 * 1024 * 1024,
+                per_chunk_timeout: float = 180.0,
+                load_timeout: float = 300.0,
+                chunk_retries: int = 3,
+                chunk_retry_sleep: float = 5.0,
                 progress: Optional[Any] = None) -> dict:
     """Upload *nifti_path* to the Jetstream filesystem in chunks, then load.
 
     The chunked path keeps every individual ``/slicer/exec`` call below
-    the ~60 s nginx idle timeout that fronts the Slicer Web Server on
-    Exosphere. Each chunk decodes a base64-encoded slice of the file
-    and **appends** to the same temp file on Jetstream's local disk;
-    once the upload is complete, a separate /exec call invokes
-    ``slicer.util.loadVolume`` on the on-disk path (no upload, just a
-    file open).
+    the proxy idle timeout that fronts the Slicer Web Server on Exosphere.
+    Each chunk decodes a base64-encoded slice of the file and **appends**
+    to the same temp file on Jetstream's local disk; once the upload is
+    complete, a separate /exec call invokes ``slicer.util.loadVolume`` on
+    the on-disk path (no upload, just a file open).
+
+    Defaults are tuned for the empirically-observed Mac-mini upstream rate
+    of ~150-250 KB/s through the Exosphere proxy: 2 MiB chunks complete
+    in ~10-15 s, well under the 180 s per-chunk timeout. Transient
+    failures (proxy hiccup, transient 5xx, urllib timeout mid-stream) are
+    retried up to ``chunk_retries`` times — the recipe is idempotent
+    because each append rewrites the *exact same* base64 chunk to the
+    *exact same* file offset on success (the failed attempt's partial
+    bytes go to a closed-then-discarded socket, never to the file). The
+    final loadVolume call also retries because Slicer's loader has a
+    one-shot warmup that occasionally times out at first.
 
     Parameters
     ----------
@@ -420,14 +480,26 @@ def push_volume(base_url: str, nifti_path: Path,
     name : str, optional
         Slicer scene node name. Defaults to ``nifti_path.stem``.
     chunk_bytes : int
-        Size of each upload chunk in raw bytes (default 6 MiB,
-        ~8 MiB after base64). 6 MiB on a typical home connection
-        uploads in 5–15 s, well under the proxy idle timeout.
+        Size of each upload chunk in raw bytes (default 2 MiB,
+        ~2.7 MiB after base64). Smaller chunks = more round trips
+        but each one finishes well under the proxy idle timeout
+        even on a slow / variable upstream.
     per_chunk_timeout : float
-        Per-chunk POST timeout (default 60 s).
+        Per-chunk POST timeout (default 180 s). Generous because the
+        Exosphere proxy occasionally adds ~30-60 s of buffering jitter
+        on the first chunk after server startup.
     load_timeout : float
-        Final loadVolume call timeout (default 240 s; loadVolume on a
-        50 MB NIfTI typically takes 20–60 s).
+        Final loadVolume call timeout (default 300 s; loadVolume on a
+        50 MB NIfTI typically takes 20-60 s but the first call after a
+        fresh server start can hit 120-180 s).
+    chunk_retries : int
+        Retry budget per chunk for transient transport failures (default
+        3). Each retry re-uploads the *same* chunk to the *same* offset;
+        on Slicer's side, the append recipe only writes to the file on a
+        successful base64 decode + open, so a failed attempt can't
+        corrupt the on-disk file.
+    chunk_retry_sleep : float
+        Seconds to sleep between chunk retries (default 5 s).
     progress : callable(int, int), optional
         ``progress(uploaded_bytes, total_bytes)`` callback for
         long-running upload feedback.
@@ -453,6 +525,8 @@ def push_volume(base_url: str, nifti_path: Path,
         base_url,
         _build_init_source(name=name, sha256_expected=sha),
         timeout=per_chunk_timeout,
+        retries=chunk_retries,
+        retry_sleep=chunk_retry_sleep,
     )
     timings["init_s"] = init.get("_dt_s")
     if init.get("status") != "ok":
@@ -471,11 +545,14 @@ def push_volume(base_url: str, nifti_path: Path,
             _build_append_source(path=remote_path, data_b64=b64,
                                    chunk_index=i),
             timeout=per_chunk_timeout,
+            retries=chunk_retries,
+            retry_sleep=chunk_retry_sleep,
         )
         timings["chunks"].append({
             "i": i, "bytes": len(chunk),
             "dt_s": reply.get("_dt_s"),
             "remote_size_after": reply.get("file_size_after"),
+            "retries_used": reply.get("_retries_used", 0),
             "status": reply.get("status"),
         })
         if reply.get("status") != "ok":
@@ -495,6 +572,8 @@ def push_volume(base_url: str, nifti_path: Path,
         _build_load_from_path_source(path=remote_path, name=name,
                                         sha256_expected=sha),
         timeout=load_timeout,
+        retries=chunk_retries,
+        retry_sleep=chunk_retry_sleep,
     )
     timings["load_s"] = final.get("_dt_s")
     final["local_sha256"] = sha

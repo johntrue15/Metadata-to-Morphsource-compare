@@ -54,6 +54,44 @@ export SLICER_WEBSERVER_URL=http://127.0.0.1:2016/
 make jetstream-10click-smoke
 ```
 
+### Tuatara: mesh GT + GT-guided training loop
+
+The skull `.ply` (media `000358663`) is voxelized onto the staged CT grid to
+produce `tuatara_skull_000358663_gt_labelmap.nrrd`. The Mac driver then runs
+``slicer_remote_gt_guided.py``, which scores each nnInteractive click against
+that labelmap and picks the next click in the largest false-negative region
+(teacher signal for ``seg_train``).
+
+```bash
+# 1) GT labelmap from mesh (GPU host or Mac with MORPHOCLAW_FORCE_MAC_VOXELIZE=1)
+make tuatara-gt-labelmap
+
+# 2) GT-guided clicks on Jetstream + Dice report + ledger row
+export SLICER_WEBSERVER_URL=https://http-149-165-155-127-2016.proxy-js2-iu.exosphere.app/
+make tuatara-gt-guided-train MAX_STEPS=50
+
+# 3) Train student when you have more specimens in Tests/fixtures/*_seg_train.json
+python3 -m metadata_to_morphsource.seg_train round \\
+  --specimens Tests/fixtures/tuatara_seg_train.json \\
+  --run-dir runs/tuatara_seg_train --paper-tag tuatara_skull_v1
+```
+
+### Autocomplete clicks on Jetstream, then compare to mesh GT
+
+Keeps your current segments (no reset). Each new click is chosen in the
+largest **false-negative** region vs the voxelized `.ply`, until Dice ≥
+`TARGET_DICE` (default 0.95) or `MAX_STEPS` (default 200). Then exports the
+live scene and writes Dice at click budgets.
+
+```bash
+# On Jetstream: nninteractive-slicer-server on :1527 + Slicer Web Server :2016
+export SLICER_WEBSERVER_URL=https://http-149-165-155-127-2016.proxy-js2-iu.exosphere.app/
+# If Slicer named the volume tuatara_skull_000358663_ct_1:
+export SLICER_VOLUME_NAME=tuatara_skull_000358663_ct_1
+
+make tuatara-autocomplete-vs-gt
+```
+
 For each slug:
 
 - `<slug>_ct.nrrd` — scalar CT volume (single-file NRRD, gzip-encoded),

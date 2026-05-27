@@ -45,7 +45,7 @@ done
 
 mkdir -p "$OUT_DIR"
 
-if [[ ! -x "$CONVERTER" ]]; then
+if [[ ! -f "$CONVERTER" ]]; then
   echo "USDZ tools missing — run: bash scripts/macos/install_usdz_tools.sh"
   exit 1
 fi

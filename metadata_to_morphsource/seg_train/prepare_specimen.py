@@ -49,6 +49,17 @@ COMPARE_SCRIPT = SCRIPTS_DIR / "nninteractive_compare.py"
 # them by name without remembering MorphoSource media IDs. Keep this
 # list in sync with PRESETS in that script.
 PRESETS: dict[str, dict] = {
+    "tuatara_skull": {
+        "ct_media_id": "000011009",
+        "gt_media_id": "000358663",
+        "physical_object_id": "tuatara_skull_000358663",
+        "taxonomy": "Sphenodon punctatus",
+        "goal": "Segment the tuatara skull.",
+        "morphosource_query": "tuatara skull",
+        "max_steps": 50,
+        "crop_around_mesh_mm": 2.0,
+        "voxelize_backend": "trimesh",
+    },
     "chameleon_stapes": {
         "ct_media_id": "000408242",
         "gt_media_id": "000790324",

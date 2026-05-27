@@ -378,39 +378,33 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  ! click failed: {r}")
             break
 
-    # 5. Final segmentation export
+    # 5. Final segmentation export (chunked — survives proxy idle timeout)
     composite_match = None
     if not args.no_export:
-        print("\n• Exporting final segmentation…")
-        r = post_python(base_url, EXPORT_SEGMENTATION_SRC, timeout=900,
-                        retries=3, retry_sleep=8.0)
-        if r.get("status") != "ok":
-            jlog({"event": "export_failed", **{k: v for k, v in r.items()
-                                                if k != "per_segment"}})
-            print(f"  ! export failed: {r}")
-        else:
-            (out_dir / "segments").mkdir(parents=True, exist_ok=True)
-            for ps in r.get("per_segment", []):
-                if ps.get("data_b64"):
-                    (out_dir / "segments" / ps["filename"]).write_bytes(
-                        base64.b64decode(ps["data_b64"])
-                    )
-            if (r.get("composite") or {}).get("data_b64"):
-                data = base64.b64decode(r["composite"]["data_b64"])
-                (out_dir / "composite.nii.gz").write_bytes(data)
-                actual_comp_sha = hashlib.sha256(data).hexdigest()
-                expected_comp_sha = ((bundle["manifest"].get("final_segmentation") or {})
-                                      .get("composite") or {}).get("sha256")
-                composite_match = (expected_comp_sha == actual_comp_sha) \
-                                  if expected_comp_sha else None
-                jlog({"event": "composite_exported",
-                      "size_bytes": len(data),
-                      "actual_sha256": actual_comp_sha,
-                      "expected_sha256": expected_comp_sha,
-                      "match": composite_match})
-                print(f"  composite sha256: actual   = {actual_comp_sha}")
-                print(f"                    expected = {expected_comp_sha}")
-                print(f"                    match    = {composite_match}")
+        print("\n• Exporting final segmentation (chunked)…")
+        from export_session import chunked_dump_segmentation  # noqa: E402
+        try:
+            seg_out = chunked_dump_segmentation(base_url, out_dir)
+        except Exception as e:
+            jlog({"event": "export_failed", "error": repr(e)})
+            print(f"  ! export failed: {e!r}")
+            seg_out = None
+        if seg_out:
+            comp = seg_out.get("composite") or {}
+            actual_comp_sha = comp.get("sha256")
+            expected_comp_sha = ((bundle["manifest"].get("final_segmentation") or {})
+                                  .get("composite") or {}).get("sha256")
+            composite_match = (expected_comp_sha == actual_comp_sha) \
+                              if (expected_comp_sha and actual_comp_sha) else None
+            jlog({"event": "composite_exported",
+                  "actual_sha256": actual_comp_sha,
+                  "expected_sha256": expected_comp_sha,
+                  "match": composite_match,
+                  "segment_count": seg_out.get("segment_count")})
+            print(f"  segments exported : {seg_out.get('segment_count')}")
+            print(f"  composite sha256  : actual   = {actual_comp_sha}")
+            print(f"                      expected = {expected_comp_sha}")
+            print(f"                      match    = {composite_match}")
 
     # 6. Summary
     expected_deltas = [c.get("delta") for c in clicks]

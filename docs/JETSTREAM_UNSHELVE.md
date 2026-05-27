@@ -1,5 +1,11 @@
 # Reattaching to an unshelved Jetstream2 / MorphoCloud instance
 
+**Driver-side prep** for the heavy GPU tool in [RUNNER_TOPOLOGY.md](RUNNER_TOPOLOGY.md).
+Run `make unshelve` from the Mac mini (or any driver machine) — not to install
+Slicer/nnInteractive locally, but to refresh proxy URLs and restart services on
+Jetstream before scripts like `slicer_remote_bright_seed.py` or `export_session.py`
+call `/slicer/exec`.
+
 When the JS2 instance hosting the SlicerNNInteractive stack is shelved and
 later unshelved, two things break:
 
@@ -104,7 +110,44 @@ Step by step:
    for you to paste into Slicer's Python Interactor (View > Python
    Interactor) inside Guacamole. Press Enter and the script re-probes.
 7. **READY banner** — shows both URLs + the suggested 10-click pilot
-   command.
+   command. See "Next: launch the pilot" below.
+
+## Next: launch the pilot
+
+`make unshelve` is the one-and-only Mac-terminal flow that touches
+live infra. Once the READY banner prints, **do not** continue with a
+local `python eval_project358382_pilot.py …` invocation — the script
+has a Darwin guard that refuses, and the cautionary tale is the
+2026-05-24 incident (see
+[`docs/RUNNER_TOPOLOGY.md`](RUNNER_TOPOLOGY.md#2026-05-24-cautionary-tale-local-pilot-runs-are-forbidden)).
+
+Use the dispatch wrappers instead:
+
+```bash
+# Default: 3 specimens, budgets 10,25,50,100 on the Dell GPU runner.
+make pilot-dell
+
+# Override anything:
+make pilot-dell SPECIMENS=5 BUDGETS=10,25 \
+                MANIFEST=Tests/fixtures/jetstream_replay/cached_specimens.json \
+                RECORD_TO=Tests/fixtures/jetstream_replay/sessions/today
+
+# Tail the most recent run:
+make tail
+make tail RUN_ID=<id>
+make tail WORKFLOW=eval_project358382_dellgpu.yml
+
+# Once the JS2 GHA runner is registered (Phase 3 of the runner-topology
+# rollout), this replaces pilot-dell for runs that should land on the
+# Jetstream box `make unshelve` just brought up:
+make pilot-jetstream                       # refuses by default until Phase 3
+make pilot-jetstream JETSTREAM_PILOT_FORCE=1   # queues the workflow anyway
+```
+
+The intent: `make unshelve` brings the JS2 server up. Then either
+`make pilot-dell` (today) or `make pilot-jetstream` (after Phase 3)
+dispatches the actual pilot via `gh workflow run`. The Mac mini never
+runs the pilot itself.
 
 ## Common one-off variants
 

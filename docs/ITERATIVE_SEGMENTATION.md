@@ -156,14 +156,36 @@ These are the headline tables and figures for the publication's
 
 ## Operational guide
 
-### One-time bootstrap
+> **Compute target — May 2026 update.** The Mac mini is no longer the
+> training host. It is the *driver* (light scripting, MorphoSource
+> scraping, orchestration). All heavy iterations — voxelisation,
+> nnInteractive paint loops, MONAI student training — run on the
+> `DellXPS-wsl-gpu` self-hosted runner (labels
+> `self-hosted, gpu, nninteractive, slicer`) or on a Jetstream2
+> instance behind the `metadata_to_morphsource.jetstream_replay`
+> recorder. See [docs/RUNNER_TOPOLOGY.md](RUNNER_TOPOLOGY.md) for the
+> full driver / tool split.
+>
+> Local "round" commands below still work *if* you have a healthy
+> SimpleITK + numpy + vtk + nnInteractive stack on your developer
+> machine, but the supported path for reproducible, paper-grade runs
+> is the Dell GPU runner workflow.
+
+### One-time bootstrap (GPU runner only)
 
 ```bash
 .github/scripts/install_nninteractive.sh
 .github/scripts/install_seg_train_extras.sh
 ```
 
-### Run a round locally
+### Run a round on the GPU runner (preferred)
+
+Trigger **Actions → Iterative Segmentation Training → Run workflow**.
+The job pins itself to `[self-hosted, gpu, nninteractive]` so it can
+only land on the Dell box. Outputs land under `runs/<run_name>/` and
+get attached as a workflow artefact.
+
+### Run a round locally (developer-only)
 
 ```bash
 # 1. Discover specimens with curated meshes:
@@ -194,12 +216,12 @@ python -m metadata_to_morphsource.seg_train export \
     --output  runs/skull_v1/paper
 ```
 
-### Run on the GitHub Actions runner
-
-Trigger **Actions → Iterative Segmentation Training → Run workflow**;
-fill in `run_name`, `paper_tag`, `goal`. After Round 0 completes,
-download the artifact, find the `*.artifact.json` path inside, and pass
-it as `student_artifact` for Round 1.
+> **Note.** These commands import SimpleITK + numpy + vtk at runtime.
+> On a Mac mini with a broken Anaconda numpy install (a common state
+> on Apple Silicon) they will SIGSEGV; that's the proximate reason
+> we moved live training off the Mac mini. Stick to the
+> Dell GPU runner workflow unless you're actively developing the
+> trainer.
 
 ## Testing the pipeline
 

@@ -26,6 +26,7 @@ Modules
 - :mod:`student_model`         MONAI 3D U-Net (lazy torch import)
 - :mod:`pseudo_label_generator` nnInteractive + voxelize mesh wrapper
 - :mod:`confidence_router`     entropy-based dispatch policy
+- :mod:`gt_guided_clicker`     mesh-GT teacher clicks for active learning
 - :mod:`iterative_trainer`     round orchestrator
 - :mod:`paper_export`          plots / tables for publication
 - :mod:`cli`                   CLI: ``python -m metadata_to_morphsource.seg_train ...``

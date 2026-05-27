@@ -17,6 +17,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import sys
 import zipfile
 from pathlib import Path
@@ -31,6 +32,74 @@ log = logging.getLogger("MorphoDownload")
 
 BASE = MORPHOSOURCE_API_BASE
 TIMEOUT = (10, 120)
+
+
+def _default_min_free_gb() -> float:
+    """Floor on free disk space before any MorphoSource download proceeds.
+
+    Default 5 GiB; override with ``MORPHOSOURCE_MIN_FREE_GB`` env var.
+    Set to ``0`` to disable. Used by :func:`ensure_free_space` and
+    :func:`download_media` to fail fast instead of hitting OSError(28)
+    mid-download — see docs/RUNNER_TOPOLOGY.md and the 2026-05-24
+    cautionary incident (Mac driver -> 100% disk, pilot died at
+    specimen 2 of 3 with `OSError(28, 'No space left on device')`).
+    """
+    raw = os.environ.get("MORPHOSOURCE_MIN_FREE_GB", "").strip()
+    if not raw:
+        return 5.0
+    try:
+        return float(raw)
+    except ValueError:
+        log.warning("MORPHOSOURCE_MIN_FREE_GB=%r is not a float; using 5.0", raw)
+        return 5.0
+
+
+def ensure_free_space(target_dir: Path, min_free_gb: Optional[float] = None,
+                      label: str = "") -> None:
+    """Fail fast if ``target_dir``'s filesystem has less than ``min_free_gb``
+    free.
+
+    The check uses the parent (or first existing ancestor) of
+    ``target_dir`` so it works even when the directory hasn't been created
+    yet. Raises ``OSError(ENOSPC)`` with an actionable message; callers
+    can convert it to a ``{"success": False, "error": ...}`` dict.
+    """
+    if min_free_gb is None:
+        min_free_gb = _default_min_free_gb()
+    if min_free_gb <= 0:
+        return
+
+    probe = Path(target_dir)
+    # Walk up to the first existing ancestor (target_dir may not exist yet).
+    for _ in range(8):
+        if probe.exists():
+            break
+        if probe.parent == probe:
+            break
+        probe = probe.parent
+    try:
+        usage = shutil.disk_usage(str(probe))
+    except OSError as e:
+        log.warning("disk_usage(%s) failed: %s — skipping free-space check",
+                    probe, e)
+        return
+    free_gb = usage.free / (1024 ** 3)
+    if free_gb >= min_free_gb:
+        return
+
+    msg = (
+        f"\nRefusing to download {label or 'MorphoSource media'}: "
+        f"only {free_gb:.2f} GiB free on the filesystem under {probe} "
+        f"(threshold {min_free_gb:.2f} GiB).\n"
+        f"  This guard exists because the 2026-05-24 Mac-mini run filled "
+        f"the disk to 100% mid-download (OSError(28)).\n"
+        f"  Free more space, or override:\n"
+        f"    export MORPHOSOURCE_MIN_FREE_GB=0   # disable the guard\n"
+        f"    export MORPHOSOURCE_MIN_FREE_GB=1   # lower the threshold to 1 GiB\n"
+        f"  See docs/RUNNER_TOPOLOGY.md for the canonical guidance on "
+        f"where MorphoSource caches belong.\n"
+    )
+    raise OSError(28, msg)
 
 USE_STATEMENT = (
     "Automated download for comparative morphometric research analysis "
@@ -192,10 +261,20 @@ def extract_archives(directory: Path) -> list[Path]:
     return mesh_files
 
 
-def download_media(media_id: str, out_dir: str = "downloads") -> Dict[str, Any]:
+def download_media(media_id: str, out_dir: str = "downloads",
+                   min_free_gb: Optional[float] = None) -> Dict[str, Any]:
     """Download a MorphoSource media file. Returns result dict.
 
     This is the main entry point for slicer_tool.py integration.
+
+    Parameters
+    ----------
+    media_id, out_dir
+        As before.
+    min_free_gb
+        Free-disk-space floor (GiB) before this call proceeds. ``None``
+        defaults to ``$MORPHOSOURCE_MIN_FREE_GB`` (or 5 GiB). Set to ``0``
+        to disable. See :func:`ensure_free_space` for the rationale.
     """
     api_key = os.environ.get("MORPHOSOURCE_API_KEY", "")
     out_path = Path(out_dir)
@@ -204,6 +283,16 @@ def download_media(media_id: str, out_dir: str = "downloads") -> Dict[str, Any]:
         return {
             "success": False, "media_id": media_id,
             "error": "MORPHOSOURCE_API_KEY not set — cannot download files",
+        }
+
+    try:
+        ensure_free_space(out_path, min_free_gb=min_free_gb,
+                          label=f"MorphoSource media {media_id}")
+    except OSError as e:
+        return {
+            "success": False, "media_id": media_id,
+            "error": str(e),
+            "errno": e.errno,
         }
 
     with requests.Session() as session:
