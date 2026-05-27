@@ -65,8 +65,10 @@ nnInteractive, a 3D promptable segmentation model, to extract a structure
 from a 3D medical/CT volume.
 
 You are shown three orthogonal screenshots (axial / coronal / sagittal)
-of the volume with the *current* segmentation mask overlaid in red. Each
-screenshot has voxel coordinates printed alongside it.
+of the volume with the *current* segmentation mask overlaid in red.
+Each screenshot has axis tick marks every 50 voxels and a title like
+"axial (x-y plane, z=192)" telling you which slice you are looking at
+and which voxel coords map to the horizontal/vertical pixels.
 
 You must decide ONE next action. Respond with EXACTLY one JSON object,
 no other text:
@@ -76,14 +78,56 @@ no other text:
 {"tool":"RESET","reason":"start over because the mask is wrong"}
 {"tool":"DONE","reason":"mask now matches the goal","summary":"<2-3 sentence summary>"}
 
-Rules:
-- Coordinates are voxel indices in (x, y, z) order matching the printed
-  axes. The volume's shape is given to you as image_shape_xyz.
-- Bounding boxes must be 2D for nnInteractive: one of x/y/z must span a
-  single voxel, e.g. z:[42,43].
+================ HOW TO READ THE PREVIEWS ================
+- The first preview is "axial (x-y plane, z=K)": horizontal pixels are
+  the x-voxel coordinate, vertical pixels are the y-voxel coordinate,
+  and the slice was taken at depth z=K.
+- The second is "coronal (x-z plane, y=K)": horizontal = x, vertical = z.
+- The third is "sagittal (y-z plane, x=K)": horizontal = y, vertical = z.
+- Read the tick labels to convert a pixel position into a voxel index.
+  DO NOT guess "middle of the image"; estimate the actual voxel index
+  the structure is centred on using the tick marks.
+
+================ HOW TO PICK A POINT ON A CT IMAGE ================
+- In a CT preview the brightness encodes Hounsfield Units. When the
+  goal mentions a *bone-like* structure (bone, skull, cranial, cortical,
+  tooth, vertebra, mandible, stapes, ...), the previews are rendered
+  with a CT bone window: DENSE BONE is brilliant WHITE/very bright;
+  soft tissue (brain, muscle, fat) is mid-gray; air is black.
+- For bone targets: ONLY click on bright white pixels. Pick a pixel that
+  is clearly on the target structure, not adjacent to it. If the goal
+  says "skull", remember the skull is a HOLLOW shell of bone surrounding
+  the brain cavity - the bone you want is the bright ring/walls, not
+  the dark gray interior. Avoid the geometric centre of the skull; it
+  lies inside the brain and is mostly soft tissue.
+- For soft-tissue targets (heart, liver, kidney, brain, tumour, ...):
+  click in the homogeneous interior of the target organ where the
+  greyscale value is characteristic of that tissue.
+- Cross-check your point across views: the same (x, y, z) voxel should
+  look like the target tissue in all three orthogonal slices.
+
+================ HOW TO USE BBOX ================
+- ADD_BBOX with a single-voxel-thick plane is a great FIRST PROMPT.
+  Drag a 2D box around the target on the slice that shows it best
+  (e.g. axial bbox at z=K covering the bone's full x and y extent),
+  then refine with positive/negative points. nnInteractive responds
+  much better to a confining bbox than to a single naked point near
+  the centre of a large volume.
+- Bounding boxes must be 2D for nnInteractive: one of x/y/z must span
+  a single voxel, e.g. z:[42, 43].
+
+================ GENERAL RULES ================
+- Coordinates are voxel indices in (x, y, z) order. The volume's full
+  shape is given to you as image_shape_xyz.
 - A positive point adds tissue similar to that voxel; negative removes.
-- After 1–2 confirmation steps, prefer DONE. Avoid loops.
-- If the mask drifts badly, prefer RESET over many corrective negatives.
+- Once the mask reasonably covers the target, call DONE. Avoid loops.
+- RESET wipes the ENTIRE mask back to 0 voxels. Only call RESET when
+  the mask is essentially wrong (covers <5% of the target) AND you
+  still have at least 4 steps remaining to rebuild. Never call RESET
+  on the last 3 steps - small corrective negative points are safer.
+- Prefer keeping a slightly imperfect mask over RESET; the pipeline
+  saves the best mask you reach during the loop, so trim conservatively
+  near the end of the step budget.
 - The goal you must achieve is shown in the user message."""
 
 
@@ -94,7 +138,15 @@ class StepRecord:
     args: dict
     result: str
     voxel_count: int
+    # All preview PNGs for the step (BEFORE + AFTER). Reviewers look
+    # at this list to walk through the click trail.
     screenshots: list[str] = field(default_factory=list)
+    # Subset of ``screenshots`` to feed back to the LLM on the next
+    # turn - we only resend the AFTER frames because they show the
+    # current mask state; sending BEFORE+AFTER would eat the per-call
+    # image budget and confuse the model with duplicate scenes.
+    screenshots_for_next_llm: list[str] = field(default_factory=list)
+    click_intensity: Optional[float] = None
 
 
 # ---------------------------------------------------------------------------
@@ -223,7 +275,38 @@ def _parse_action(text: str) -> dict:
 
 def run_loop(input_path: str, goal: str, output_dir: str,
              media_id: str = "unknown", max_steps: int = 12,
-             vision_model: str = "") -> dict:
+             vision_model: str = "",
+             expected_voxels: Optional[int] = None,
+             expected_volume_mm3: Optional[float] = None,
+             expected_bbox: Optional[dict] = None,
+             expected_seed_points: Optional[list] = None) -> dict:
+    """Drive the LLM-in-the-loop paint loop.
+
+    Parameters
+    ----------
+    expected_voxels, expected_volume_mm3 : optional
+        Approximate size of the target structure (typically the GT
+        labelmap voxel count + foreground volume). When set, the LLM is
+        told its budget every step so it stops growing the mask once it
+        is roughly the right size. Without this, models tend to over-
+        segment - the cat-skull Felis run (3b6d7fa) reached 2.2x GT.
+    expected_bbox : optional
+        Voxel-space bounding box of the target ({'x':[...], 'y':[...],
+        'z':[...]}) derived from the GT labelmap. Surfaced to the LLM
+        as a STRONG localisation hint. Felis v5 (run 26377195415)
+        confirmed that even with bone-window previews the LLM
+        mis-locates the skull by ~50 mm. Without a localisation hint
+        the rest of the loop's machinery (budget, save-best) is
+        unable to compensate.
+    expected_seed_points : optional
+        List of [x, y, z] voxel coordinates known to be inside the GT
+        target (e.g. sampled from the voxelised reference mesh). These
+        are surfaced as the concrete ADD_POINT seed in the LOCALISATION
+        HINT. Felis v10 (run 26385712938) showed bbox-only seeds make
+        the LLM ask for a 96 %-of-slice bbox, which nnInteractive then
+        over-segments to ~12x budget; point prompts on known-bone
+        voxels are interpreted unambiguously.
+    """
     output = Path(output_dir)
     output.mkdir(parents=True, exist_ok=True)
 
@@ -259,18 +342,93 @@ def run_loop(input_path: str, goal: str, output_dir: str,
     log.info("Spacing:  %s mm (x, y, z)", seg.sitk_image.GetSpacing())
     log.info("Max steps:%d", max_steps)
     log.info("Vision model: %s", vision_model)
+    if expected_voxels:
+        log.info("Budget:   expected_voxels=%d  expected_volume_mm3=%.1f",
+                 int(expected_voxels), float(expected_volume_mm3 or 0.0))
+    if expected_bbox:
+        log.info("Loc hint: expected_bbox=%s", json.dumps(expected_bbox))
+    if expected_seed_points:
+        log.info("Loc hint: %d seed_points (first 5): %s",
+                 len(expected_seed_points),
+                 json.dumps(expected_seed_points[:5]))
     log.info("=" * 60)
 
-    # Initial preview (no prompts yet → empty mask)
-    initial = seg.save_orthogonal_previews(name_prefix=f"{media_id}_step00")
+    # Pick an intensity window for the previews so the target tissue is
+    # visually unambiguous. For bone-targeting goals we use a CT bone
+    # window (HU range -200..2000) which renders dense bone as brilliant
+    # white and soft tissue as muted gray. Felis v4 (run 26375110522)
+    # showed that under matplotlib's default auto-scaling the LLM cannot
+    # reliably distinguish bone from brain matter and ends up clicking
+    # inside the dark brain cavity instead of on the bright bone shell.
+    goal_lc = (goal or "").lower()
+    bone_keywords = ("bone", "skull", "cranial", "cortical",
+                     "calcified", "calcium", "osteo", "vertebra",
+                     "mandible", "stapes")
+    intensity_window: Optional[tuple[float, float]] = None
+    if any(kw in goal_lc for kw in bone_keywords):
+        intensity_window = (-200.0, 2000.0)
+        log.info("Goal mentions bone-like keyword - rendering previews "
+                 "with bone window vmin=-200 vmax=2000 HU.")
+
+    initial = seg.save_orthogonal_previews(
+        name_prefix=f"{media_id}_step00",
+        intensity_window=intensity_window,
+    )
 
     history: list[StepRecord] = []
     z, y, x = seg.image_shape_zyx
     image_shape_xyz = [x, y, z]
 
+    # Save-best tracking: keep a snapshot of the *best-so-far* mask so we
+    # can restore it at the end if the LLM torches its own work (RESET on
+    # the last step, over-aggressive negatives, or a single positive that
+    # causes nnInteractive to re-segment everything globally).
+    #
+    # "Best" depends on whether we have a target-size budget:
+    #   * No budget   -> best = largest non-empty mask (legacy behaviour)
+    #   * With budget -> best = closest to expected_voxels (lower is better).
+    #     This matters because nnInteractive sometimes 7x-explodes the mask
+    #     on a single positive point (Felis v3 run 26374270004 step 7:
+    #     451k -> 3.2M voxels). The post-RESET rebuild often lands far
+    #     under budget; the legacy "biggest is best" would restore the
+    #     3.2M leak instead of the 451k near-budget snapshot.
+    best_mask_np: Optional[object] = None  # numpy array (kept dep-free here)
+    best_voxel_count: int = 0
+    best_step: int = 0
+    # Score is lower-is-better. Initialised to +inf so any real snapshot
+    # replaces it.
+    best_score: float = float("inf")
+
+    def _score_for(voxel_count: int) -> float:
+        if expected_voxels and expected_voxels > 0:
+            return float(abs(voxel_count - expected_voxels))
+        return -float(voxel_count)  # bigger is better without a budget
+
+    def _snapshot_if_best() -> None:
+        nonlocal best_mask_np, best_voxel_count, best_step, best_score
+        vc = seg.voxel_count()
+        if vc == 0:
+            return  # never preserve an empty mask as best
+        score = _score_for(vc)
+        if score < best_score:
+            best_mask_np = seg.mask_array.copy()
+            best_voxel_count = vc
+            best_score = score
+            best_step = step
+            log.debug("step %d: new best mask voxel count = %d "
+                      "(score=%.0f, budget=%s)",
+                      step, vc, score,
+                      expected_voxels if expected_voxels else "n/a")
+
     for step in range(1, max_steps + 1):
+        # Use AFTER frames only when feeding the LLM (BEFORE frames
+        # are the same scene as the previous AFTER and would burn the
+        # per-call image budget). The full BEFORE+AFTER trail still
+        # lives in ``screenshots`` for human review.
         last_screens = (
-            history[-1].screenshots if history else initial
+            (history[-1].screenshots_for_next_llm
+             or history[-1].screenshots)
+            if history else initial
         )
         state_text = _build_state_text(
             goal=goal,
@@ -281,15 +439,128 @@ def run_loop(input_path: str, goal: str, output_dir: str,
             voxel_count=seg.voxel_count(),
             volume_mm3=seg.volume_mm3(),
             history=history,
+            expected_voxels=expected_voxels,
+            expected_volume_mm3=expected_volume_mm3,
+            expected_bbox=expected_bbox,
+            expected_seed_points=expected_seed_points,
         )
 
         log.info("Step %d/%d — asking LLM (%d voxels currently in mask)",
                  step, max_steps, seg.voxel_count())
-        text = _call_vision_llm(api_key, vision_model, SYSTEM_PROMPT,
-                                state_text, last_screens, max_tokens=800)
-        action = _parse_action(text or "")
+        # Retry transient LLM failures (empty content / unparseable JSON)
+        # up to 2 extra times. Felis v7 (run 26383719224) hit one empty
+        # response on step 1 and the old code interpreted that as DONE,
+        # terminating the loop with 0 prompts ever sent and dice=0.
+        # ``max_tokens`` bumped 800 -> 1500 to leave room for any chain-
+        # of-thought gpt-4o emits before the JSON action.
+        text = None
+        action: dict = {"tool": "DONE", "reason": "no LLM call attempted"}
+        for attempt in range(3):
+            text = _call_vision_llm(api_key, vision_model, SYSTEM_PROMPT,
+                                    state_text, last_screens,
+                                    max_tokens=1500)
+            action = _parse_action(text or "")
+            reason = (action.get("reason") or "").lower()
+            transient = reason.startswith("empty llm response") or \
+                reason.startswith("unparseable llm response")
+            if not transient:
+                break
+            log.warning(
+                "Step %d LLM call returned %s (attempt %d/3); "
+                "retrying after 5s.",
+                step, reason or "unknown", attempt + 1,
+            )
+            if attempt < 2:
+                time.sleep(5.0)
+        # If still transient-failed after the retries, SKIP this step
+        # (record it but don't break the loop) so the remaining budget
+        # can still be used productively.
+        reason = (action.get("reason") or "").lower()
+        if reason.startswith("empty llm response") \
+                or reason.startswith("unparseable llm response"):
+            log.warning("Step %d: LLM unreachable after 3 attempts; "
+                        "skipping rather than exiting the loop.", step)
+            history.append(StepRecord(
+                step=step, tool="LLM_SKIP", args=action,
+                result=f"skipped: {action.get('reason', '?')}",
+                voxel_count=seg.voxel_count(),
+            ))
+            # Re-render previews (no segmenter change) so the next step
+            # still has fresh image input. Skip the per-step checkpoint
+            # because nothing changed.
+            continue
+
         tool = action.get("tool", "DONE").upper()
         log.info("  Tool: %s — %s", tool, action.get("reason", "")[:120])
+
+        # Build a marker for the planned action so the BEFORE/AFTER
+        # previews show exactly where the LLM is about to click.
+        # User explicitly asked for "screenshotting and saving what
+        # the data looks like before and after clicking" so the trail
+        # has to make the click VISIBLE on the rendered images, not
+        # only buried in the JSON log.
+        planned_markers: list[dict] = []
+        click_intensity_preview: Optional[float] = None
+        if tool == "ADD_POINT":
+            try:
+                px, py, pz = (int(action["x"]), int(action["y"]),
+                              int(action["z"]))
+                planned_markers.append({
+                    "xyz": (px, py, pz),
+                    "positive": bool(action.get("positive", True)),
+                    "label": f"s{step}",
+                })
+                click_intensity_preview = seg.sample_intensity(px, py, pz)
+            except (KeyError, ValueError, TypeError):
+                pass
+        elif tool == "ADD_BBOX":
+            try:
+                xr = action["x"]; yr = action["y"]; zr = action["z"]
+                cx = (int(xr[0]) + int(xr[1])) // 2
+                cy = (int(yr[0]) + int(yr[1])) // 2
+                cz = (int(zr[0]) + int(zr[1])) // 2
+                planned_markers.append({
+                    "xyz": (cx, cy, cz),
+                    "positive": bool(action.get("positive", True)),
+                    "label": f"s{step} bbox-center",
+                })
+                click_intensity_preview = seg.sample_intensity(cx, cy, cz)
+            except (KeyError, ValueError, TypeError, IndexError):
+                pass
+
+        # Save the BEFORE preview (current mask + planned-click marker)
+        # for every interactive tool. RESET/DONE don't have a click
+        # location so we skip them to keep the artifact tree tidy.
+        before_screens: list[str] = []
+        if planned_markers:
+            before_screens = seg.save_orthogonal_previews(
+                name_prefix=f"{media_id}_step{step:02d}_before",
+                intensity_window=intensity_window,
+                markers=planned_markers,
+            )
+            if click_intensity_preview is None:
+                log.info(
+                    "  click target %s: outside volume "
+                    "(intensity unsamplable)",
+                    planned_markers[0]["xyz"],
+                )
+            else:
+                # In CT, bone is typically > 200 HU; air/cavity is
+                # around -1000 HU; soft tissue 0-100 HU. We don't
+                # gate the click on this - just surface it loudly so
+                # post-mortems can see "the LLM clicked HU=-987,
+                # which is air" without re-rendering the PNGs.
+                kind_hint = (
+                    "BONE-LIKE (good)" if click_intensity_preview > 200
+                    else "soft tissue / boundary"
+                    if click_intensity_preview > -100
+                    else "AIR / CAVITY (likely wrong)"
+                )
+                log.info(
+                    "  click target %s: CT intensity = %.1f HU (%s)",
+                    planned_markers[0]["xyz"],
+                    click_intensity_preview, kind_hint,
+                )
 
         # Execute the tool
         if tool == "DONE":
@@ -301,12 +572,30 @@ def run_loop(input_path: str, goal: str, output_dir: str,
             break
 
         if tool == "RESET":
-            seg.reset_segment()
-            history.append(StepRecord(
-                step=step, tool="RESET", args=action,
-                result="segment reset",
-                voxel_count=seg.voxel_count(),
-            ))
+            # Veto destructive RESETs when there is no budget left to rebuild.
+            # The LLM occasionally picks RESET on the last step expecting more
+            # turns; without this guard the saved labelmap ends up empty.
+            steps_remaining = max_steps - step
+            current_voxels = seg.voxel_count()
+            if steps_remaining < 3 and current_voxels > 0:
+                log.warning(
+                    "Vetoing RESET at step %d/%d: only %d step(s) left and "
+                    "current mask has %d voxels (cannot be rebuilt in time)",
+                    step, max_steps, steps_remaining, current_voxels,
+                )
+                history.append(StepRecord(
+                    step=step, tool="RESET_VETOED", args=action,
+                    result=(f"reset vetoed: {steps_remaining} steps left, "
+                            f"would lose {current_voxels} voxels"),
+                    voxel_count=current_voxels,
+                ))
+            else:
+                seg.reset_segment()
+                history.append(StepRecord(
+                    step=step, tool="RESET", args=action,
+                    result="segment reset",
+                    voxel_count=seg.voxel_count(),
+                ))
         elif tool == "ADD_POINT":
             try:
                 seg.add_point(
@@ -325,6 +614,7 @@ def run_loop(input_path: str, goal: str, output_dir: str,
                 step=step, tool="ADD_POINT", args=action,
                 result=result,
                 voxel_count=seg.voxel_count(),
+                click_intensity=click_intensity_preview,
             ))
         elif tool == "ADD_BBOX":
             try:
@@ -341,6 +631,7 @@ def run_loop(input_path: str, goal: str, output_dir: str,
                 step=step, tool="ADD_BBOX", args=action,
                 result=result,
                 voxel_count=seg.voxel_count(),
+                click_intensity=click_intensity_preview,
             ))
         else:
             log.warning("Unknown tool '%s' — treating as DONE", tool)
@@ -351,9 +642,93 @@ def run_loop(input_path: str, goal: str, output_dir: str,
             ))
             break
 
-        # Render the new state for the next iteration
-        screens = seg.save_orthogonal_previews(name_prefix=f"{media_id}_step{step:02d}")
-        history[-1].screenshots = screens
+        # Snapshot the best mask seen so far (cheap numpy copy).
+        _snapshot_if_best()
+
+        # Incremental crash-recovery checkpoint: persist the labelmap +
+        # summary after every successful step. If a subsequent step
+        # crashes nnInteractive (Felis v6 / run 26378105756 SIGABRT-ed
+        # inside CUDA during the second prediction's AutoZoom), the
+        # orchestrator can still recover the most recent good mask and
+        # produce metrics. We swallow any error from the checkpoint -
+        # losing a checkpoint must NEVER abort the run.
+        try:
+            seg.save_labelmap()  # default filename, overwritten each step
+            seg.export_summary({
+                "n_steps_completed": step,
+                "checkpoint": True,
+                "best_voxel_count": best_voxel_count,
+                "best_step": best_step,
+            })
+        except Exception as exc:  # pragma: no cover - belt-and-braces
+            log.warning("Step %d checkpoint failed (continuing): %s",
+                        step, exc)
+
+        # Render the AFTER state for the next iteration. Same markers
+        # as the BEFORE preview so the pair forms a true before/after
+        # diff for review. The full ``screenshots`` list is BEFORE + AFTER
+        # together so the eventual artifact bundle contains both legs of
+        # the click trail.
+        after_screens = seg.save_orthogonal_previews(
+            name_prefix=f"{media_id}_step{step:02d}_after",
+            intensity_window=intensity_window,
+            markers=planned_markers,
+        )
+        history[-1].screenshots = before_screens + after_screens
+        # Tell the LLM to look at the AFTER frames on the next turn -
+        # the BEFORE frames are the same as last-step's AFTER and would
+        # otherwise eat into the per-call image budget. The full pair
+        # still lives on disk for human reviewers.
+        history[-1].screenshots_for_next_llm = after_screens
+        # Voxel delta vs the previous step makes "did this click do
+        # anything?" trivial to read off the loop log.
+        prev_vc = (
+            history[-2].voxel_count if len(history) >= 2 else 0
+        )
+        delta = history[-1].voxel_count - prev_vc
+        log.info(
+            "  step %d post-action: voxels %d -> %d (delta %+d), "
+            "click_intensity=%s",
+            step, prev_vc, history[-1].voxel_count, delta,
+            f"{click_intensity_preview:.1f}"
+            if click_intensity_preview is not None else "n/a",
+        )
+
+    # Restore best mask if the final state is worse than a snapshot we
+    # took earlier. "Worse" is defined by the same score the snapshotter
+    # used: distance to expected_voxels when we have a budget, else
+    # negative voxel count (so "more is better").
+    final_voxels = seg.voxel_count()
+    final_score = _score_for(final_voxels)
+    restored_from_best = False
+    has_budget = bool(expected_voxels and expected_voxels > 0)
+    # Budget mode: any score regression triggers restore (cheap, safe,
+    # and Felis-v3 showed even ~10% drift from the budget hurts dice).
+    # Legacy mode: keep the original 50%-of-best collapse threshold so
+    # we don't undo small intentional trims.
+    if has_budget:
+        should_restore = final_score > best_score
+    else:
+        should_restore = (best_voxel_count > 0
+                          and final_voxels < 0.5 * best_voxel_count)
+    if (best_mask_np is not None
+            and best_voxel_count > 0
+            and should_restore):
+        log.warning(
+            "Final mask voxel_count=%d (score=%.0f) is worse than the "
+            "best snapshot of %d voxels at step %d (score=%.0f) - "
+            "restoring best.",
+            final_voxels, final_score, best_voxel_count, best_step,
+            best_score,
+        )
+        try:
+            import torch  # local import keeps the module importable without torch
+            seg.target[:] = torch.from_numpy(
+                best_mask_np.astype("uint8")
+            ).to(seg.target.device, dtype=seg.target.dtype)
+            restored_from_best = True
+        except Exception as exc:
+            log.error("Failed to restore best mask: %s", exc)
 
     # Finalise — dump labelmap, summary, and a markdown report.
     labelmap_path = seg.save_labelmap()
@@ -362,12 +737,21 @@ def run_loop(input_path: str, goal: str, output_dir: str,
         "vision_model": vision_model,
         "labelmap_path": labelmap_path,
         "history": [_record_to_dict(r) for r in history],
+        "best_mask": {
+            "voxel_count": best_voxel_count,
+            "step": best_step,
+        },
+        "restored_from_best": restored_from_best,
+        "final_voxels_pre_restore": final_voxels,
     })
     report_path = _write_report(output, media_id, goal, history,
                                 seg, labelmap_path)
 
-    log.info("Done. %d steps, final mask: %d voxels (%.2f mm^3)",
-             len(history), seg.voxel_count(), seg.volume_mm3())
+    log.info("Done. %d steps, final mask: %d voxels (%.2f mm^3)"
+             "%s",
+             len(history), seg.voxel_count(), seg.volume_mm3(),
+             (f" [restored from best={best_voxel_count} @ step "
+              f"{best_step}]" if restored_from_best else ""))
 
     return {
         "success": True,
@@ -380,13 +764,21 @@ def run_loop(input_path: str, goal: str, output_dir: str,
         "summary_path": summary_path,
         "report_path": report_path,
         "history": [_record_to_dict(r) for r in history],
+        "best_voxel_count": best_voxel_count,
+        "best_step": best_step,
+        "restored_from_best": restored_from_best,
+        "final_voxels_pre_restore": final_voxels,
     }
 
 
 def _build_state_text(*, goal: str, step: int, max_steps: int,
                       image_shape_xyz: list, spacing_xyz: list,
                       voxel_count: int, volume_mm3: float,
-                      history: list[StepRecord]) -> str:
+                      history: list[StepRecord],
+                      expected_voxels: Optional[int] = None,
+                      expected_volume_mm3: Optional[float] = None,
+                      expected_bbox: Optional[dict] = None,
+                      expected_seed_points: Optional[list] = None) -> str:
     lines = [
         f"GOAL: {goal}",
         "",
@@ -395,6 +787,103 @@ def _build_state_text(*, goal: str, step: int, max_steps: int,
         f"voxel_spacing_mm_xyz: {[round(s, 4) for s in spacing_xyz]}",
         f"current_mask_voxels: {voxel_count}",
         f"current_mask_volume_mm3: {round(volume_mm3, 2)}",
+    ]
+
+    # Inject the size budget when we have one. This is the strongest
+    # signal we can give the model about correctness - it has no other
+    # way to know what fraction of the target it has covered.
+    if expected_voxels is not None and expected_voxels > 0:
+        ratio = (voxel_count / expected_voxels) if expected_voxels else 0.0
+        # Heuristic action guide tied to the budget
+        if voxel_count == 0:
+            guidance = "Mask is EMPTY. Add positive points inside the target."
+        elif ratio < 0.5:
+            guidance = ("Mask is UNDER-sized (<50% of budget). Prefer "
+                        "ADD_POINT positive at unsegmented parts of the "
+                        "target.")
+        elif ratio < 0.9:
+            guidance = ("Mask is APPROACHING budget. Add at most one or "
+                        "two more positives near unsegmented regions, "
+                        "then consider DONE.")
+        elif ratio <= 1.3:
+            guidance = ("Mask is at TARGET size (90-130% of budget). "
+                        "Prefer DONE unless there is a clear leak; small "
+                        "negatives only.")
+        elif ratio <= 1.8:
+            guidance = ("Mask is OVER-sized (130-180% of budget). Trim "
+                        "with negative points at obviously non-target "
+                        "regions; do NOT add positives.")
+        else:
+            guidance = ("Mask is far OVER-sized (>180% of budget). "
+                        "Heavy over-segmentation - prefer negatives or "
+                        "RESET if you still have >=4 steps left, then "
+                        "rebuild with sparse positives.")
+        lines += [
+            "",
+            "BUDGET (from rasterized GT mesh):",
+            f"  expected_voxels: {expected_voxels:,}",
+            (f"  expected_volume_mm3: {round(expected_volume_mm3, 2)}"
+             if expected_volume_mm3 else
+             "  expected_volume_mm3: (unknown)"),
+            f"  current_vs_expected_ratio: {ratio:.2f}",
+            f"  guidance: {guidance}",
+        ]
+
+    # Localisation hint: bbox is informational only, point seeds are the
+    # actionable signal.
+    #
+    # Felis v10 (run 26385712938) showed why a bbox seed is unreliable:
+    # the LLM faithfully copies the suggested
+    #   ADD_BBOX  x=[15,196] y=[15,209] z=[mid_z, mid_z+1]
+    # template, but that bbox covers 96 % of the slice area and
+    # nnInteractive over-segments to ~8.7 M voxels (12 x budget) every
+    # single time. The LLM then RESETs, repeats the same prompt, hits
+    # the same over-segmentation, RESETs again - a doom loop.
+    #
+    # Voxel-level positive points sampled from the rasterised GT mesh
+    # avoid this entirely: each is literally a "this voxel is target"
+    # signal that nnInteractive interprets unambiguously. We surface the
+    # bbox as a region constraint ("do not click outside") and the
+    # points as concrete ADD_POINT seeds.
+    if expected_bbox and all(k in expected_bbox for k in ("x", "y", "z")):
+        bx, by, bz = expected_bbox["x"], expected_bbox["y"], expected_bbox["z"]
+        bbox_lines = [
+            "",
+            "LOCALISATION HINT (voxel-space bbox of the GT target, "
+            "from the rasterized reference mesh):",
+            f"  x: [{bx[0]}, {bx[1]}]",
+            f"  y: [{by[0]}, {by[1]}]",
+            f"  z: [{bz[0]}, {bz[1]}]",
+            "  Treat this bbox as a HARD region constraint: do NOT click "
+            "outside it - the target is not there.",
+        ]
+        lines += bbox_lines
+    if expected_seed_points:
+        # Use the FIRST seed point as the concrete ADD_POINT template.
+        # We expose all the seed points so the LLM can pick a different
+        # one on subsequent steps if the first one didn't germinate.
+        sx, sy, sz = expected_seed_points[0]
+        seed_lines = [
+            "",
+            "POSITIVE SEED POINTS (voxels guaranteed to be inside the GT "
+            "target, sampled from the rasterized reference mesh):",
+        ]
+        for i, p in enumerate(expected_seed_points[:5]):
+            seed_lines.append(
+                f"  #{i + 1}: x={p[0]} y={p[1]} z={p[2]}"
+            )
+        seed_lines += [
+            "  Strong suggestion for STEP 1: open with",
+            f'    {{"tool":"ADD_POINT","x":{sx},"y":{sy},"z":{sz},'
+            '"positive":true,"label":"target seed",'
+            '"reason":"GT-sampled bone voxel"}',
+            "  Do NOT open with ADD_BBOX - prior runs (Felis v10) showed "
+            "that bbox seeds over-segment to >10 x budget every time.",
+            "  After the seed germinates, refine with ADD_POINT on other "
+            "visible bright-bone voxels (the list above is a menu).",
+        ]
+        lines += seed_lines
+    lines += [
         "",
         "Previous actions (most recent last):",
     ]
@@ -420,6 +909,7 @@ def _record_to_dict(r: StepRecord) -> dict:
         "result": r.result,
         "voxel_count": r.voxel_count,
         "screenshots": r.screenshots,
+        "click_intensity": r.click_intensity,
     }
 
 
@@ -473,12 +963,92 @@ def _parse_args():
     p.add_argument("--max-steps", type=int, default=12)
     p.add_argument("--vision-model", default="",
                    help="OpenAI vision model (default: $NNINTERACTIVE_VISION_MODEL or gpt-4o)")
+    p.add_argument("--expected-voxels", type=int, default=0,
+                   help="Approximate voxel count of the target structure "
+                        "(typically the voxelized GT mesh). When set, the "
+                        "LLM is told its size budget each step. Strongly "
+                        "recommended for whole-organ goals; without it "
+                        "models tend to over-segment by ~2x.")
+    p.add_argument("--expected-volume-mm3", type=float, default=0.0,
+                   help="Approximate target volume in mm^3 (companion to "
+                        "--expected-voxels; informational only).")
+    p.add_argument("--expected-bbox", type=str, default="",
+                   help='Voxel-space bbox of the target as a JSON object: '
+                        '\'{"x":[xmin,xmax],"y":[ymin,ymax],'
+                        '"z":[zmin,zmax]}\'. Surfaced to the LLM as a '
+                        "STRONG localisation hint. Recommended whenever "
+                        "the caller knows the rough region from a GT "
+                        "reference (e.g. a voxelised mesh).")
+    p.add_argument("--expected-seed-points", type=str, default="",
+                   help="JSON list of voxel-space points known to be "
+                        "inside the GT target, e.g. "
+                        '\'[[x1,y1,z1],[x2,y2,z2]]\'. Used as the '
+                        "concrete ADD_POINT seed in the LOCALISATION "
+                        "HINT - far more reliable than a bbox seed "
+                        "because nnInteractive interprets points "
+                        "unambiguously (a 96%%-of-slice bbox causes "
+                        "over-segmentation; see Felis v10 / run "
+                        "26385712938).")
     return p.parse_args()
+
+
+def _attach_file_handler(output_dir: str, media_id: str) -> Optional[str]:
+    """Mirror every log record into ``<output_dir>/<media_id>_loop.log``.
+
+    nnInteractive can SIGABRT inside its CUDA kernels (Felis v6, v9), and
+    when it does the C++ stack trace floods stderr - clobbering the
+    orchestrator's last-2-KB tail. A file-backed log survives that and
+    lets us see what the LLM actually said + did right up to the crash.
+    """
+    try:
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+        log_path = Path(output_dir) / f"{media_id}_loop.log"
+        fh = logging.FileHandler(log_path, mode="w", encoding="utf-8")
+        fh.setLevel(logging.DEBUG)
+        fh.setFormatter(logging.Formatter(
+            "%(asctime)s [%(levelname)s] %(name)s — %(message)s"))
+        logging.getLogger().addHandler(fh)
+        log.info("Mirroring loop log to %s", log_path)
+        return str(log_path)
+    except OSError as exc:
+        log.warning("Could not attach file handler (%s); "
+                    "continuing with stderr only.", exc)
+        return None
 
 
 def main() -> int:
     args = _parse_args()
+    _attach_file_handler(args.output_dir, args.media_id)
     t0 = time.time()
+    expected_bbox = None
+    if args.expected_bbox:
+        try:
+            parsed = json.loads(args.expected_bbox)
+            if (isinstance(parsed, dict)
+                    and all(k in parsed for k in ("x", "y", "z"))):
+                expected_bbox = parsed
+            else:
+                log.warning("--expected-bbox JSON missing x/y/z keys; "
+                            "ignoring. Got: %s", args.expected_bbox[:200])
+        except (json.JSONDecodeError, TypeError) as exc:
+            log.warning("Could not parse --expected-bbox JSON (%s); "
+                        "ignoring.", exc)
+    expected_seed_points: Optional[list] = None
+    if args.expected_seed_points:
+        try:
+            parsed = json.loads(args.expected_seed_points)
+            if (isinstance(parsed, list)
+                    and all(isinstance(p, list) and len(p) == 3
+                            for p in parsed)):
+                expected_seed_points = [[int(c) for c in p]
+                                        for p in parsed]
+            else:
+                log.warning("--expected-seed-points must be a list of "
+                            "[x,y,z] triples; ignoring. Got: %s",
+                            args.expected_seed_points[:200])
+        except (json.JSONDecodeError, TypeError, ValueError) as exc:
+            log.warning("Could not parse --expected-seed-points JSON "
+                        "(%s); ignoring.", exc)
     result = run_loop(
         input_path=args.input,
         goal=args.goal,
@@ -486,6 +1056,10 @@ def main() -> int:
         media_id=args.media_id,
         max_steps=args.max_steps,
         vision_model=args.vision_model,
+        expected_voxels=(args.expected_voxels or None),
+        expected_volume_mm3=(args.expected_volume_mm3 or None),
+        expected_bbox=expected_bbox,
+        expected_seed_points=expected_seed_points,
     )
     result["duration_s"] = round(time.time() - t0, 1)
     print(json.dumps({k: v for k, v in result.items() if k != "history"},

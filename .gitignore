@@ -48,6 +48,7 @@ Thumbs.db
 # Temporary files
 tmp/
 temp/
+.tmp_*
 
 # Environment variables
 .env
@@ -95,3 +96,4 @@ site/
 runs/
 smoke_out/
 
+.local/

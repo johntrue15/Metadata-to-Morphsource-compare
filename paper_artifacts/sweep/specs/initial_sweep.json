@@ -1,0 +1,35 @@
+{
+  "_doc": [
+    "Initial sweep spec for the Dell-XPS 24/7 GPU loop. Seeds the queue with",
+    "the two specimens we have cached locally (the IMPC mouse embryo and the",
+    "Felis catus fixture) across a small grid of floor-frac + density combos.",
+    "",
+    "Goal: characterize how sensitive bright-seed saturation is to those two",
+    "knobs on a wide-tail soft-tissue volume (mouse) vs a moderate-tail HU CT",
+    "(Felis). Each combination runs autopilot-derived params with the listed",
+    "knob explicitly overridden, so the run uses the volume-derived defaults",
+    "for everything else.",
+    "",
+    "Refresh this file when we add new locally-cached specimens. The sweep",
+    "harness dedupes by job_id, so re-running 'seed --spec ...' against an",
+    "already-seeded queue is a no-op."
+  ],
+  "tag": "initial_v1",
+  "specimens": [
+    {
+      "input_path": ".local/impc_data/IMPC_sample_data.nrrd",
+      "media_id": "impc_mouse",
+      "tags": ["mouse", "uint8", "soft_tissue", "wide_tail"]
+    },
+    {
+      "input_path": "Tests/fixtures/nninteractive_compare/000360672__Felis__000362550__000362581/ct.nii.gz",
+      "media_id": "felis_fixture",
+      "tags": ["skull", "int16", "hounsfield", "moderate_tail"]
+    }
+  ],
+  "param_grid": {
+    "intensity_percentile": [95.0, 97.0, 99.0],
+    "intensity_drop_floor_frac": [0.20, 0.50],
+    "min_local_density": [0.0, 0.40]
+  }
+}

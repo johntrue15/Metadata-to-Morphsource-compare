@@ -1,0 +1,9 @@
+# Sweep harness runtime state. Re-derivable from specs/*.json so
+# there's no value in tracking it in git, and the per-job output dirs
+# are large (NIfTI labelmaps + per-step logs).
+sweep_queue.jsonl
+sweep_results.jsonl
+sweep_daemon.log
+sweep_daemon.pid
+in_flight/
+done/

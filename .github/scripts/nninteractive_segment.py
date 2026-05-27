@@ -126,6 +126,15 @@ class Prompt:
     include: bool = True  # True = positive, False = negative
     label: str = ""
     note: str = ""
+    # CT intensity sampled at the click coordinate (Hounsfield Units for
+    # CT volumes; raw scalar for other modalities). Populated on
+    # add_point so post-mortems can answer "did the LLM click bright
+    # bone or dark cavity?" - the Felis runs (v9 / v10 / v11) all
+    # suffered from clicks landing in the cranial cavity (low HU air)
+    # rather than on bone walls, and the only way to spot that was to
+    # trace the loop log against the rendered previews. Storing the
+    # intensity in the prompt record makes it a one-line check.
+    click_intensity: Optional[float] = None
 
     def to_dict(self) -> dict:
         return {
@@ -134,6 +143,7 @@ class Prompt:
             "include": self.include,
             "label": self.label,
             "note": self.note,
+            "click_intensity": self.click_intensity,
         }
 
 
@@ -245,13 +255,33 @@ class Segmenter:
 
     def add_point(self, x: int, y: int, z: int, *, positive: bool = True,
                   label: str = "") -> None:
+        xi, yi, zi = int(x), int(y), int(z)
+        intensity = self.sample_intensity(xi, yi, zi)
         self._session.add_point_interaction(
-            (int(x), int(y), int(z)), include_interaction=bool(positive)
+            (xi, yi, zi), include_interaction=bool(positive)
         )
         self.prompts_log.append(
-            Prompt(kind="point", coords=(int(x), int(y), int(z)),
-                   include=bool(positive), label=label)
+            Prompt(kind="point", coords=(xi, yi, zi),
+                   include=bool(positive), label=label,
+                   click_intensity=intensity)
         )
+
+    def sample_intensity(self, x: int, y: int, z: int) -> Optional[float]:
+        """Return the scalar intensity at voxel ``(x, y, z)`` (CT HU).
+
+        ``add_point`` calls this immediately before issuing the click so
+        the prompt record carries a diagnostic "what did we land on"
+        signal: high HU = bone (good), low HU = air / cavity (the
+        Felis-v9-through-v11 failure mode). Returns ``None`` when the
+        coordinate is outside the volume - the caller treats that as
+        "the LLM produced an invalid click" rather than as bone or air.
+        """
+        sitk = self._sitk
+        arr = sitk.GetArrayFromImage(self.sitk_image)  # z, y, x
+        z_max, y_max, x_max = arr.shape
+        if not (0 <= x < x_max and 0 <= y < y_max and 0 <= z < z_max):
+            return None
+        return float(arr[z, y, x])
 
     def add_bbox(self, x_range: Iterable[int], y_range: Iterable[int],
                  z_range: Iterable[int], *, positive: bool = True,
@@ -320,8 +350,36 @@ class Segmenter:
                  out_path, self.voxel_count(), self.volume_mm3())
         return str(out_path)
 
-    def save_orthogonal_previews(self, name_prefix: str = "") -> list[str]:
-        """Render axial / coronal / sagittal mid-slice previews with mask overlay."""
+    def save_orthogonal_previews(
+        self,
+        name_prefix: str = "",
+        intensity_window: Optional[tuple[float, float]] = None,
+        markers: Optional[list] = None,
+    ) -> list[str]:
+        """Render axial / coronal / sagittal mid-slice previews with mask overlay.
+
+        When ``intensity_window=(vmin, vmax)`` is given (e.g. a bone window
+        of ``(-200, 2000)`` HU), the CT is rendered with those clipping
+        bounds so the target tissue stands out unambiguously. Without it,
+        matplotlib auto-scales which often washes out high-contrast
+        targets like bone in head CTs (Felis v4 dice 0.058 was diagnosed
+        as the LLM clicking inside the dark brain cavity because bone
+        and brain looked similar shades of gray under auto-scaling).
+
+        Axis ticks at every 50 voxels are now drawn so the LLM can read
+        click coordinates directly off the image rather than estimating
+        positions relative to the centre.
+
+        ``markers`` is an optional list of dicts of the form
+        ``{"xyz": (x, y, z), "positive": True/False, "label": "step5"}``
+        which get drawn on each view at the projection of the click
+        into that plane. Positive markers render as a red circle,
+        negative as a blue X. This is the BEFORE/AFTER trail the
+        user asked for - on the "after" preview you see exactly where
+        the most recent click landed and how the mask responded.
+        Markers off the displayed slice are still drawn (in dimmer
+        edge color) so cross-plane context is preserved.
+        """
         np = self._np
         try:
             import matplotlib  # noqa: F401
@@ -336,30 +394,120 @@ class Segmenter:
         mask = self.mask_array
         prefix = name_prefix or f"{self.config.media_id}_nni"
 
-        # Choose slice that maximises mask coverage (or middle if empty)
+        # Marker xyz uses nnInteractive's [x, y, z] convention but the
+        # numpy array is (z, y, x). axis_idx is the index INTO the (z,
+        # y, x) array for each view (0=axial=z, 1=coronal=y,
+        # 2=sagittal=x), which is the opposite of the xyz tuple index
+        # for that plane (axial=z=xyz[2], coronal=y=xyz[1],
+        # sagittal=x=xyz[0]).
+        axis_to_xyz_idx = {0: 2, 1: 1, 2: 0}
+
+        # Choose slice that maximises mask coverage (or middle if empty).
+        # When markers are provided, prefer the slice containing the
+        # most recent positive marker so the click is visible in the
+        # rendered view - otherwise the LLM could click at z=300 but
+        # we'd still render z=mid_z because that's where the mask
+        # happens to live, hiding the actual click location.
         def _best_slice(axis: int) -> int:
+            if markers:
+                xyz_idx = axis_to_xyz_idx[axis]
+                # Last positive marker wins; fall back to last marker.
+                last_pos = next(
+                    (m for m in reversed(markers) if m.get("positive", True)),
+                    None,
+                )
+                pick = last_pos or markers[-1]
+                xyz = pick.get("xyz")
+                if xyz is not None:
+                    coord = int(xyz[xyz_idx])
+                    if 0 <= coord < arr.shape[axis]:
+                        return coord
             if mask.sum() == 0:
                 return arr.shape[axis] // 2
             sums = mask.sum(axis=tuple(i for i in range(3) if i != axis))
             return int(np.argmax(sums))
 
+        if intensity_window is not None:
+            vmin, vmax = float(intensity_window[0]), float(intensity_window[1])
+        else:
+            vmin = vmax = None  # matplotlib auto-scale
+
         previews: list[str] = []
+        # Each entry: (view_name, slice_axis, slicer, h_axis_label, v_axis_label)
+        # h_axis_label/v_axis_label tell the LLM which voxel coord the
+        # horizontal/vertical pixel maps to. With ``origin='lower'`` the
+        # vertical axis grows upward, matching the printed coordinate.
         views = [
-            ("axial",    0, lambda v, s: (v[s, :, :], mask[s, :, :])),
-            ("coronal",  1, lambda v, s: (v[:, s, :], mask[:, s, :])),
-            ("sagittal", 2, lambda v, s: (v[:, :, s], mask[:, :, s])),
+            ("axial",    0,
+             lambda v, s: (v[s, :, :], mask[s, :, :]), "x", "y"),
+            ("coronal",  1,
+             lambda v, s: (v[:, s, :], mask[:, s, :]), "x", "z"),
+            ("sagittal", 2,
+             lambda v, s: (v[:, :, s], mask[:, :, s]), "y", "z"),
         ]
-        for view_name, axis, slicer in views:
+        for view_name, axis, slicer, h_lbl, v_lbl in views:
             s = _best_slice(axis)
             img_slice, mask_slice = slicer(arr, s)
 
             fig, ax = plt.subplots(figsize=(6, 6))
-            ax.imshow(img_slice, cmap="gray", origin="lower")
+            ax.imshow(img_slice, cmap="gray", origin="lower",
+                      vmin=vmin, vmax=vmax)
             if mask_slice.sum() > 0:
                 overlay = np.ma.masked_where(mask_slice == 0, mask_slice)
                 ax.imshow(overlay, cmap="autumn", alpha=0.45, origin="lower")
-            ax.set_title(f"{view_name} (slice {s}) — {self.config.media_id}")
-            ax.set_axis_off()
+
+            # Draw click markers (the BEFORE/AFTER diagnostic trail).
+            # h_lbl / v_lbl already tell us which xyz component each
+            # pixel axis is, so we look up the marker's coord in that
+            # axis directly. Markers in the displayed slice are bright;
+            # off-slice markers are dimmed but still drawn so cross-
+            # plane context is preserved.
+            xyz_idx = {"x": 0, "y": 1, "z": 2}
+            slice_axis_xyz = {"axial": 2, "coronal": 1, "sagittal": 0}[view_name]
+            for m in (markers or []):
+                xyz = m.get("xyz")
+                if xyz is None:
+                    continue
+                h = int(xyz[xyz_idx[h_lbl]])
+                v = int(xyz[xyz_idx[v_lbl]])
+                on_slice = int(xyz[slice_axis_xyz]) == s
+                alpha = 1.0 if on_slice else 0.45
+                positive = bool(m.get("positive", True))
+                if positive:
+                    ax.plot(h, v, marker="o", markersize=14,
+                            markerfacecolor="none",
+                            markeredgecolor="red",
+                            markeredgewidth=2.5, alpha=alpha)
+                    ax.plot(h, v, marker=".", markersize=4,
+                            color="red", alpha=alpha)
+                else:
+                    ax.plot(h, v, marker="x", markersize=12,
+                            color="blue", markeredgewidth=2.5,
+                            alpha=alpha)
+                label = m.get("label")
+                if label:
+                    ax.annotate(
+                        str(label), xy=(h, v), xytext=(8, 8),
+                        textcoords="offset points",
+                        color="red" if positive else "blue",
+                        fontsize=8, alpha=alpha,
+                    )
+
+            # Slice index is along the perpendicular axis (axial=z,
+            # coronal=y, sagittal=x).
+            slice_axis_label = {"axial": "z", "coronal": "y",
+                                "sagittal": "x"}[view_name]
+            ax.set_title(
+                f"{view_name} ({h_lbl}-{v_lbl} plane, "
+                f"{slice_axis_label}={s}) - {self.config.media_id}"
+            )
+            # Ticks every 50 voxels for direct coordinate reading.
+            h_max, v_max = img_slice.shape[1], img_slice.shape[0]
+            ax.set_xticks(list(range(0, h_max + 1, 50)))
+            ax.set_yticks(list(range(0, v_max + 1, 50)))
+            ax.set_xlabel(f"{h_lbl} (voxels)")
+            ax.set_ylabel(f"{v_lbl} (voxels)")
+            ax.tick_params(labelsize=8)
             out_path = self.output_dir / f"{prefix}_{view_name}.png"
             fig.tight_layout()
             fig.savefig(out_path, dpi=120, bbox_inches="tight")

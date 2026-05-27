@@ -292,5 +292,132 @@ class TestFromFixtureDispatcher(unittest.TestCase):
         m_paint.assert_not_called()
 
 
+class TestBboxToKjiRegion(unittest.TestCase):
+    """``_bbox_to_kji_region`` is the bridge between ``_get_gt_bbox`` (which
+    returns the GT bounding box in nnInteractive's (x, y, z) convention)
+    and ``nninteractive_bright_seed.py --region-bbox`` (which expects the
+    numpy (k=z, j=y, i=x) order). One swapped axis here means bright-seed
+    samples the wrong region of the volume, so it earns a tight test.
+    """
+
+    def test_converts_xyz_dict_to_kji_dict(self):
+        from nninteractive_compare import _bbox_to_kji_region
+        bbox_xyz = {"x": [10, 20], "y": [30, 40], "z": [50, 60]}
+        out = _bbox_to_kji_region(bbox_xyz)
+        # k <- z, j <- y, i <- x
+        self.assertEqual(out, {"k": [50, 60], "j": [30, 40], "i": [10, 20]})
+
+    def test_none_returns_none(self):
+        from nninteractive_compare import _bbox_to_kji_region
+        self.assertIsNone(_bbox_to_kji_region(None))
+
+    def test_partial_dict_returns_none(self):
+        from nninteractive_compare import _bbox_to_kji_region
+        # Missing 'z' key -> KeyError -> contract says return None so the
+        # caller falls back to "no region constraint" instead of crashing.
+        self.assertIsNone(_bbox_to_kji_region({"x": [1, 2], "y": [3, 4]}))
+
+    def test_malformed_values_return_none(self):
+        from nninteractive_compare import _bbox_to_kji_region
+        # Non-iterable axis value -> TypeError -> None.
+        self.assertIsNone(_bbox_to_kji_region(
+            {"x": 5, "y": [1, 2], "z": [3, 4]}
+        ))
+
+
+class TestPaintModeDispatch(unittest.TestCase):
+    """``run_comparison_from_fixture`` must dispatch to the bright-seed
+    runner when ``paint_mode='bright_seed'`` and to the LLM runner
+    otherwise. Mis-routing here would silently make the new mode no-op
+    so it gets a dedicated test.
+    """
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        for fname in ("ct.nii.gz", "gt_voxelized.nii.gz"):
+            (self.tmp / fname).write_bytes(b"stub")
+        (self.tmp / "fixture.json").write_text(json.dumps({
+            "ct_media_id": "ct1", "gt_media_id": "gt1",
+            "goal": "test goal", "max_steps": 3,
+            "voxelize_backend": "vtk", "crop_around_mesh_mm": 0.0,
+            "files": {},
+        }))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _fake_metrics(self) -> dict:
+        return {
+            "dice": 0.5, "iou": 0.4,
+            "voxel_count_pred": 100, "voxel_count_gt": 110,
+            "volume_mm3_pred": 1.0, "volume_mm3_gt": 1.1,
+            "precision": 0.5, "recall": 0.5,
+            "hausdorff_mm": 0.5, "hausdorff_95_mm": 0.4,
+        }
+
+    def test_bright_seed_mode_routes_to_bright_seed_loop(self):
+        import nninteractive_compare as mod
+
+        # The dispatcher reads the labelmap path off the runner's return
+        # dict to feed into the metrics call - return a real file path
+        # so the `pred_path.exists()` check passes.
+        pred_stub = self.tmp / "pred_bright.nii.gz"
+        pred_stub.write_bytes(b"stub")
+
+        with patch.object(mod, "_run_bright_seed_loop",
+                          return_value={"labelmap_path": str(pred_stub),
+                                        "mode": "bright_seed"}) as m_bs, \
+             patch.object(mod, "_run_paint_loop") as m_llm, \
+             patch.object(mod, "_compute_metrics",
+                          return_value=self._fake_metrics()):
+            result = mod.run_comparison_from_fixture(
+                fixture_dir=self.tmp,
+                output_dir=self.tmp / "out",
+                paint_mode="bright_seed",
+            )
+
+        self.assertTrue(result["success"], result)
+        m_bs.assert_called_once()
+        m_llm.assert_not_called()
+
+    def test_llm_mode_routes_to_paint_loop(self):
+        import nninteractive_compare as mod
+
+        pred_stub = self.tmp / "pred_llm.nii.gz"
+        pred_stub.write_bytes(b"stub")
+
+        with patch.object(mod, "_run_bright_seed_loop") as m_bs, \
+             patch.object(mod, "_run_paint_loop",
+                          return_value={"labelmap_path": str(pred_stub)}) as m_llm, \
+             patch.object(mod, "_compute_metrics",
+                          return_value=self._fake_metrics()):
+            result = mod.run_comparison_from_fixture(
+                fixture_dir=self.tmp,
+                output_dir=self.tmp / "out",
+                paint_mode="llm",
+            )
+
+        self.assertTrue(result["success"], result)
+        m_bs.assert_not_called()
+        m_llm.assert_called_once()
+
+    def test_unknown_mode_rejected_with_clear_error(self):
+        import nninteractive_compare as mod
+
+        with patch.object(mod, "_run_bright_seed_loop") as m_bs, \
+             patch.object(mod, "_run_paint_loop") as m_llm:
+            result = mod.run_comparison_from_fixture(
+                fixture_dir=self.tmp,
+                output_dir=self.tmp / "out",
+                paint_mode="totally_bogus",
+            )
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["stage"], "paint_loop")
+        self.assertIn("totally_bogus", result["error"])
+        m_bs.assert_not_called()
+        m_llm.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

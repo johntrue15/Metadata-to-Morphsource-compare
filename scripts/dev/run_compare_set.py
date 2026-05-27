@@ -103,6 +103,38 @@ def _run(cmd: list[str], *, check: bool = True, capture: bool = True,
                           text=True, timeout=timeout)
 
 
+def _to_local_path(p: Path | str) -> str:
+    """Translate a path to the form expected by the *local OS we're shelling
+    to*. When the orchestrator runs in WSL but invokes the Windows ``gh.exe``,
+    a path like ``/mnt/c/foo`` is meaningless to gh; it must become
+    ``C:\\foo``. On native Linux/macOS or when the script runs in Windows
+    Python, the path is returned unchanged.
+    """
+    s = str(p)
+    if sys.platform != "linux":
+        return s
+    # In WSL, ``platform.uname().release`` contains "WSL"; detect cheaply via
+    # /proc/version which is always populated on Linux.
+    try:
+        with open("/proc/version") as fh:
+            kver = fh.read()
+    except OSError:
+        kver = ""
+    is_wsl = "microsoft" in kver.lower() or "wsl" in kver.lower()
+    if not is_wsl:
+        return s
+    if not s.startswith("/mnt/"):
+        # Not a Windows-mounted path; leave alone (gh.exe will probably fail
+        # but we don't have a sensible translation for native Linux paths).
+        return s
+    try:
+        cp = subprocess.run(["wslpath", "-w", s], capture_output=True,
+                            text=True, check=True)
+        return cp.stdout.strip()
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return s
+
+
 def gh_repo() -> str:
     return os.environ.get("GH_REPO", "johntrue15/MorphoClaw")
 
@@ -118,7 +150,21 @@ def gh_dispatch(gh: str, pair: "PairSpec", args: argparse.Namespace) -> str:
         f"crop_around_mesh_mm={args.crop_around_mesh_mm}",
         f"max_voxel_axis={args.max_voxel_axis}",
         f"align_mesh_to_ct={args.align_mesh_to_ct}",
+        f"paint_mode={args.paint_mode}",
     ]
+    if args.paint_mode == "bright_seed":
+        inputs.append(
+            f"bright_seed_percentile={args.bright_seed_percentile}"
+        )
+        if args.bright_seed_no_stop_rules:
+            inputs.append("bright_seed_no_stop_rules=true")
+        if args.bright_seed_auto_saturate:
+            inputs.append("bright_seed_auto_saturate=true")
+        if args.bright_seed_intensity_drop_floor_frac > 0:
+            inputs.append(
+                "bright_seed_intensity_drop_floor_frac="
+                f"{args.bright_seed_intensity_drop_floor_frac}"
+            )
     cmd = [
         gh, "workflow", "run", WORKFLOW_FILE,
         "--repo", gh_repo(),
@@ -181,7 +227,7 @@ def gh_download_artifact(gh: str, run_id: str, dest: Path) -> None:
         gh, "run", "download", run_id,
         "--repo", gh_repo(),
         "--name", ARTIFACT_NAME,
-        "--dir", str(dest),
+        "--dir", _to_local_path(dest),
     ])
 
 
@@ -509,6 +555,29 @@ def main() -> int:
     p.add_argument("--voxelize-backend", default="vtk",
                    choices=["vtk", "slicer", "auto"])
     p.add_argument("--max-steps", type=int, default=12)
+    p.add_argument("--paint-mode", default="llm",
+                   choices=["llm", "bright_seed"],
+                   help="Paint-loop strategy. 'llm' = original GPT loop. "
+                        "'bright_seed' = deterministic bright-voxel greedy "
+                        "(no OpenAI cost, handles thin-cortical-bone CTs "
+                        "the LLM cannot). Default 'llm' for back-compat.")
+    p.add_argument("--bright-seed-percentile", type=float, default=99.0,
+                   help="Intensity percentile threshold for "
+                        "--paint-mode bright_seed (default 99 = top 1%%).")
+    p.add_argument("--bright-seed-no-stop-rules", action="store_true",
+                   help="Disable bright-seed saturation + explosion guards "
+                        "so it runs to --max-steps (mouse-skull behaviour).")
+    p.add_argument("--bright-seed-auto-saturate", action="store_true",
+                   help="Run bright-seed until no statistically obvious "
+                        "bright voxel remains. Sets max_steps=500, "
+                        "no_stop_rules, intensity_drop_floor_frac=0.5 "
+                        "unless explicitly overridden.")
+    p.add_argument("--bright-seed-intensity-drop-floor-frac",
+                   type=float, default=0.0,
+                   help="Stop bright-seed when click intensity falls "
+                        "below threshold + (peak - threshold) * frac. "
+                        "0 disables (default). 0.5 = strict (mouse), "
+                        "0.2 = permissive (skull bone).")
     p.add_argument("--poll-every-s", type=int, default=30)
     p.add_argument("--max-minutes", type=int, default=240,
                    help="Max wall time per pair (default 4h)")

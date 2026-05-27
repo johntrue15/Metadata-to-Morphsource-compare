@@ -1,0 +1,1074 @@
+[
+  {
+    "job_id": "_jetstream_reference",
+    "union": {
+      "skipped": false,
+      "triangles": 296716,
+      "points": 148456,
+      "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/union.stl"
+    }
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 3,
+    "skipped": false,
+    "triangles": 5060,
+    "points": 2656,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_003.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 4,
+    "skipped": false,
+    "triangles": 3312,
+    "points": 1658,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_004.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 6,
+    "skipped": false,
+    "triangles": 112,
+    "points": 70,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_006.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 7,
+    "skipped": false,
+    "triangles": 19768,
+    "points": 9886,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_007.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 8,
+    "skipped": false,
+    "triangles": 25792,
+    "points": 12898,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_008.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 9,
+    "skipped": false,
+    "triangles": 2748,
+    "points": 1376,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_009.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 10,
+    "skipped": false,
+    "triangles": 19512,
+    "points": 9764,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_010.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 12,
+    "skipped": false,
+    "triangles": 788,
+    "points": 396,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_012.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 13,
+    "skipped": false,
+    "triangles": 23224,
+    "points": 11648,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_013.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 14,
+    "skipped": false,
+    "triangles": 256,
+    "points": 140,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_014.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 15,
+    "skipped": false,
+    "triangles": 40,
+    "points": 28,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_015.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 16,
+    "skipped": false,
+    "triangles": 8240,
+    "points": 4122,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_016.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 17,
+    "skipped": false,
+    "triangles": 236,
+    "points": 136,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_017.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 19,
+    "skipped": false,
+    "triangles": 1288,
+    "points": 656,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_019.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 20,
+    "skipped": false,
+    "triangles": 200,
+    "points": 102,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_020.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 21,
+    "skipped": false,
+    "triangles": 24,
+    "points": 16,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_021.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 22,
+    "skipped": false,
+    "triangles": 688,
+    "points": 350,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_022.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 23,
+    "skipped": false,
+    "triangles": 5284,
+    "points": 2644,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_023.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 24,
+    "skipped": false,
+    "triangles": 780,
+    "points": 392,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_024.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 25,
+    "skipped": false,
+    "triangles": 316,
+    "points": 160,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_025.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 26,
+    "skipped": false,
+    "triangles": 8116,
+    "points": 4354,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_026.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 27,
+    "skipped": false,
+    "triangles": 25220,
+    "points": 12610,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_027.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 28,
+    "skipped": false,
+    "triangles": 14944,
+    "points": 7476,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_028.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 29,
+    "skipped": false,
+    "triangles": 688,
+    "points": 348,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_029.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 30,
+    "skipped": false,
+    "triangles": 4944,
+    "points": 2476,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_030.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 31,
+    "skipped": false,
+    "triangles": 3888,
+    "points": 1946,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_031.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 32,
+    "skipped": false,
+    "triangles": 700,
+    "points": 352,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_032.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 33,
+    "skipped": false,
+    "triangles": 3796,
+    "points": 1900,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_033.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 34,
+    "skipped": false,
+    "triangles": 10380,
+    "points": 5200,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_034.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 35,
+    "skipped": false,
+    "triangles": 3252,
+    "points": 1630,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_035.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 36,
+    "skipped": false,
+    "triangles": 272,
+    "points": 138,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_036.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 37,
+    "skipped": false,
+    "triangles": 9596,
+    "points": 4800,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_037.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 38,
+    "skipped": false,
+    "triangles": 736,
+    "points": 370,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_038.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 39,
+    "skipped": false,
+    "triangles": 168,
+    "points": 86,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_039.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 40,
+    "skipped": false,
+    "triangles": 1984,
+    "points": 994,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_040.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 41,
+    "skipped": false,
+    "triangles": 208,
+    "points": 106,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_041.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 42,
+    "skipped": false,
+    "triangles": 628,
+    "points": 316,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_042.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 43,
+    "skipped": false,
+    "triangles": 292,
+    "points": 150,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_043.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 44,
+    "skipped": false,
+    "triangles": 276,
+    "points": 140,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_044.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 46,
+    "skipped": false,
+    "triangles": 16804,
+    "points": 8402,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_046.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 47,
+    "skipped": false,
+    "triangles": 616,
+    "points": 310,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_047.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 48,
+    "skipped": false,
+    "triangles": 188,
+    "points": 96,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_048.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 49,
+    "skipped": false,
+    "triangles": 11556,
+    "points": 6322,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_049.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 50,
+    "skipped": false,
+    "triangles": 484,
+    "points": 244,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_050.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 51,
+    "skipped": false,
+    "triangles": 420,
+    "points": 212,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_051.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 52,
+    "skipped": false,
+    "triangles": 680,
+    "points": 342,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_052.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 53,
+    "skipped": false,
+    "triangles": 1236,
+    "points": 620,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_053.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 54,
+    "skipped": false,
+    "triangles": 3092,
+    "points": 1548,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_054.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 55,
+    "skipped": false,
+    "triangles": 168,
+    "points": 86,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_055.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 56,
+    "skipped": false,
+    "triangles": 1164,
+    "points": 584,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_056.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 57,
+    "skipped": false,
+    "triangles": 268,
+    "points": 136,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_057.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 58,
+    "skipped": false,
+    "triangles": 228,
+    "points": 116,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_058.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 59,
+    "skipped": false,
+    "triangles": 6188,
+    "points": 3096,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_059.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 60,
+    "skipped": false,
+    "triangles": 240,
+    "points": 122,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_060.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 61,
+    "skipped": false,
+    "triangles": 972,
+    "points": 488,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_061.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 62,
+    "skipped": false,
+    "triangles": 232,
+    "points": 118,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_062.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 63,
+    "skipped": false,
+    "triangles": 872,
+    "points": 438,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_063.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 64,
+    "skipped": false,
+    "triangles": 200,
+    "points": 102,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_064.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 65,
+    "skipped": false,
+    "triangles": 192,
+    "points": 98,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_065.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 66,
+    "skipped": false,
+    "triangles": 700,
+    "points": 352,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_066.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 67,
+    "skipped": false,
+    "triangles": 196,
+    "points": 100,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_067.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 68,
+    "skipped": false,
+    "triangles": 424,
+    "points": 214,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_068.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 69,
+    "skipped": false,
+    "triangles": 428,
+    "points": 216,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_069.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 70,
+    "skipped": false,
+    "triangles": 192,
+    "points": 98,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_070.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 71,
+    "skipped": false,
+    "triangles": 176,
+    "points": 90,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_071.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 72,
+    "skipped": false,
+    "triangles": 228,
+    "points": 116,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_072.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 73,
+    "skipped": false,
+    "triangles": 10572,
+    "points": 5288,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_073.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 74,
+    "skipped": false,
+    "triangles": 240,
+    "points": 122,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_074.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 75,
+    "skipped": false,
+    "triangles": 336,
+    "points": 170,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_075.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 76,
+    "skipped": false,
+    "triangles": 436,
+    "points": 220,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_076.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 77,
+    "skipped": false,
+    "triangles": 228,
+    "points": 116,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_077.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 78,
+    "skipped": false,
+    "triangles": 59624,
+    "points": 29812,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_078.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 79,
+    "skipped": false,
+    "triangles": 236,
+    "points": 120,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_079.stl"
+  },
+  {
+    "job_id": "_jetstream_reference",
+    "segment": 80,
+    "skipped": false,
+    "triangles": 424,
+    "points": 214,
+    "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/_jetstream_reference/segments/segment_080.stl"
+  },
+  {
+    "job_id": "impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4",
+    "union": {
+      "skipped": false,
+      "triangles": 256856,
+      "points": 128482,
+      "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4/union.stl"
+    },
+    "segments": [
+      {
+        "label": 1,
+        "skipped": false,
+        "triangles": 14108,
+        "points": 7056,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4/segments/segment_001.stl"
+      },
+      {
+        "label": 2,
+        "skipped": false,
+        "triangles": 23500,
+        "points": 11752,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4/segments/segment_002.stl"
+      },
+      {
+        "label": 3,
+        "skipped": false,
+        "triangles": 68700,
+        "points": 35268,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4/segments/segment_003.stl"
+      },
+      {
+        "label": 4,
+        "skipped": false,
+        "triangles": 3312,
+        "points": 1658,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4/segments/segment_004.stl"
+      },
+      {
+        "label": 5,
+        "skipped": false,
+        "triangles": 1516,
+        "points": 760,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4/segments/segment_005.stl"
+      },
+      {
+        "label": 6,
+        "skipped": false,
+        "triangles": 8768,
+        "points": 4396,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4/segments/segment_006.stl"
+      },
+      {
+        "label": 7,
+        "skipped": false,
+        "triangles": 19768,
+        "points": 9886,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4/segments/segment_007.stl"
+      },
+      {
+        "label": 8,
+        "skipped": false,
+        "triangles": 25792,
+        "points": 12898,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4/segments/segment_008.stl"
+      },
+      {
+        "label": 9,
+        "skipped": false,
+        "triangles": 2748,
+        "points": 1376,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4/segments/segment_009.stl"
+      },
+      {
+        "label": 10,
+        "skipped": false,
+        "triangles": 18976,
+        "points": 9492,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4/segments/segment_010.stl"
+      },
+      {
+        "label": 11,
+        "skipped": false,
+        "triangles": 740,
+        "points": 372,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4/segments/segment_011.stl"
+      },
+      {
+        "label": 12,
+        "skipped": false,
+        "triangles": 25388,
+        "points": 12700,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4/segments/segment_012.stl"
+      },
+      {
+        "label": 13,
+        "skipped": false,
+        "triangles": 1512,
+        "points": 758,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4/segments/segment_013.stl"
+      },
+      {
+        "label": 14,
+        "skipped": false,
+        "triangles": 8240,
+        "points": 4122,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4/segments/segment_014.stl"
+      },
+      {
+        "label": 15,
+        "skipped": false,
+        "triangles": 12456,
+        "points": 6260,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4/segments/segment_015.stl"
+      },
+      {
+        "label": 16,
+        "skipped": false,
+        "triangles": 1964,
+        "points": 984,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4/segments/segment_016.stl"
+      },
+      {
+        "label": 17,
+        "skipped": false,
+        "triangles": 5352,
+        "points": 2678,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4/segments/segment_017.stl"
+      },
+      {
+        "label": 18,
+        "skipped": false,
+        "triangles": 32548,
+        "points": 17400,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4/segments/segment_018.stl"
+      },
+      {
+        "label": 19,
+        "skipped": false,
+        "triangles": 13676,
+        "points": 6940,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4/segments/segment_019.stl"
+      },
+      {
+        "label": 20,
+        "skipped": false,
+        "triangles": 25228,
+        "points": 12614,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4/segments/segment_020.stl"
+      },
+      {
+        "label": 21,
+        "skipped": false,
+        "triangles": 6420,
+        "points": 3214,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4/segments/segment_021.stl"
+      },
+      {
+        "label": 22,
+        "skipped": false,
+        "triangles": 10380,
+        "points": 5200,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4/segments/segment_022.stl"
+      },
+      {
+        "label": 23,
+        "skipped": false,
+        "triangles": 3596,
+        "points": 1800,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4/segments/segment_023.stl"
+      },
+      {
+        "label": 24,
+        "skipped": false,
+        "triangles": 4620,
+        "points": 2302,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4/segments/segment_024.stl"
+      },
+      {
+        "label": 25,
+        "skipped": false,
+        "triangles": 1308,
+        "points": 656,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4/segments/segment_025.stl"
+      },
+      {
+        "label": 26,
+        "skipped": false,
+        "triangles": 1984,
+        "points": 994,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4/segments/segment_026.stl"
+      },
+      {
+        "label": 27,
+        "skipped": false,
+        "triangles": 9732,
+        "points": 4870,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4/segments/segment_027.stl"
+      },
+      {
+        "label": 28,
+        "skipped": false,
+        "triangles": 19192,
+        "points": 10762,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p2__intensity_percentile_99p0__min_local_density_0p4/segments/segment_028.stl"
+      }
+    ]
+  },
+  {
+    "job_id": "impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_95p0__min_local_density_0p0",
+    "union": {
+      "skipped": false,
+      "triangles": 187948,
+      "points": 94012,
+      "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_95p0__min_local_density_0p0/union.stl"
+    },
+    "segments": [
+      {
+        "label": 1,
+        "skipped": false,
+        "triangles": 14108,
+        "points": 7056,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_95p0__min_local_density_0p0/segments/segment_001.stl"
+      },
+      {
+        "label": 2,
+        "skipped": false,
+        "triangles": 23500,
+        "points": 11752,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_95p0__min_local_density_0p0/segments/segment_002.stl"
+      },
+      {
+        "label": 3,
+        "skipped": false,
+        "triangles": 68700,
+        "points": 35268,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_95p0__min_local_density_0p0/segments/segment_003.stl"
+      },
+      {
+        "label": 4,
+        "skipped": false,
+        "triangles": 3252,
+        "points": 1628,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_95p0__min_local_density_0p0/segments/segment_004.stl"
+      },
+      {
+        "label": 5,
+        "skipped": false,
+        "triangles": 1516,
+        "points": 760,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_95p0__min_local_density_0p0/segments/segment_005.stl"
+      },
+      {
+        "label": 6,
+        "skipped": false,
+        "triangles": 8768,
+        "points": 4396,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_95p0__min_local_density_0p0/segments/segment_006.stl"
+      },
+      {
+        "label": 7,
+        "skipped": false,
+        "triangles": 19768,
+        "points": 9886,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_95p0__min_local_density_0p0/segments/segment_007.stl"
+      },
+      {
+        "label": 8,
+        "skipped": false,
+        "triangles": 23204,
+        "points": 11612,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_95p0__min_local_density_0p0/segments/segment_008.stl"
+      },
+      {
+        "label": 9,
+        "skipped": false,
+        "triangles": 2748,
+        "points": 1376,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_95p0__min_local_density_0p0/segments/segment_009.stl"
+      },
+      {
+        "label": 10,
+        "skipped": false,
+        "triangles": 18976,
+        "points": 9492,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_95p0__min_local_density_0p0/segments/segment_010.stl"
+      },
+      {
+        "label": 11,
+        "skipped": false,
+        "triangles": 740,
+        "points": 372,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_95p0__min_local_density_0p0/segments/segment_011.stl"
+      },
+      {
+        "label": 12,
+        "skipped": false,
+        "triangles": 25388,
+        "points": 12700,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_95p0__min_local_density_0p0/segments/segment_012.stl"
+      },
+      {
+        "label": 13,
+        "skipped": false,
+        "triangles": 8240,
+        "points": 4122,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_95p0__min_local_density_0p0/segments/segment_013.stl"
+      }
+    ]
+  },
+  {
+    "job_id": "impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_97p0__min_local_density_0p4",
+    "union": {
+      "skipped": false,
+      "triangles": 182296,
+      "points": 91176,
+      "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_97p0__min_local_density_0p4/union.stl"
+    },
+    "segments": [
+      {
+        "label": 1,
+        "skipped": false,
+        "triangles": 14108,
+        "points": 7056,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_97p0__min_local_density_0p4/segments/segment_001.stl"
+      },
+      {
+        "label": 2,
+        "skipped": false,
+        "triangles": 23500,
+        "points": 11752,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_97p0__min_local_density_0p4/segments/segment_002.stl"
+      },
+      {
+        "label": 3,
+        "skipped": false,
+        "triangles": 68700,
+        "points": 35268,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_97p0__min_local_density_0p4/segments/segment_003.stl"
+      },
+      {
+        "label": 4,
+        "skipped": false,
+        "triangles": 3252,
+        "points": 1628,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_97p0__min_local_density_0p4/segments/segment_004.stl"
+      },
+      {
+        "label": 5,
+        "skipped": false,
+        "triangles": 1516,
+        "points": 760,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_97p0__min_local_density_0p4/segments/segment_005.stl"
+      },
+      {
+        "label": 6,
+        "skipped": false,
+        "triangles": 8768,
+        "points": 4396,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_97p0__min_local_density_0p4/segments/segment_006.stl"
+      },
+      {
+        "label": 7,
+        "skipped": false,
+        "triangles": 19768,
+        "points": 9886,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_97p0__min_local_density_0p4/segments/segment_007.stl"
+      },
+      {
+        "label": 8,
+        "skipped": false,
+        "triangles": 25792,
+        "points": 12898,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_97p0__min_local_density_0p4/segments/segment_008.stl"
+      },
+      {
+        "label": 9,
+        "skipped": false,
+        "triangles": 2748,
+        "points": 1376,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_97p0__min_local_density_0p4/segments/segment_009.stl"
+      },
+      {
+        "label": 10,
+        "skipped": false,
+        "triangles": 18976,
+        "points": 9492,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_97p0__min_local_density_0p4/segments/segment_010.stl"
+      },
+      {
+        "label": 11,
+        "skipped": false,
+        "triangles": 740,
+        "points": 372,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_97p0__min_local_density_0p4/segments/segment_011.stl"
+      },
+      {
+        "label": 12,
+        "skipped": false,
+        "triangles": 25388,
+        "points": 12700,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_97p0__min_local_density_0p4/segments/segment_012.stl"
+      }
+    ]
+  },
+  {
+    "job_id": "impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_99p0__min_local_density_0p0",
+    "union": {
+      "skipped": false,
+      "triangles": 134504,
+      "points": 67266,
+      "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_99p0__min_local_density_0p0/union.stl"
+    },
+    "segments": [
+      {
+        "label": 1,
+        "skipped": false,
+        "triangles": 14108,
+        "points": 7056,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_99p0__min_local_density_0p0/segments/segment_001.stl"
+      },
+      {
+        "label": 2,
+        "skipped": false,
+        "triangles": 23500,
+        "points": 11752,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_99p0__min_local_density_0p0/segments/segment_002.stl"
+      },
+      {
+        "label": 3,
+        "skipped": false,
+        "triangles": 68700,
+        "points": 35268,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_99p0__min_local_density_0p0/segments/segment_003.stl"
+      },
+      {
+        "label": 4,
+        "skipped": false,
+        "triangles": 3312,
+        "points": 1658,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_99p0__min_local_density_0p0/segments/segment_004.stl"
+      },
+      {
+        "label": 5,
+        "skipped": false,
+        "triangles": 1516,
+        "points": 760,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_99p0__min_local_density_0p0/segments/segment_005.stl"
+      },
+      {
+        "label": 6,
+        "skipped": false,
+        "triangles": 8768,
+        "points": 4396,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_99p0__min_local_density_0p0/segments/segment_006.stl"
+      },
+      {
+        "label": 7,
+        "skipped": false,
+        "triangles": 19768,
+        "points": 9886,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_99p0__min_local_density_0p0/segments/segment_007.stl"
+      },
+      {
+        "label": 8,
+        "skipped": false,
+        "triangles": 25792,
+        "points": 12898,
+        "stl_path": "/mnt/c/Users/DELL_/OneDrive/Documents/GitHub/MorphoClaw/paper_artifacts/mouse_review/stl/impc_mouse__intensity_drop_floor_frac_0p5__intensity_percentile_99p0__min_local_density_0p0/segments/segment_008.stl"
+      }
+    ]
+  }
+]
