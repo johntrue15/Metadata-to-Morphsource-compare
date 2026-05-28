@@ -56,9 +56,22 @@ python3 .github/scripts/jetstream_controller.py run --wait -- \
 # Presets
 python3 .github/scripts/jetstream_controller.py preset pcb-export-noise --wait
 python3 .github/scripts/jetstream_controller.py preset pcb-copper-test --wait
+python3 .github/scripts/jetstream_controller.py preset pcb-preprocess-layers --wait
+python3 .github/scripts/jetstream_controller.py preset pcb-register-gt --wait
+python3 .github/scripts/jetstream_controller.py preset pcb-iterate-score --max-steps 20 --wait
 ```
 
 LLM presets forward `OPENAI_API_KEY` from the Mac environment when set.
+
+PCB iterative scoring presets read optional env vars:
+
+```bash
+PCB_CT_VOLUME=/home/exouser/Desktop/pcb_ti_jetstream.nii.gz
+PCB_FIGURE_GT_MANIFEST=data/pcb/reference/generated/figure_gt_manifest.json
+PCB_GT_LABELMAP=runs/pcb_gt_registered_YYYYmmddTHHMMSS/top_copper_gt_registered.nii.gz
+```
+
+See [PCB_LAYER_PIPELINE.md](PCB_LAYER_PIPELINE.md) for full dewarp/stitch/flatten + GT registration flow.
 
 ## Architecture
 
