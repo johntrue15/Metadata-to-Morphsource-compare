@@ -170,6 +170,107 @@ def _find_mesh(directory: Path) -> Optional[FilePick]:
     return matches[0] if matches else None
 
 
+def _sync_slicer_scene_with_ct(
+    ct_path: Path,
+    *,
+    ct_media_id: str,
+    scene_policy: str = "auto",
+    scene_strict: bool = False,
+) -> dict:
+    """Best-effort Slicer scene sync so each run starts clean."""
+    policy = (scene_policy or "auto").strip().lower()
+    if policy == "off":
+        return {"status": "skipped", "reason": "scene_policy=off"}
+
+    base_url = os.environ.get("SLICER_WEBSERVER_URL", "").strip()
+    if not base_url:
+        msg = "SLICER_WEBSERVER_URL is unset"
+        if policy == "auto":
+            return {"status": "skipped", "reason": msg}
+        err = {"status": "error", "error": msg}
+        if scene_strict:
+            err["fatal"] = True
+        return err
+
+    try:
+        import remote_volume_io as rvi
+    except Exception as exc:
+        err = {"status": "error", "error": f"remote_volume_io import failed: {exc!r}"}
+        if scene_strict:
+            err["fatal"] = True
+        return err
+
+    result: dict = {
+        "status": "ok",
+        "scene_policy": policy,
+        "base_url": base_url,
+        "ct_path": str(ct_path),
+    }
+    volume_name = f"ct_{ct_media_id}"
+    ct_abs = str(ct_path.resolve())
+
+    clear_scene_src = """\
+import slicer
+removed = {"scalar_volumes": [], "labelmaps": [], "segmentations": [], "models": [], "markups": []}
+try:
+    for cls, key in [
+        ("vtkMRMLSegmentationNode", "segmentations"),
+        ("vtkMRMLLabelMapVolumeNode", "labelmaps"),
+        ("vtkMRMLScalarVolumeNode", "scalar_volumes"),
+        ("vtkMRMLModelNode", "models"),
+        ("vtkMRMLMarkupsNode", "markups"),
+    ]:
+        for node in list(slicer.util.getNodesByClass(cls)):
+            n = node.GetName() or ""
+            if "do not touch" in n.lower():
+                continue
+            removed[key].append(n)
+            slicer.mrmlScene.RemoveNode(node)
+    __execResult = {"status": "ok", "removed": removed}
+except Exception as e:
+    __execResult = {"status": "exception", "error": repr(e), "removed": removed}
+"""
+
+    try:
+        if policy in {"auto", "reset-load"}:
+            cleared = rvi._post_python(
+                base_url, clear_scene_src, timeout=120, retries=1, retry_sleep=3.0
+            )
+            result["scene_clear"] = cleared
+            if cleared.get("status") != "ok":
+                raise RuntimeError(f"scene clear failed: {cleared!r}")
+
+        loaded = rvi.load_volume_from_remote_path(
+            base_url=base_url,
+            path=ct_abs,
+            name=volume_name,
+            timeout=600.0,
+        )
+        result["scene_load"] = loaded
+        if loaded.get("status") != "ok":
+            raise RuntimeError(f"scene load failed: {loaded!r}")
+
+        active_name = loaded.get("volume_name") or volume_name
+        active = rvi.set_active_volume(base_url=base_url, name=active_name, timeout=30)
+        result["scene_active"] = active
+        if active.get("status") != "ok":
+            raise RuntimeError(f"set active failed: {active!r}")
+
+        result["scene_list"] = rvi.list_volumes(base_url=base_url, timeout=30)
+        return result
+    except Exception as exc:
+        err = {
+            "status": "error",
+            "scene_policy": policy,
+            "error": repr(exc),
+            "ct_path": ct_abs,
+            "base_url": base_url,
+        }
+        if scene_strict:
+            err["fatal"] = True
+        return err
+
+
 def _download(media_id: str, dest: Path, *, max_retries: int = 5) -> dict:
     """Fetch a MorphoSource media bundle, skipping the network if already
     cached. A cache hit requires both the original .zip and at least one
@@ -1262,6 +1363,8 @@ def run_comparison(ct_media_id: str, gt_media_id: str, goal: str,
                    crop_around_mesh_mm: float = 0.0,
                    max_voxel_axis: int = 0,
                    align_mesh_to_ct: str = "",
+                   scene_policy: str = "auto",
+                   scene_strict: bool = False,
                    skip_paint_loop: bool = False,
                    export_fixture_dir: Optional[Path] = None,
                    paint_mode: str = "llm",
@@ -1396,6 +1499,20 @@ def run_comparison(ct_media_id: str, gt_media_id: str, goal: str,
         if alignment_summary.get("applied") or aligned_mesh.exists():
             mesh_path_used = aligned_mesh
 
+    # ---- 2c2. Optional: keep Slicer scene clean + in-sync for monitoring ----
+    scene_sync = _sync_slicer_scene_with_ct(
+        ct_path=ct_path,
+        ct_media_id=ct_media_id,
+        scene_policy=scene_policy,
+        scene_strict=scene_strict,
+    )
+    if scene_sync.get("status") == "error":
+        log.warning("Slicer scene sync failed: %s", scene_sync.get("error"))
+        if scene_sync.get("fatal"):
+            return {"success": False, "stage": "scene_sync", "result": scene_sync}
+    elif scene_sync.get("status") == "ok":
+        log.info("Slicer scene synced for CT %s", ct_media_id)
+
     # ---- 2c. Optional: crop to GT mesh bbox + margin (faster + tractable) ----
     cropped_ct = ct_path
     cropped_summary = None
@@ -1455,6 +1572,7 @@ def run_comparison(ct_media_id: str, gt_media_id: str, goal: str,
             "foreground_volume_mm3": voxelize_result.get("foreground_volume_mm3"),
             "crop_summary": cropped_summary,
             "voxelize_summary": voxelize_result,
+            "scene_sync": scene_sync,
             "alignment_report": str(align_report_path),
             "duration_s": round(time.time() - t0, 1),
             "skipped_paint_loop": True,
@@ -1590,6 +1708,7 @@ def run_comparison(ct_media_id: str, gt_media_id: str, goal: str,
         "report_path": str(report_path),
         "voxelize_backend": voxelize_result.get("backend",
                                                 voxelize_backend),
+        "scene_sync": scene_sync,
         "alignment_summary": alignment_summary,
         "crop_summary": cropped_summary,
         "resample_summary": resample_summary,
@@ -2151,6 +2270,18 @@ def _parse_args():
                         "skips when bboxes already overlap. Necessary for "
                         "derivative-mesh projects (358382, etc) whose .ply "
                         "files are in the modeller's local frame.")
+    p.add_argument(
+        "--scene-policy",
+        default="auto",
+        choices=["auto", "off", "reset-load", "load-only"],
+        help="3D Slicer scene handling before paint loop. "
+             "'auto' resets + loads when SLICER_WEBSERVER_URL exists, else skips.",
+    )
+    p.add_argument(
+        "--scene-strict",
+        action="store_true",
+        help="Fail if scene sync fails (default: best-effort only).",
+    )
     p.add_argument("--preset", default="", choices=[""] + list(PRESETS.keys()),
                    help="Pre-canned test pair. Overrides individual fields "
                         "but per-flag arguments still win if explicitly set.")
@@ -2390,6 +2521,8 @@ def main() -> int:
         crop_around_mesh_mm=crop_mm,
         max_voxel_axis=args.max_voxel_axis,
         align_mesh_to_ct=args.align_mesh_to_ct,
+        scene_policy=args.scene_policy,
+        scene_strict=args.scene_strict,
         skip_paint_loop=args.skip_paint_loop,
         export_fixture_dir=(Path(args.export_fixture_dir)
                             if args.export_fixture_dir else None),

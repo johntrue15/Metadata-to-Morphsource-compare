@@ -1031,6 +1031,7 @@ def main(argv: list[str] | None = None) -> int:
                    f"spacing={r.get('spacing_mm')}")
 
     # Hash the input volume — the single most important provenance step
+    vol_meta: dict = {}
     if args.skip_volume_hash:
         logger.log("-> Skipping volume hash (--skip-volume-hash)")
         logger.event("volume_hash_skipped")

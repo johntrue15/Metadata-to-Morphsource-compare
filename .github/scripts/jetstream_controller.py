@@ -43,12 +43,18 @@ DEPLOY_FILES = (
     ".github/scripts/slicer_remote_pcb_copper.py",
     ".github/scripts/pcb_preprocess_layers.py",
     ".github/scripts/pcb_figure_gt.py",
+    ".github/scripts/jetstream_colors_skull_batch.py",
     ".github/scripts/jetstream_ecu_server.py",
     ".github/scripts/jetstream_controller.py",
     ".github/scripts/slicer_remote_bright_seed.py",
     ".github/scripts/slicer_remote_loop.py",
     ".github/scripts/remote_volume_io.py",
     ".github/scripts/run_telemetry.py",
+    # Modular GT-vs-prediction comparison (segmentation-free) + its deps.
+    ".github/scripts/compare_gt_to_prediction.py",
+    ".github/scripts/voxelize_mesh_vtk.py",
+    ".github/scripts/segmentation_metrics.py",
+    ".github/scripts/mesh_ct_alignment.py",
     "scripts/jetstream/restart_ecu.sh",
     "scripts/jetstream/install_ecu.sh",
 )
@@ -212,6 +218,29 @@ def cmd_preset(args: argparse.Namespace) -> int:
             "--label", "crotalus_skull_completion",
             "--out-dir", f"runs/colors_skull_bright_{time.strftime('%Y%m%dT%H%M%S')}",
         ],
+        "colors-skull-prefetch-all": [
+            "python3", ".github/scripts/jetstream_colors_skull_batch.py",
+            "--manifest", "Tests/fixtures/project358382_pilot3.json",
+            "--mode", "prefetch",
+            "--output-root", f"runs/colors_skull_batch_prefetch_{time.strftime('%Y%m%dT%H%M%S')}",
+        ],
+        "colors-skull-batch-all": [
+            "python3", ".github/scripts/jetstream_colors_skull_batch.py",
+            "--manifest", "Tests/fixtures/project358382_pilot3.json",
+            "--mode", "prefetch-and-run",
+            "--max-steps", str(max_steps if max_steps is not None else 12),
+            "--continue-on-error",
+            "--output-root", f"runs/colors_skull_batch_{time.strftime('%Y%m%dT%H%M%S')}",
+        ],
+        "colors-skull-batch-next": [
+            "python3", ".github/scripts/jetstream_colors_skull_batch.py",
+            "--manifest", "Tests/fixtures/project358382_pilot3.json",
+            "--mode", "run-all",
+            "--start-index", "2",
+            "--max-steps", str(max_steps if max_steps is not None else 12),
+            "--continue-on-error",
+            "--output-root", f"runs/colors_skull_batch_next_{time.strftime('%Y%m%dT%H%M%S')}",
+        ],
         "pcb-preprocess-layers": [
             "python3", ".github/scripts/pcb_preprocess_layers.py",
             "--input-volume", ct_volume,
@@ -252,8 +281,10 @@ def cmd_preset(args: argparse.Namespace) -> int:
         poll=args.poll,
         tail=args.tail,
     )
-    if args.name in ("pcb-copper-test", "pcb-iterate-score") and os.environ.get("OPENAI_API_KEY"):
+    if args.name in ("pcb-copper-test", "pcb-iterate-score", "colors-skull-batch-all", "colors-skull-batch-next") and os.environ.get("OPENAI_API_KEY"):
         ns.env = [f"OPENAI_API_KEY={os.environ['OPENAI_API_KEY']}"]
+    if args.name in ("colors-skull-prefetch-all", "colors-skull-batch-all", "colors-skull-batch-next") and os.environ.get("MORPHOSOURCE_API_KEY"):
+        ns.env.append(f"MORPHOSOURCE_API_KEY={os.environ['MORPHOSOURCE_API_KEY']}")
     return cmd_run(ns)
 
 
@@ -360,7 +391,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     pp = sub.add_parser("preset", help="named remote workflows")
     pp.add_argument("name", choices=[
         "pcb-copper-test", "pcb-export-noise", "pcb-bright-100",
-        "colors-skull-completion", "pcb-preprocess-layers",
+        "colors-skull-completion", "colors-skull-prefetch-all",
+        "colors-skull-batch-all", "colors-skull-batch-next",
+        "pcb-preprocess-layers",
         "pcb-register-gt", "pcb-iterate-score",
     ])
     pp.add_argument("--max-steps", type=int, default=None)

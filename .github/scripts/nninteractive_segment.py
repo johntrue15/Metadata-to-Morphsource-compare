@@ -29,6 +29,7 @@ Design notes
 from __future__ import annotations
 
 import argparse
+import inspect
 import json
 import logging
 import os
@@ -224,14 +225,29 @@ class Segmenter:
         log.info("nnInteractive torch_n_threads=%d (device=%s)",
                  n_threads, self.device.type)
 
-        self._session = nnInteractiveInferenceSession(
-            device=self.device,
-            use_torch_compile=config.use_torch_compile,
-            verbose=config.verbose,
-            torch_n_threads=n_threads,
-            do_autozoom=config.do_autozoom,
-            use_pinned_memory=config.use_pinned_memory and self.device.type == "cuda",
-        )
+        # nnInteractive's constructor shape differs across releases on Jetstream.
+        # Build kwargs defensively so older installs still run.
+        session_kwargs = {
+            "device": self.device,
+            "use_torch_compile": config.use_torch_compile,
+            "verbose": config.verbose,
+            "torch_n_threads": n_threads,
+            "do_autozoom": config.do_autozoom,
+            "use_pinned_memory": (
+                config.use_pinned_memory and self.device.type == "cuda"
+            ),
+        }
+        try:
+            supported = set(
+                inspect.signature(nnInteractiveInferenceSession.__init__).parameters
+            )
+        except Exception:
+            supported = set(session_kwargs.keys())
+        filtered_kwargs = {k: v for k, v in session_kwargs.items() if k in supported}
+        missing = sorted(set(session_kwargs) - set(filtered_kwargs))
+        if missing:
+            log.info("nnInteractive backend missing init kwargs: %s", missing)
+        self._session = nnInteractiveInferenceSession(**filtered_kwargs)
         self._session.initialize_from_trained_model_folder(str(self.model_path))
 
         log.info("Loading volume: %s", self.input_path)
