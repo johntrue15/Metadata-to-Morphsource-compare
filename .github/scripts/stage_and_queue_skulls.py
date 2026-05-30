@@ -111,7 +111,19 @@ def _write_spec(slug: str, max_steps: int) -> tuple[str, Path]:
     return job_id, path
 
 
-def _stage_ct(pair: dict, slug: str, stage_python: str, max_axis: int) -> bool:
+# Substrings that mark a *deterministic* per-specimen failure (re-running won't
+# help; these should NOT trip the MorphoSource outage circuit-breaker).
+_DETERMINISTIC_FAIL_MARKERS = (
+    "does not expose voxel spacing",
+    "No CT slice stack found",
+    "No TIFF z-stack found",
+    "No DICOM z-stack found",
+    "visibility is",            # not 'open' -> cannot download
+)
+
+
+def _stage_ct(pair: dict, slug: str, stage_python: str, max_axis: int) -> str:
+    """Stage one CT. Returns 'ok', 'skip' (deterministic), or 'fail' (transient)."""
     cmd = [
         stage_python, "-u",
         str(SCRIPT_DIR / "stage_morphosource_sample.py"),
@@ -122,11 +134,20 @@ def _stage_ct(pair: dict, slug: str, stage_python: str, max_axis: int) -> bool:
         "--download-root", str(DOWNLOAD_ROOT),
     ]
     _log(f"staging CT for {slug} (ct={pair['ct_media_id']}) …")
-    proc = subprocess.run(cmd, cwd=str(REPO))
-    ok = proc.returncode == 0 and (SAMPLE_DIR / f"{slug}_ct.nrrd").exists()
-    if not ok:
-        _log(f"FAILED staging {slug} (rc={proc.returncode})")
-    return ok
+    proc = subprocess.run(cmd, cwd=str(REPO), capture_output=True, text=True)
+    if proc.stdout:
+        print(proc.stdout, end="", flush=True)
+    if proc.stderr:
+        print(proc.stderr, end="", flush=True)
+    if proc.returncode == 0 and (SAMPLE_DIR / f"{slug}_ct.nrrd").exists():
+        return "ok"
+    blob = (proc.stdout or "") + (proc.stderr or "")
+    if any(marker in blob for marker in _DETERMINISTIC_FAIL_MARKERS):
+        _log(f"SKIP {slug}: deterministic failure (rc={proc.returncode}) — "
+             f"won't count toward circuit-breaker")
+        return "skip"
+    _log(f"FAILED staging {slug} (rc={proc.returncode}) — transient/download")
+    return "fail"
 
 
 def _free_download_cache(pair: dict) -> None:
@@ -195,30 +216,46 @@ def main(argv=None) -> int:
                  f"{pair.get('ct_file_size')/1e9:.1f} GB > {args.max_ct_gb} GB")
             continue
         slug = _slug(pair)
-        if _already_done(slug):
-            _log(f"skip {slug}: CT already staged")
+        ct_staged = (SAMPLE_DIR / f"{slug}_ct.nrrd").exists()
+        already_queued = (QUEUE_DIR / f"{slug}-{args.max_steps}.json").exists()
+        if ct_staged and already_queued:
+            _log(f"skip {slug}: CT staged and job already queued")
             continue
-        todo.append((pair, slug))
+        # needs_stage False = CT NRRD already on disk (e.g. pre-staged); we still
+        # write the fixture/spec and commit so the worker can pick it up.
+        todo.append((pair, slug, not ct_staged))
 
-    _log(f"{len(todo)} specimen(s) to stage; delay={args.specimen_delay:.0f}s, "
-         f"circuit-breaker after {args.max_consecutive_fails} consecutive fails")
+    n_dl = sum(1 for _, _, need in todo if need)
+    _log(f"{len(todo)} specimen(s) to process ({n_dl} need download); "
+         f"delay={args.specimen_delay:.0f}s, circuit-breaker after "
+         f"{args.max_consecutive_fails} consecutive fails")
 
     staged = 0
     consecutive_fails = 0
-    for idx, (pair, slug) in enumerate(todo):
-        if idx > 0 and args.specimen_delay > 0:
-            _log(f"waiting {args.specimen_delay:.0f}s before next specimen …")
-            time.sleep(args.specimen_delay)
-
-        if not _stage_ct(pair, slug, args.stage_python, args.max_axis):
-            _free_download_cache(pair)
-            consecutive_fails += 1
-            if consecutive_fails >= args.max_consecutive_fails:
-                _log(f"ABORT: {consecutive_fails} consecutive staging failures "
-                     f"(MorphoSource likely unavailable). Re-run later.")
-                break
-            continue
-        consecutive_fails = 0
+    dl_done = 0
+    for pair, slug, needs_stage in todo:
+        if needs_stage:
+            if dl_done > 0 and args.specimen_delay > 0:
+                _log(f"waiting {args.specimen_delay:.0f}s before next download …")
+                time.sleep(args.specimen_delay)
+            dl_done += 1
+            status = _stage_ct(pair, slug, args.stage_python, args.max_axis)
+            if status == "skip":
+                _free_download_cache(pair)
+                consecutive_fails = 0  # deterministic, not an outage
+                continue
+            if status == "fail":
+                _free_download_cache(pair)
+                consecutive_fails += 1
+                if consecutive_fails >= args.max_consecutive_fails:
+                    _log(f"ABORT: {consecutive_fails} consecutive transient "
+                         f"failures (MorphoSource likely unavailable). "
+                         f"Re-run later.")
+                    break
+                continue
+            consecutive_fails = 0
+        else:
+            _log(f"{slug}: CT already staged; queueing without re-download")
 
         fx = _write_fixture(pair, slug)
         job_id, spec = _write_spec(slug, args.max_steps)
