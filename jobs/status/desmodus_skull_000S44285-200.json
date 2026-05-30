@@ -4,10 +4,10 @@
   "max_steps": 200,
   "fixture": "data/sample/desmodus_skull_000S44285_urls.json",
   "started_at": "2026-05-30T20:45:03Z",
-  "checkpoints": 3,
+  "checkpoints": 4,
   "id": "desmodus_skull_000S44285-200",
-  "updated_at": "2026-05-30T20:51:47Z",
-  "steps": 144,
-  "union_voxels": 182164,
-  "n_segments": 144
+  "updated_at": "2026-05-30T20:54:27Z",
+  "steps": 176,
+  "union_voxels": 197578,
+  "n_segments": 176
 }
