@@ -1,0 +1,10 @@
+{
+  "state": "running",
+  "run_dir": "desmodus_skull_000S44285-200_20260530T204503",
+  "max_steps": 200,
+  "fixture": "data/sample/desmodus_skull_000S44285_urls.json",
+  "started_at": "2026-05-30T20:45:03Z",
+  "checkpoints": 0,
+  "id": "desmodus_skull_000S44285-200",
+  "updated_at": "2026-05-30T20:45:03Z"
+}
