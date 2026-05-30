@@ -1,0 +1,9 @@
+{
+  "id": "crotalus_skull_000445108-200",
+  "fixture": "data/sample/crotalus_skull_000445108_urls.json",
+  "max_steps": 200,
+  "headless": true,
+  "fast": true,
+  "batch_size": 8,
+  "_doc": "Colors-of-Skull crotalus_skull_000445108: clear scene -> load CT -> bright-seed to 200 clicks or saturation, headless+batched, checkpointing to GitHub."
+}
