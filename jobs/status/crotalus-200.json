@@ -1,13 +1,20 @@
 {
-  "state": "running",
+  "state": "done",
   "run_dir": "crotalus-200_20260530T171457",
   "max_steps": 200,
   "fixture": "data/sample/colors_of_skull_urls.json",
   "started_at": "2026-05-30T17:14:57Z",
   "checkpoints": 1,
   "id": "crotalus-200",
-  "updated_at": "2026-05-30T17:16:30Z",
-  "steps": 80,
+  "updated_at": "2026-05-30T17:16:53Z",
+  "steps": 83,
   "union_voxels": 444524,
-  "n_segments": 80
+  "n_segments": 80,
+  "exit_code": 0,
+  "stop_reason": {
+    "reason": "no_more_candidates",
+    "step": 83,
+    "voxels": 447561
+  },
+  "finished_at": "2026-05-30T17:16:53Z"
 }
