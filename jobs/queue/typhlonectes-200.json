@@ -1,0 +1,9 @@
+{
+  "id": "typhlonectes-200",
+  "fixture": "data/sample/typhlonectes_skull_000649626_urls.json",
+  "max_steps": 200,
+  "headless": true,
+  "fast": true,
+  "batch_size": 8,
+  "_doc": "Colors-of-Skull: Typhlonectes natans (000649626). Clear scene -> load CT -> bright-seed to 200 clicks or saturation, headless+batched, checkpointing to GitHub."
+}

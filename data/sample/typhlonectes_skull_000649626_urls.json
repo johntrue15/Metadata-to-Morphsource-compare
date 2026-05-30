@@ -1,0 +1,26 @@
+{
+  "_doc": [
+    "GitHub raw URL fixture for Colors of Skull Anatomy (project 358382) typhlonectes.",
+    "data/sample/typhlonectes_skull_000649626_ct.nrrd must be on the default branch.",
+    "Staged with: stage_morphosource_sample.py --phase ct-only --ct-media-id 000649675 --mesh-media-id 000677539 --slug typhlonectes_skull_000649626"
+  ],
+  "github_repo": "johntrue15/MorphoClaw",
+  "github_ref": "main",
+  "slug": "typhlonectes_skull_000649626",
+  "project_id": "000358382",
+  "project_query": "Colors of Skull Anatomy",
+  "physical_object_id": "000649626",
+  "taxonomy": "Typhlonectes natans",
+  "ct_media_id": "000649675",
+  "mesh_media_id": "000677539",
+  "files": {
+    "ct_nrrd": "data/sample/typhlonectes_skull_000649626_ct.nrrd",
+    "provenance_json": "data/sample/typhlonectes_skull_000649626.provenance.json"
+  },
+  "slicer_volume_name": "typhlonectes_skull_000649626_ct",
+  "pilot_defaults": {
+    "budgets": [10, 25, 50, 100],
+    "max_steps": 200,
+    "intensity_percentile": 99.0
+  }
+}
