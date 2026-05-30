@@ -1,0 +1,88 @@
+{
+  "tool": "stage_morphosource_sample.py",
+  "generated_utc": "2026-05-30T20:07:03Z",
+  "ct_media": {
+    "id": "000393344",
+    "title": "Complete Skull [CTImageSeries] [CT]",
+    "taxonomy": "Issi saaneq",
+    "physical_object_id": "000393342",
+    "physical_object_title": "NHMD 164741",
+    "doi": "",
+    "ark": "ark:/87602/m4/393344",
+    "visibility": "open",
+    "x_pixel_spacing_mm": 0.08999975,
+    "y_pixel_spacing_mm": 0.08999975,
+    "z_pixel_spacing_mm": 0.08999975,
+    "native_voxel_dims_xyz": [
+      1922,
+      562,
+      2636
+    ],
+    "tiff_stack_root": "/media/volume/MyData/MorphoClaw/data/morphosource-download-000393344/morphosource_media-id-000393344_download-b76b75b0/Media 000393344 - Complete Skull CTImageSeries CT/NHMD_164741_-_CT_Data-000393344/NHMD 164741 - CT Data"
+  },
+  "mesh_media": {
+    "skipped": "full-volume mode (no GT mesh)"
+  },
+  "full_volume": true,
+  "grid": {
+    "max_axis_target": 384,
+    "margin_mm": 2.0,
+    "stride": 7,
+    "origin_convention": "zero",
+    "crop_index_min": [
+      0,
+      0,
+      0
+    ],
+    "crop_index_max": [
+      1921,
+      561,
+      2635
+    ],
+    "mesh_axis_perm": "+x+y+z",
+    "mesh_axis_matrix": [
+      [
+        1.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "ct_dtype": "uint16"
+  },
+  "outputs": {
+    "ct_nrrd": {
+      "path": "data/sample/issi_skull_000393342_ct.nrrd",
+      "size_bytes": 13301629,
+      "sha256": "18e20a1308788f801d4847b7b721e35756b6c465b0d4baf8c29dc768fafb6adb",
+      "voxel_dims_xyz": [
+        275,
+        81,
+        377
+      ],
+      "spacing_xyz_mm": [
+        0.62999825,
+        0.62999825,
+        0.62999825
+      ],
+      "origin_xyz_mm": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "dtype": "uint16"
+    }
+  },
+  "phases_completed": [
+    "ct-only"
+  ]
+}
