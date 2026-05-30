@@ -1,0 +1,61 @@
+{
+  "local": {
+    "captured_utc": "2026-05-30T20:03:48.074592+00:00",
+    "host": "instance-579",
+    "user": "exouser",
+    "platform": "Linux-6.8.0-117-generic-x86_64-with-glibc2.35",
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "python_version": "3.10.12",
+    "python_executable": "/usr/bin/python3",
+    "cwd": "/media/volume/MyData/MorphoClaw",
+    "argv": [
+      "/media/volume/MyData/MorphoClaw/.github/scripts/jetstream_skull_fresh_start.py",
+      "--fixture",
+      "data/sample/crotalus_skull_000445108_urls.json",
+      "--max-steps",
+      "200",
+      "--out-dir",
+      "/media/volume/MyData/MorphoClaw/runs/crotalus_skull_000445108-200_20260530T200345",
+      "--batch-size",
+      "8",
+      "--headless",
+      "--fast"
+    ],
+    "git_repo_root": "/media/volume/MyData/MorphoClaw",
+    "git_commit": "cdf36e1a3f37191cf27ba01f7612a644ac108fa2",
+    "git_branch": "main",
+    "git_dirty": true,
+    "git_remote": "https://github.com/johntrue15/MorphoClaw.git",
+    "package_versions": {
+      "numpy": "2.2.6",
+      "Pillow": "<missing: ModuleNotFoundError(\"No module named 'Pillow'\")>",
+      "requests": "2.34.2",
+      "openai": "2.38.0"
+    },
+    "env_vars_relevant": {
+      "GITHUB_TOKEN": "***",
+      "SLICER_WEBSERVER_URL": "http://127.0.0.1:2016"
+    }
+  },
+  "remote": {
+    "lightweight": true,
+    "captured_utc": "2026-05-30T20:03:48Z",
+    "sys_load_1": 0.13,
+    "psutil_err": "ModuleNotFoundError(\"No module named 'psutil'\")",
+    "sys_total_mem_gb": 63.19,
+    "sys_available_mem_gb": 55.1,
+    "sys_used_pct": 12.8,
+    "slicer_rss_mb": 2316.0,
+    "slicer_pid": 4209,
+    "slicer_family_rss_mb": 2316.0,
+    "fastapi_pid": 4372,
+    "fastapi_rss_mb": 2322.6,
+    "n_segmentation_nodes": 1,
+    "n_volume_nodes": 1,
+    "n_scene_nodes": 507,
+    "status": "ok",
+    "_dt_s": 0.138,
+    "_retries_used": 0
+  }
+}

@@ -4,7 +4,10 @@
   "max_steps": 200,
   "fixture": "data/sample/crotalus_skull_000445108_urls.json",
   "started_at": "2026-05-30T20:03:45Z",
-  "checkpoints": 0,
+  "checkpoints": 1,
   "id": "crotalus_skull_000445108-200",
-  "updated_at": "2026-05-30T20:03:45Z"
+  "updated_at": "2026-05-30T20:05:49Z",
+  "steps": 80,
+  "union_voxels": 444708,
+  "n_segments": 80
 }
