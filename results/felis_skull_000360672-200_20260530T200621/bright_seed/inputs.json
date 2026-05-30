@@ -1,0 +1,29 @@
+{
+  "status": "ok",
+  "volume_id": "vtkMRMLScalarVolumeNode1",
+  "volume_name": "felis_skull_000360672_ct",
+  "shape_kji": [
+    294,
+    171,
+    171
+  ],
+  "dtype": "int16",
+  "nbytes": 17193708,
+  "spacing_mm": [
+    0.471159,
+    0.471159,
+    0.471159
+  ],
+  "origin": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "scalar_min": -1255.0,
+  "scalar_max": 2553.0,
+  "scalar_mean": -326.54008303502656,
+  "sha256_voxels": "06b521e91bcbe4ed74270ff7685c2de22d8aba15557db2ab4c2785452eede979",
+  "source_filename": "/tmp/ms_remote_samples/felis_skull_000360672_ct.nrrd",
+  "_dt_s": 0.11,
+  "_retries_used": 0
+}
