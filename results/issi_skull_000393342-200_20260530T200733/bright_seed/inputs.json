@@ -1,0 +1,29 @@
+{
+  "status": "ok",
+  "volume_id": "vtkMRMLScalarVolumeNode1",
+  "volume_name": "issi_skull_000393342_ct",
+  "shape_kji": [
+    377,
+    81,
+    275
+  ],
+  "dtype": "uint16",
+  "nbytes": 16795350,
+  "spacing_mm": [
+    0.629998,
+    0.629998,
+    0.629998
+  ],
+  "origin": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "scalar_min": 5261.0,
+  "scalar_max": 63936.0,
+  "scalar_mean": 18901.413382632694,
+  "sha256_voxels": "e106edca001b198762c6179c4518d287d59eb94f606fa7e9dc48c7185da62e10",
+  "source_filename": "/tmp/ms_remote_samples/issi_skull_000393342_ct.nrrd",
+  "_dt_s": 0.114,
+  "_retries_used": 0
+}

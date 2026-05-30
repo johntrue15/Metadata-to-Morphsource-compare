@@ -4,7 +4,10 @@
   "max_steps": 200,
   "fixture": "data/sample/issi_skull_000393342_urls.json",
   "started_at": "2026-05-30T20:07:33Z",
-  "checkpoints": 0,
+  "checkpoints": 1,
   "id": "issi_skull_000393342-200",
-  "updated_at": "2026-05-30T20:07:33Z"
+  "updated_at": "2026-05-30T20:09:46Z",
+  "steps": 96,
+  "union_voxels": 123927,
+  "n_segments": 96
 }
