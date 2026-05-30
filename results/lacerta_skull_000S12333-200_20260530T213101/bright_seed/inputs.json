@@ -1,0 +1,29 @@
+{
+  "status": "ok",
+  "volume_id": "vtkMRMLScalarVolumeNode1",
+  "volume_name": "lacerta_skull_000S12333_ct",
+  "shape_kji": [
+    364,
+    106,
+    199
+  ],
+  "dtype": "uint16",
+  "nbytes": 15356432,
+  "spacing_mm": [
+    0.373316,
+    0.373316,
+    0.373316
+  ],
+  "origin": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "scalar_min": 1851.0,
+  "scalar_max": 65535.0,
+  "scalar_mean": 5110.235947647214,
+  "sha256_voxels": "11ba49ce04347f8dd84169bd2ec14732764778ed934dfc8ddf59b0689fdddda5",
+  "source_filename": "/tmp/ms_remote_samples/lacerta_skull_000S12333_ct.nrrd",
+  "_dt_s": 0.085,
+  "_retries_used": 0
+}

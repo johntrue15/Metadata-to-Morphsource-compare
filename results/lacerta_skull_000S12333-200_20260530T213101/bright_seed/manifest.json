@@ -1,0 +1,33 @@
+{
+  "run_id": "20260530T213105Z_lacerta_skull_000S12333_fresh_db64d7",
+  "label": "lacerta_skull_000S12333_fresh",
+  "started_utc": "2026-05-30T21:31:05.544622+00:00",
+  "started_unix": 1780176665.5444813,
+  "args": {
+    "volume": "lacerta_skull_000S12333_ct",
+    "reset_first": true,
+    "intensity_percentile": 99.0,
+    "max_candidates": 200000,
+    "max_steps": 200,
+    "min_delta": 0,
+    "patience": 1000000000,
+    "max_explosion_frac": 1.0,
+    "no_stop_rules": true,
+    "no_new_segment_per_click": false,
+    "no_screenshots": true,
+    "batch_size": 8,
+    "fast": true,
+    "headless": true,
+    "no_view_result": false,
+    "no_export_segmentation": false,
+    "skip_remote_env": true,
+    "skip_failed_steps": false,
+    "skip_volume_hash": false,
+    "no_resource_monitor": false,
+    "min_available_gb": null,
+    "label": "lacerta_skull_000S12333_fresh",
+    "out_dir": "/media/volume/MyData/MorphoClaw/runs/lacerta_skull_000S12333-200_20260530T213101/bright_seed"
+  },
+  "host": "instance-579",
+  "user": "exouser"
+}
