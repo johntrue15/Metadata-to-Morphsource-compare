@@ -60,7 +60,8 @@ def main(argv=None) -> int:
         "## Assets",
         "- `.glb` — open in any 3D / AR viewer (renders inline on GitHub)",
         "- `.usdz` — Apple Quick Look / AR (drag onto an iPhone/Mac)",
-        "- `.stl` — universal mesh interchange",
+        "- `.obj` (+ `.mtl`) — universal mesh interchange (DCC tools)",
+        "- `.stl` — universal mesh interchange (printing / CAD)",
         "- `.png` / `_turntable.gif` — preview renders (best-effort)",
     ]
     print("\n".join(lines))

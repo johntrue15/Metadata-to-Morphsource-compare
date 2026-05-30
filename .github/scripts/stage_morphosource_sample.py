@@ -481,6 +481,40 @@ def _compute_grid(full_size_xyz: Tuple[int, int, int],
     )
 
 
+def _full_volume_grid(full_size_xyz: Tuple[int, int, int],
+                      spacing_xyz: Tuple[float, float, float],
+                      max_axis: int) -> GridSpec:
+    """Grid covering the *entire* CT stack, stride-downsampled to ``max_axis``.
+
+    Used by ``--full-volume`` (no GT mesh): keeps the whole specimen instead of
+    cropping to a mesh bbox, so it can never fail on mesh<->CT alignment. Origin
+    is zeroed and orientation is identity (good enough for segmentation; the GT
+    grid is reconstructed separately when a comparison is needed).
+    """
+    np, _, _, _, _, _ = _import_deps()
+    nx, ny, nz = full_size_xyz
+    sx, sy, sz = spacing_xyz
+    stride = max(1, int(np.ceil(max(nx, ny, nz) / max_axis)))
+    new_nx = (nx + stride - 1) // stride
+    new_ny = (ny + stride - 1) // stride
+    new_nz = (nz + stride - 1) // stride
+    identity = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
+    log.info("Full-volume grid: native %s -> stride=%d -> output %s",
+             full_size_xyz, stride, (new_nx, new_ny, new_nz))
+    return GridSpec(
+        size_xyz=(new_nx, new_ny, new_nz),
+        spacing_xyz=(sx * stride, sy * stride, sz * stride),
+        origin_xyz=(0.0, 0.0, 0.0),
+        crop_index_min=(0, 0, 0),
+        crop_index_max=(nx - 1, ny - 1, nz - 1),
+        stride=stride,
+        full_size_xyz=full_size_xyz,
+        origin_convention="zero",
+        mesh_M=identity,
+        mesh_M_label="+x+y+z",
+    )
+
+
 def _peek_tiff_dims(Image, tiff_files: list[Path], np) -> Tuple[int, int, str]:
     with Image.open(tiff_files[0]) as im:
         nx, ny = im.size  # (width, height)
@@ -874,9 +908,15 @@ def stage_sample(ct_media_id: str, mesh_media_id: str, out_dir: Path,
                  voxelize_backend: str,
                  force_download: bool,
                  download_root: Path,
-                 phase: str = PHASE_ALL) -> dict:
+                 phase: str = PHASE_ALL,
+                 full_volume: bool = False,
+                 spacing_override: Optional[Tuple[float, float, float]] = None
+                 ) -> dict:
     if phase not in PHASES:
         raise ValueError(f"Unknown phase {phase!r}; expected one of {PHASES}.")
+    if full_volume and phase != PHASE_CT_ONLY:
+        raise ValueError("--full-volume only supports --phase ct-only "
+                         "(it stages the CT without the GT mesh).")
     _assert_phase_allowed_on_host(phase)
     np, sitk, vtk, _, Image, trimesh = _import_deps()
     out_dir = Path(out_dir)
@@ -913,39 +953,28 @@ def stage_sample(ct_media_id: str, mesh_media_id: str, out_dir: Path,
     log.info("Resolving metadata for CT %s and mesh %s",
              ct_media_id, mesh_media_id)
     ct_meta = _fetch_metadata(client, ct_media_id)
-    mesh_meta = _fetch_metadata(client, mesh_media_id)
     if safe_first(ct_meta.get("visibility")).lower() != "open":
         raise RuntimeError(
             f"CT media {ct_media_id} visibility is "
             f"{safe_first(ct_meta.get('visibility'))!r} -- must be 'open' to download"
         )
-    if safe_first(mesh_meta.get("visibility")).lower() != "open":
-        raise RuntimeError(
-            f"Mesh media {mesh_media_id} visibility is "
-            f"{safe_first(mesh_meta.get('visibility'))!r} -- must be 'open' to download"
-        )
 
-    spacing = _voxel_spacing_from_meta(ct_meta)
+    spacing = spacing_override or _voxel_spacing_from_meta(ct_meta)
     if spacing is None:
         raise RuntimeError(
             f"CT media {ct_media_id} does not expose voxel spacing in the "
             "MorphoSource API. Pass --spacing-xyz to override."
         )
-    log.info("Voxel spacing (mm) from API: %s", spacing)
+    log.info("Voxel spacing (mm): %s%s", spacing,
+             " (override)" if spacing_override else " (from API)")
 
     ct_dir = download_root / f"morphosource-download-{ct_media_id}"
-    mesh_dir = download_root / f"morphosource-download-{mesh_media_id}"
-
     ct_dl = _download_cached(ct_media_id, ct_dir, force=force_download)
     if not ct_dl.get("success"):
         raise RuntimeError(f"CT download failed: {ct_dl.get('error')}")
-    mesh_dl = _download_cached(mesh_media_id, mesh_dir, force=force_download)
-    if not mesh_dl.get("success"):
-        raise RuntimeError(f"Mesh download failed: {mesh_dl.get('error')}")
 
-    # Locate files.
+    # Locate CT slices.
     tiff_dir, tiff_files = _find_tiff_stack(ct_dir)
-    mesh_path = _find_mesh(mesh_dir)
 
     # Sanity-check slice dims.
     nx, ny, dtype_name = _peek_tiff_dims(Image, tiff_files, np)
@@ -955,18 +984,34 @@ def stage_sample(ct_media_id: str, mesh_media_id: str, out_dir: Path,
              nx, ny, nz, dtype_name,
              nx * spacing[0], ny * spacing[1], nz * spacing[2])
 
-    # Read mesh bounds before any heavy lifting.
-    poly, mesh_bounds = _read_mesh_bounds_and_poly(mesh_path)
-
-    grid = _compute_grid(
-        full_size_xyz=(nx, ny, nz),
-        spacing_xyz=spacing,
-        mesh_bounds=mesh_bounds,
-        margin_mm=margin_mm,
-        max_axis=max_axis,
-        origin_convention=origin_convention,
-        mesh_axis_perm=mesh_axis_perm,
-    )
+    mesh_meta = None
+    mesh_path = None
+    poly = None
+    mesh_bounds = None
+    if full_volume:
+        grid = _full_volume_grid((nx, ny, nz), spacing, max_axis)
+    else:
+        mesh_meta = _fetch_metadata(client, mesh_media_id)
+        if safe_first(mesh_meta.get("visibility")).lower() != "open":
+            raise RuntimeError(
+                f"Mesh media {mesh_media_id} visibility is "
+                f"{safe_first(mesh_meta.get('visibility'))!r} -- must be 'open'"
+            )
+        mesh_dir = download_root / f"morphosource-download-{mesh_media_id}"
+        mesh_dl = _download_cached(mesh_media_id, mesh_dir, force=force_download)
+        if not mesh_dl.get("success"):
+            raise RuntimeError(f"Mesh download failed: {mesh_dl.get('error')}")
+        mesh_path = _find_mesh(mesh_dir)
+        poly, mesh_bounds = _read_mesh_bounds_and_poly(mesh_path)
+        grid = _compute_grid(
+            full_size_xyz=(nx, ny, nz),
+            spacing_xyz=spacing,
+            mesh_bounds=mesh_bounds,
+            margin_mm=margin_mm,
+            max_axis=max_axis,
+            origin_convention=origin_convention,
+            mesh_axis_perm=mesh_axis_perm,
+        )
 
     # Stream CT slices into a small numpy volume.
     volume_zyx = _stream_load_volume(tiff_files, grid)
@@ -1006,8 +1051,11 @@ def stage_sample(ct_media_id: str, mesh_media_id: str, out_dir: Path,
         "generated_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "ct_media": _ct_meta_block(ct_media_id, ct_meta, spacing,
                                    nx, ny, nz, tiff_dir),
-        "mesh_media": _mesh_meta_block(mesh_media_id, mesh_meta,
-                                       mesh_path, mesh_bounds),
+        "mesh_media": ({"skipped": "full-volume mode (no GT mesh)"}
+                       if full_volume
+                       else _mesh_meta_block(mesh_media_id, mesh_meta,
+                                             mesh_path, mesh_bounds)),
+        "full_volume": full_volume,
         "grid": {
             "max_axis_target": max_axis,
             "margin_mm": margin_mm,
@@ -1271,6 +1319,13 @@ def _parse_args():
                        "appropriate on a GPU host. See "
                        "docs/RUNNER_TOPOLOGY.md for the split."
                    ))
+    p.add_argument("--full-volume", action="store_true",
+                   help="Stage the entire CT (no GT mesh / no bbox crop), "
+                        "stride-downsampled to --max-axis. Robust for the "
+                        "segmentation path; implies --phase ct-only.")
+    p.add_argument("--spacing-xyz", default=None,
+                   help="Override voxel spacing as 'sx,sy,sz' (mm) when the "
+                        "MorphoSource API does not expose it.")
     p.add_argument("-v", "--verbose", action="store_true")
     return p.parse_args()
 
@@ -1285,6 +1340,17 @@ def main() -> int:
     if not os.environ.get("MORPHOSOURCE_API_KEY"):
         log.error("MORPHOSOURCE_API_KEY is not set. Cannot fetch media.")
         return 2
+
+    spacing_override = None
+    if args.spacing_xyz:
+        try:
+            parts = [float(x) for x in args.spacing_xyz.split(",")]
+            if len(parts) != 3:
+                raise ValueError
+            spacing_override = (parts[0], parts[1], parts[2])
+        except ValueError:
+            log.error("--spacing-xyz must be 'sx,sy,sz'; got %r", args.spacing_xyz)
+            return 2
 
     t0 = time.time()
     try:
@@ -1303,6 +1369,8 @@ def main() -> int:
             force_download=args.force_download,
             download_root=Path(args.download_root),
             phase=args.phase,
+            full_volume=args.full_volume,
+            spacing_override=spacing_override,
         )
     except Exception as exc:
         log.error("Staging failed: %s", exc, exc_info=True)

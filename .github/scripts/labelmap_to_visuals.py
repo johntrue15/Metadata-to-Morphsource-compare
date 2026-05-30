@@ -102,11 +102,14 @@ def export_geometry(mesh, out_dir: Path, name: str) -> dict:
 
     glb = out_dir / f"{name}.glb"
     stl = out_dir / f"{name}.stl"
+    obj = out_dir / f"{name}.obj"
     mesh.export(glb)
     mesh.export(stl)
+    mesh.export(obj)  # writes <name>.obj (+ <name>.mtl for colors)
     _log(f"wrote {glb.name} ({glb.stat().st_size/1e6:.2f} MB), "
-         f"{stl.name} ({stl.stat().st_size/1e6:.2f} MB)")
-    return {"glb": glb.name, "stl": stl.name}
+         f"{stl.name} ({stl.stat().st_size/1e6:.2f} MB), "
+         f"{obj.name} ({obj.stat().st_size/1e6:.2f} MB)")
+    return {"glb": glb.name, "stl": stl.name, "obj": obj.name}
 
 
 def export_usdz(mesh, out_dir: Path, name: str) -> str | None:
