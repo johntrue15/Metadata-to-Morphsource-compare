@@ -1,0 +1,9 @@
+{
+  "id": "chamaeleo_skull_000408235-200",
+  "fixture": "data/sample/chamaeleo_skull_000408235_urls.json",
+  "max_steps": 200,
+  "headless": true,
+  "fast": true,
+  "batch_size": 8,
+  "_doc": "Colors-of-Skull chamaeleo_skull_000408235: clear scene -> load CT -> bright-seed to 200 clicks or saturation, headless+batched, checkpointing to GitHub."
+}

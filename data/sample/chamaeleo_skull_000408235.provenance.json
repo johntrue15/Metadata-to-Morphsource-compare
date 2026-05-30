@@ -1,0 +1,88 @@
+{
+  "tool": "stage_morphosource_sample.py",
+  "generated_utc": "2026-05-30T20:07:44Z",
+  "ct_media": {
+    "id": "000408242",
+    "title": "Head [CTImageSeries] [CT]",
+    "taxonomy": "Chamaeleo calyptratus",
+    "physical_object_id": "000408235",
+    "physical_object_title": "uf:herp:191369",
+    "doi": "",
+    "ark": "ark:/87602/m4/408242",
+    "visibility": "open",
+    "x_pixel_spacing_mm": 0.04978824,
+    "y_pixel_spacing_mm": 0.04978824,
+    "z_pixel_spacing_mm": 0.04978824,
+    "native_voxel_dims_xyz": [
+      1682,
+      731,
+      1714
+    ],
+    "tiff_stack_root": "/media/volume/MyData/MorphoClaw/data/morphosource-download-000408242/morphosource_media-id-000408242_download-5ecb2bdd/Media 000408242 - Head CTImageSeries CT/Z_stack-000408242/Z stack"
+  },
+  "mesh_media": {
+    "skipped": "full-volume mode (no GT mesh)"
+  },
+  "full_volume": true,
+  "grid": {
+    "max_axis_target": 384,
+    "margin_mm": 2.0,
+    "stride": 5,
+    "origin_convention": "zero",
+    "crop_index_min": [
+      0,
+      0,
+      0
+    ],
+    "crop_index_max": [
+      1681,
+      730,
+      1713
+    ],
+    "mesh_axis_perm": "+x+y+z",
+    "mesh_axis_matrix": [
+      [
+        1.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "ct_dtype": "uint16"
+  },
+  "outputs": {
+    "ct_nrrd": {
+      "path": "data/sample/chamaeleo_skull_000408235_ct.nrrd",
+      "size_bytes": 10746164,
+      "sha256": "d65aa911a32216938a7f2fa08a5084e984db2c577cd9e8c179cdb840fe3ed045",
+      "voxel_dims_xyz": [
+        337,
+        147,
+        343
+      ],
+      "spacing_xyz_mm": [
+        0.24894119999999997,
+        0.24894119999999997,
+        0.24894119999999997
+      ],
+      "origin_xyz_mm": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "dtype": "uint16"
+    }
+  },
+  "phases_completed": [
+    "ct-only"
+  ]
+}
