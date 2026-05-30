@@ -4,10 +4,10 @@
   "max_steps": 200,
   "fixture": "data/sample/oceanites_skull_000S29911_urls.json",
   "started_at": "2026-05-30T22:05:03Z",
-  "checkpoints": 6,
+  "checkpoints": 7,
   "id": "oceanites_skull_000S29911-200",
-  "updated_at": "2026-05-30T22:19:52Z",
-  "steps": 168,
-  "union_voxels": 583848,
-  "n_segments": 168
+  "updated_at": "2026-05-30T22:22:26Z",
+  "steps": 184,
+  "union_voxels": 588779,
+  "n_segments": 184
 }
