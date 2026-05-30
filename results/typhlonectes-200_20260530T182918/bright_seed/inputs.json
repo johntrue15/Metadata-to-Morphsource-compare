@@ -1,0 +1,29 @@
+{
+  "status": "ok",
+  "volume_id": "vtkMRMLScalarVolumeNode1",
+  "volume_name": "typhlonectes_skull_000649626_ct",
+  "shape_kji": [
+    335,
+    176,
+    206
+  ],
+  "dtype": "uint16",
+  "nbytes": 24291520,
+  "spacing_mm": [
+    0.106966,
+    0.106966,
+    0.106966
+  ],
+  "origin": [
+    11.006811,
+    9.40232,
+    -17.884732
+  ],
+  "scalar_min": 4639.0,
+  "scalar_max": 60241.0,
+  "scalar_mean": 9187.704358887382,
+  "sha256_voxels": "379a3e766d9f3932cda065af9eee7591f46f5c0c273d0780aeb8c35ac4f9502c",
+  "source_filename": "/tmp/ms_remote_samples/typhlonectes_skull_000649626_ct.nrrd",
+  "_dt_s": 0.12,
+  "_retries_used": 0
+}

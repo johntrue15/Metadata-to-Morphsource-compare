@@ -4,7 +4,10 @@
   "max_steps": 200,
   "fixture": "data/sample/typhlonectes_skull_000649626_urls.json",
   "started_at": "2026-05-30T18:29:18Z",
-  "checkpoints": 0,
+  "checkpoints": 1,
   "id": "typhlonectes-200",
-  "updated_at": "2026-05-30T18:29:18Z"
+  "updated_at": "2026-05-30T18:31:35Z",
+  "steps": 87,
+  "union_voxels": 245365,
+  "n_segments": 87
 }
