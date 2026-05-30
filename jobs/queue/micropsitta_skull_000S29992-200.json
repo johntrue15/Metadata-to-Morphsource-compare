@@ -1,0 +1,9 @@
+{
+  "id": "micropsitta_skull_000S29992-200",
+  "fixture": "data/sample/micropsitta_skull_000S29992_urls.json",
+  "max_steps": 200,
+  "headless": true,
+  "fast": true,
+  "batch_size": 8,
+  "_doc": "Colors-of-Skull micropsitta_skull_000S29992: clear scene -> load CT -> bright-seed to 200 clicks or saturation, headless+batched, checkpointing to GitHub."
+}
