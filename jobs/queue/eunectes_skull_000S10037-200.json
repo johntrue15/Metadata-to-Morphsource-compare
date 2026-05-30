@@ -1,0 +1,9 @@
+{
+  "id": "eunectes_skull_000S10037-200",
+  "fixture": "data/sample/eunectes_skull_000S10037_urls.json",
+  "max_steps": 200,
+  "headless": true,
+  "fast": true,
+  "batch_size": 8,
+  "_doc": "Colors-of-Skull eunectes_skull_000S10037: clear scene -> load CT -> bright-seed to 200 clicks or saturation, headless+batched, checkpointing to GitHub."
+}

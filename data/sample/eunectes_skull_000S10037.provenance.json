@@ -1,0 +1,88 @@
+{
+  "tool": "stage_morphosource_sample.py",
+  "generated_utc": "2026-05-30T20:12:43Z",
+  "ct_media": {
+    "id": "000058657",
+    "title": "Whole Body [CTImageSeries] [Etc]",
+    "taxonomy": "Eunectes murinus",
+    "physical_object_id": "000S10037",
+    "physical_object_title": "UF:Herp:84822",
+    "doi": "",
+    "ark": "ark:/87602/m4/M58657",
+    "visibility": "open",
+    "x_pixel_spacing_mm": 0.07350972,
+    "y_pixel_spacing_mm": 0.07350972,
+    "z_pixel_spacing_mm": 0.07350972,
+    "native_voxel_dims_xyz": [
+      1329,
+      982,
+      2011
+    ],
+    "tiff_stack_root": "/media/volume/MyData/MorphoClaw/data/morphosource-download-000058657/morphosource_media-id-000058657_download-b89413f0/Media 000058657 - Whole Body CTImageSeries Etc/Zstack-000058657/Zstack"
+  },
+  "mesh_media": {
+    "skipped": "full-volume mode (no GT mesh)"
+  },
+  "full_volume": true,
+  "grid": {
+    "max_axis_target": 384,
+    "margin_mm": 2.0,
+    "stride": 6,
+    "origin_convention": "zero",
+    "crop_index_min": [
+      0,
+      0,
+      0
+    ],
+    "crop_index_max": [
+      1328,
+      981,
+      2010
+    ],
+    "mesh_axis_perm": "+x+y+z",
+    "mesh_axis_matrix": [
+      [
+        1.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "ct_dtype": "uint16"
+  },
+  "outputs": {
+    "ct_nrrd": {
+      "path": "data/sample/eunectes_skull_000S10037_ct.nrrd",
+      "size_bytes": 12230093,
+      "sha256": "c6689633e5180fe47008379938c678727ef21ff22fbc19f0fef318239dd82374",
+      "voxel_dims_xyz": [
+        222,
+        164,
+        336
+      ],
+      "spacing_xyz_mm": [
+        0.44105832,
+        0.44105832,
+        0.44105832
+      ],
+      "origin_xyz_mm": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "dtype": "uint16"
+    }
+  },
+  "phases_completed": [
+    "ct-only"
+  ]
+}
