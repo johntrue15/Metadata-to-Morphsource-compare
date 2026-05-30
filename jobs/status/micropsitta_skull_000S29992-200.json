@@ -4,10 +4,10 @@
   "max_steps": 200,
   "fixture": "data/sample/micropsitta_skull_000S29992_urls.json",
   "started_at": "2026-05-30T21:47:56Z",
-  "checkpoints": 4,
+  "checkpoints": 5,
   "id": "micropsitta_skull_000S29992-200",
-  "updated_at": "2026-05-30T21:57:12Z",
-  "steps": 152,
-  "union_voxels": 177463,
-  "n_segments": 152
+  "updated_at": "2026-05-30T22:00:01Z",
+  "steps": 176,
+  "union_voxels": 192609,
+  "n_segments": 176
 }
