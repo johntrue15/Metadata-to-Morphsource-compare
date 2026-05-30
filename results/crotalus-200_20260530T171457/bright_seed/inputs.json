@@ -1,0 +1,29 @@
+{
+  "status": "ok",
+  "volume_id": "vtkMRMLScalarVolumeNode1",
+  "volume_name": "crotalus_skull_000445108_ct",
+  "shape_kji": [
+    346,
+    163,
+    207
+  ],
+  "dtype": "uint16",
+  "nbytes": 23348772,
+  "spacing_mm": [
+    0.057101,
+    0.057101,
+    0.057101
+  ],
+  "origin": [
+    5.862361,
+    4.644208,
+    -9.583438
+  ],
+  "scalar_min": 5146.0,
+  "scalar_max": 65535.0,
+  "scalar_mean": 11807.79727293581,
+  "sha256_voxels": "dc4baf54e643a9bdc07982a45661ff4261cf588590f581edfabd45a66c07b1ab",
+  "source_filename": "/tmp/ms_remote_samples/crotalus_skull_000445108_ct.nrrd",
+  "_dt_s": 0.137,
+  "_retries_used": 0
+}

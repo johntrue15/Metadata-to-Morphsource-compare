@@ -4,7 +4,10 @@
   "max_steps": 200,
   "fixture": "data/sample/colors_of_skull_urls.json",
   "started_at": "2026-05-30T17:14:57Z",
-  "checkpoints": 0,
+  "checkpoints": 1,
   "id": "crotalus-200",
-  "updated_at": "2026-05-30T17:14:57Z"
+  "updated_at": "2026-05-30T17:16:30Z",
+  "steps": 80,
+  "union_voxels": 444524,
+  "n_segments": 80
 }
