@@ -1,13 +1,19 @@
 {
-  "state": "running",
+  "state": "done",
   "run_dir": "desmodus_skull_000S44285-200_20260530T204503",
   "max_steps": 200,
   "fixture": "data/sample/desmodus_skull_000S44285_urls.json",
   "started_at": "2026-05-30T20:45:03Z",
   "checkpoints": 5,
   "id": "desmodus_skull_000S44285-200",
-  "updated_at": "2026-05-30T20:57:50Z",
+  "updated_at": "2026-05-30T20:57:52Z",
   "steps": 200,
   "union_voxels": 206204,
-  "n_segments": 200
+  "n_segments": 200,
+  "exit_code": 0,
+  "stop_reason": {
+    "reason": "max_steps",
+    "max_steps": 200
+  },
+  "finished_at": "2026-05-30T20:57:52Z"
 }
