@@ -4,10 +4,10 @@
   "max_steps": 200,
   "fixture": "data/sample/eleutherodactylus_skull_000S44248_urls.json",
   "started_at": "2026-05-30T20:57:55Z",
-  "checkpoints": 3,
+  "checkpoints": 4,
   "id": "eleutherodactylus_skull_000S44248-200",
-  "updated_at": "2026-05-30T21:05:08Z",
-  "steps": 144,
-  "union_voxels": 179968,
-  "n_segments": 144
+  "updated_at": "2026-05-30T21:07:35Z",
+  "steps": 168,
+  "union_voxels": 206096,
+  "n_segments": 168
 }
