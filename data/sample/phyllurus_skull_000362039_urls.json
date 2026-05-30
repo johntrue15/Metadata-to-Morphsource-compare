@@ -1,0 +1,31 @@
+{
+  "_doc": [
+    "GitHub raw URL fixture for Colors of Skull Anatomy (project 358382).",
+    "data/sample/phyllurus_skull_000362039_ct.nrrd must be on the default branch.",
+    "Staged with stage_morphosource_sample.py --full-volume (no GT mesh)."
+  ],
+  "github_repo": "johntrue15/MorphoClaw",
+  "github_ref": "main",
+  "slug": "phyllurus_skull_000362039",
+  "project_id": "000358382",
+  "project_query": "Colors of Skull Anatomy",
+  "physical_object_id": "000362039",
+  "taxonomy": "Phyllurus platurus",
+  "ct_media_id": "000456625",
+  "mesh_media_id": "000751555",
+  "files": {
+    "ct_nrrd": "data/sample/phyllurus_skull_000362039_ct.nrrd",
+    "provenance_json": "data/sample/phyllurus_skull_000362039.provenance.json"
+  },
+  "slicer_volume_name": "phyllurus_skull_000362039_ct",
+  "pilot_defaults": {
+    "budgets": [
+      10,
+      25,
+      50,
+      100
+    ],
+    "max_steps": 200,
+    "intensity_percentile": 99.0
+  }
+}
