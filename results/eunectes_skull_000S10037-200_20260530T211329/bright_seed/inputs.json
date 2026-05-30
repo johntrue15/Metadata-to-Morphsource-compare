@@ -1,0 +1,29 @@
+{
+  "status": "ok",
+  "volume_id": "vtkMRMLScalarVolumeNode1",
+  "volume_name": "eunectes_skull_000S10037_ct",
+  "shape_kji": [
+    336,
+    164,
+    222
+  ],
+  "dtype": "uint16",
+  "nbytes": 24466176,
+  "spacing_mm": [
+    0.441058,
+    0.441058,
+    0.441058
+  ],
+  "origin": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "scalar_min": 4721.0,
+  "scalar_max": 65535.0,
+  "scalar_mean": 15814.253359740402,
+  "sha256_voxels": "de9e23eb7043e827514459b3554b5f470cce2a80e822a1f5fb33a4f55f6254ec",
+  "source_filename": "/tmp/ms_remote_samples/eunectes_skull_000S10037_ct.nrrd",
+  "_dt_s": 0.123,
+  "_retries_used": 0
+}
