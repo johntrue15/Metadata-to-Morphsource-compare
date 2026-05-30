@@ -1,0 +1,10 @@
+{
+  "state": "running",
+  "run_dir": "chameleon-200_20260530T181813",
+  "max_steps": 200,
+  "fixture": "data/sample/chameleon_skull_000408235_urls.json",
+  "started_at": "2026-05-30T18:18:13Z",
+  "checkpoints": 0,
+  "id": "chameleon-200",
+  "updated_at": "2026-05-30T18:18:13Z"
+}
