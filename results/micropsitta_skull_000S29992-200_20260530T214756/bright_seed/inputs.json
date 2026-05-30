@@ -1,0 +1,29 @@
+{
+  "status": "ok",
+  "volume_id": "vtkMRMLScalarVolumeNode1",
+  "volume_name": "micropsitta_skull_000S29992_ct",
+  "shape_kji": [
+    371,
+    131,
+    100
+  ],
+  "dtype": "uint8",
+  "nbytes": 4860100,
+  "spacing_mm": [
+    0.225842,
+    0.225842,
+    0.225842
+  ],
+  "origin": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "scalar_min": 0.0,
+  "scalar_max": 255.0,
+  "scalar_mean": 23.557228452089465,
+  "sha256_voxels": "d4ca59f178a19a03e53e9bd2b126ca4c48d971c62aa380be2a6375ba17909ef7",
+  "source_filename": "/tmp/ms_remote_samples/micropsitta_skull_000S29992_ct.nrrd",
+  "_dt_s": 0.101,
+  "_retries_used": 0
+}
