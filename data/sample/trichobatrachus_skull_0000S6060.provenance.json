@@ -1,0 +1,88 @@
+{
+  "tool": "stage_morphosource_sample.py",
+  "generated_utc": "2026-05-30T20:19:49Z",
+  "ct_media": {
+    "id": "000027178",
+    "title": "Ct Scan Of Skeleton And Skull [CTImageSeries] [Etc]",
+    "taxonomy": "Trichobatrachus robustus",
+    "physical_object_id": "0000S6060",
+    "physical_object_title": "CAS:HERP:254134",
+    "doi": "doi:10.17602/M2/M27178",
+    "ark": "ark:/87602/m4/M27178",
+    "visibility": "open",
+    "x_pixel_spacing_mm": 0.05069658,
+    "y_pixel_spacing_mm": 0.05069658,
+    "z_pixel_spacing_mm": 0.05069658,
+    "native_voxel_dims_xyz": [
+      1364,
+      539,
+      1830
+    ],
+    "tiff_stack_root": "/media/volume/MyData/MorphoClaw/data/morphosource-download-000027178/morphosource_media-id-000027178_download-6b8273b1/Media 000027178 - Ct Scan Of Skeleton And Skull CTImageSeries Etc/CAS254134-000027178/CAS254134"
+  },
+  "mesh_media": {
+    "skipped": "full-volume mode (no GT mesh)"
+  },
+  "full_volume": true,
+  "grid": {
+    "max_axis_target": 384,
+    "margin_mm": 2.0,
+    "stride": 5,
+    "origin_convention": "zero",
+    "crop_index_min": [
+      0,
+      0,
+      0
+    ],
+    "crop_index_max": [
+      1363,
+      538,
+      1829
+    ],
+    "mesh_axis_perm": "+x+y+z",
+    "mesh_axis_matrix": [
+      [
+        1.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "ct_dtype": "uint16"
+  },
+  "outputs": {
+    "ct_nrrd": {
+      "path": "data/sample/trichobatrachus_skull_0000S6060_ct.nrrd",
+      "size_bytes": 4722912,
+      "sha256": "7abf6b01274e277d42df2617d94eebc338306db054522dafc388c008943ca4d1",
+      "voxel_dims_xyz": [
+        273,
+        108,
+        366
+      ],
+      "spacing_xyz_mm": [
+        0.2534829,
+        0.2534829,
+        0.2534829
+      ],
+      "origin_xyz_mm": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "dtype": "uint16"
+    }
+  },
+  "phases_completed": [
+    "ct-only"
+  ]
+}

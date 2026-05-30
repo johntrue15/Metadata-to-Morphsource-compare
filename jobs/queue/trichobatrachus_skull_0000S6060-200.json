@@ -1,0 +1,9 @@
+{
+  "id": "trichobatrachus_skull_0000S6060-200",
+  "fixture": "data/sample/trichobatrachus_skull_0000S6060_urls.json",
+  "max_steps": 200,
+  "headless": true,
+  "fast": true,
+  "batch_size": 8,
+  "_doc": "Colors-of-Skull trichobatrachus_skull_0000S6060: clear scene -> load CT -> bright-seed to 200 clicks or saturation, headless+batched, checkpointing to GitHub."
+}
