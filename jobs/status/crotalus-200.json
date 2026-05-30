@@ -1,0 +1,10 @@
+{
+  "state": "running",
+  "run_dir": "crotalus-200_20260530T171457",
+  "max_steps": 200,
+  "fixture": "data/sample/colors_of_skull_urls.json",
+  "started_at": "2026-05-30T17:14:57Z",
+  "checkpoints": 0,
+  "id": "crotalus-200",
+  "updated_at": "2026-05-30T17:14:57Z"
+}
