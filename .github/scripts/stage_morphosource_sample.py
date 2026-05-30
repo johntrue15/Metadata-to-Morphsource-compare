@@ -96,8 +96,10 @@ log = logging.getLogger("stage_sample")
 
 
 TIFF_EXTS = {".tif", ".tiff"}
+DICOM_EXTS = {".dcm", ".dicom"}
 MESH_EXTS = {".ply", ".stl", ".obj"}
 MIN_TIFF_STACK = 10
+MIN_DICOM_STACK = 10
 
 
 def _import_deps():
@@ -237,6 +239,129 @@ def _find_tiff_stack(root: Path) -> Tuple[Path, list[Path]]:
     log.info("Picked TIFF stack: %s (%d slices, %.1f MB)",
              best[0], len(best[1]), best[2] / 1e6)
     return best[0], best[1]
+
+
+def _find_dicom_series(root: Path) -> Tuple[Path, list[Path]]:
+    """Return (series_dir, ordered_dicom_paths) for the largest DICOM series.
+
+    Uses GDCM (via SimpleITK) to order slices by ImagePositionPatient when
+    possible; falls back to a natural-key sort of ``*.dcm`` files otherwise.
+    """
+    _, sitk, _, _, _, _ = _import_deps()
+
+    # Collect every directory that holds a meaningful number of DICOM files.
+    candidate_dirs: list[Path] = []
+    for sub in root.rglob("*"):
+        if not sub.is_dir():
+            continue
+        try:
+            dcms = [e for e in sub.iterdir()
+                    if e.is_file() and e.suffix.lower() in DICOM_EXTS]
+        except (OSError, PermissionError):
+            continue
+        if len(dcms) >= MIN_DICOM_STACK:
+            candidate_dirs.append(sub)
+
+    best: tuple[Path, list[Path], int] = (Path(), [], -1)
+    reader = sitk.ImageSeriesReader()
+    for d in candidate_dirs:
+        ordered: list[str] = []
+        try:
+            series_ids = reader.GetGDCMSeriesIDs(str(d))
+        except Exception:  # noqa: BLE001 - GDCM can raise on odd headers
+            series_ids = []
+        if series_ids:
+            # Pick the series with the most slices in this directory.
+            for sid in series_ids:
+                files = reader.GetGDCMSeriesFileNames(str(d), sid)
+                if len(files) > len(ordered):
+                    ordered = list(files)
+        if not ordered:
+            # No usable series metadata; fall back to natural-name ordering.
+            ordered = [str(p) for p in sorted(
+                (e for e in d.iterdir()
+                 if e.is_file() and e.suffix.lower() in DICOM_EXTS),
+                key=_natural_key)]
+        if len(ordered) < MIN_DICOM_STACK:
+            continue
+        total = sum(Path(f).stat().st_size for f in ordered)
+        if total > best[2]:
+            best = (d, [Path(f) for f in ordered], total)
+
+    if best[2] < 0:
+        raise RuntimeError(f"No DICOM z-stack found under {root}")
+    log.info("Picked DICOM series: %s (%d slices, %.1f MB)",
+             best[0], len(best[1]), best[2] / 1e6)
+    return best[0], best[1]
+
+
+def _locate_ct_stack(root: Path) -> Tuple[str, Path, list[Path]]:
+    """Find the CT slice stack under ``root``.
+
+    Returns ``(kind, stack_dir, ordered_files)`` where ``kind`` is ``"tiff"``
+    or ``"dicom"``. Prefers TIFF; falls back to DICOM.
+    """
+    try:
+        stack_dir, files = _find_tiff_stack(root)
+        return "tiff", stack_dir, files
+    except RuntimeError as tiff_err:
+        try:
+            stack_dir, files = _find_dicom_series(root)
+            return "dicom", stack_dir, files
+        except RuntimeError as dcm_err:
+            raise RuntimeError(
+                f"No CT slice stack found under {root}: "
+                f"{tiff_err}; {dcm_err}"
+            ) from dcm_err
+
+
+def _peek_slice_dims(kind: str, files: list[Path], Image, sitk, np
+                     ) -> Tuple[int, int, str]:
+    """(nx, ny, dtype_name) for the first slice of a TIFF or DICOM stack."""
+    if kind == "tiff":
+        return _peek_tiff_dims(Image, files, np)
+    arr = sitk.GetArrayFromImage(sitk.ReadImage(str(files[0])))
+    arr = np.squeeze(arr)
+    if arr.ndim != 2:
+        raise RuntimeError(f"Unexpected DICOM slice shape {arr.shape} in {files[0]}")
+    ny, nx = arr.shape  # sitk returns (rows=y, cols=x)
+    return nx, ny, str(arr.dtype)
+
+
+def _stream_load_stack(kind: str, files: list[Path], grid: GridSpec
+                       ) -> "np.ndarray":  # type: ignore
+    """Stream a TIFF or DICOM stack into a cropped, stride-downsampled volume."""
+    if kind == "tiff":
+        return _stream_load_volume(files, grid)
+    return _stream_load_dicom_volume(files, grid)
+
+
+def _stream_load_dicom_volume(files: list[Path], grid: GridSpec
+                              ) -> "np.ndarray":  # type: ignore
+    np, sitk, _, _, _, _ = _import_deps()
+    ix0, iy0, iz0 = grid.crop_index_min
+    ix1, iy1, iz1 = grid.crop_index_max
+    stride = grid.stride
+
+    z_indices = list(range(iz0, iz1 + 1, stride))
+    log.info("Streaming %d / %d DICOM slices (stride=%d)",
+             len(z_indices), len(files), stride)
+
+    slices_out: list = []
+    last_log = time.time()
+    for n, k in enumerate(z_indices):
+        arr = np.squeeze(sitk.GetArrayFromImage(sitk.ReadImage(str(files[k]))))
+        if arr.ndim != 2:
+            raise RuntimeError(f"Unexpected DICOM shape {arr.shape} in {files[k]}")
+        crop = arr[iy0:iy1 + 1:stride, ix0:ix1 + 1:stride]
+        slices_out.append(np.ascontiguousarray(crop))
+        if time.time() - last_log > 5.0:
+            log.info("  z slice %d/%d", n + 1, len(z_indices))
+            last_log = time.time()
+    volume = np.stack(slices_out, axis=0)
+    log.info("Assembled DICOM volume shape (z, y, x) = %s, dtype=%s",
+             volume.shape, volume.dtype)
+    return volume
 
 
 def _find_mesh(root: Path) -> Path:
@@ -973,15 +1098,15 @@ def stage_sample(ct_media_id: str, mesh_media_id: str, out_dir: Path,
     if not ct_dl.get("success"):
         raise RuntimeError(f"CT download failed: {ct_dl.get('error')}")
 
-    # Locate CT slices.
-    tiff_dir, tiff_files = _find_tiff_stack(ct_dir)
+    # Locate CT slices (TIFF z-stack or DICOM series).
+    ct_kind, tiff_dir, tiff_files = _locate_ct_stack(ct_dir)
 
     # Sanity-check slice dims.
-    nx, ny, dtype_name = _peek_tiff_dims(Image, tiff_files, np)
+    nx, ny, dtype_name = _peek_slice_dims(ct_kind, tiff_files, Image, sitk, np)
     nz = len(tiff_files)
-    log.info("Native CT extent: %d x %d x %d voxels (%s); "
+    log.info("Native CT extent (%s): %d x %d x %d voxels (%s); "
              "world: %.2f x %.2f x %.2f mm",
-             nx, ny, nz, dtype_name,
+             ct_kind, nx, ny, nz, dtype_name,
              nx * spacing[0], ny * spacing[1], nz * spacing[2])
 
     mesh_meta = None
@@ -1014,7 +1139,7 @@ def stage_sample(ct_media_id: str, mesh_media_id: str, out_dir: Path,
         )
 
     # Stream CT slices into a small numpy volume.
-    volume_zyx = _stream_load_volume(tiff_files, grid)
+    volume_zyx = _stream_load_stack(ct_kind, tiff_files, grid)
     if ct_dtype == "uint8":
         # Robustly rescale to 0..255 using the 0.5/99.5 percentile range so
         # one or two voxels don't crush contrast. Useful for keeping the

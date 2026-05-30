@@ -155,6 +155,12 @@ def main(argv=None) -> int:
                    help="comma-separated physical_object_ids to restrict to")
     p.add_argument("--limit", type=int, default=0,
                    help="stop after staging N specimens (0 = all)")
+    p.add_argument("--specimen-delay", type=float, default=30.0,
+                   help="seconds to wait between specimens (be gentle on "
+                        "MorphoSource; default 30)")
+    p.add_argument("--max-consecutive-fails", type=int, default=2,
+                   help="abort the batch after this many consecutive staging "
+                        "failures (circuit breaker for MorphoSource outages)")
     p.add_argument("--branch", default="main")
     p.add_argument("--no-push", action="store_true")
     args = p.parse_args(argv)
@@ -171,7 +177,9 @@ def main(argv=None) -> int:
     SAMPLE_DIR.mkdir(parents=True, exist_ok=True)
     QUEUE_DIR.mkdir(parents=True, exist_ok=True)
 
-    staged = 0
+    # Pre-filter to the specimens we will actually attempt (so the inter-specimen
+    # delay only applies between real download attempts, not skipped rows).
+    todo = []
     for pair in pairs:
         pid = pair.get("physical_object_id", "")
         if only and pid not in only:
@@ -186,15 +194,31 @@ def main(argv=None) -> int:
             _log(f"skip {pid} {pair.get('taxonomy')}: CT "
                  f"{pair.get('ct_file_size')/1e9:.1f} GB > {args.max_ct_gb} GB")
             continue
-
         slug = _slug(pair)
         if _already_done(slug):
             _log(f"skip {slug}: CT already staged")
             continue
+        todo.append((pair, slug))
+
+    _log(f"{len(todo)} specimen(s) to stage; delay={args.specimen_delay:.0f}s, "
+         f"circuit-breaker after {args.max_consecutive_fails} consecutive fails")
+
+    staged = 0
+    consecutive_fails = 0
+    for idx, (pair, slug) in enumerate(todo):
+        if idx > 0 and args.specimen_delay > 0:
+            _log(f"waiting {args.specimen_delay:.0f}s before next specimen …")
+            time.sleep(args.specimen_delay)
 
         if not _stage_ct(pair, slug, args.stage_python, args.max_axis):
             _free_download_cache(pair)
+            consecutive_fails += 1
+            if consecutive_fails >= args.max_consecutive_fails:
+                _log(f"ABORT: {consecutive_fails} consecutive staging failures "
+                     f"(MorphoSource likely unavailable). Re-run later.")
+                break
             continue
+        consecutive_fails = 0
 
         fx = _write_fixture(pair, slug)
         job_id, spec = _write_spec(slug, args.max_steps)
