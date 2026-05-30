@@ -1,0 +1,30 @@
+{
+  "slug": "chameleon_skull_000408235",
+  "source_volume": "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/ct_000408242.nii.gz",
+  "ct_media_id": "000408242",
+  "mesh_media_id": "000769445",
+  "method": "stage_ct_from_volume.py BinShrink",
+  "shrink_factor": 5,
+  "native_size": [
+    1682,
+    731,
+    1714
+  ],
+  "native_spacing_mm": [
+    0.049788,
+    0.049788,
+    0.049788
+  ],
+  "output_size": [
+    336,
+    146,
+    342
+  ],
+  "output_spacing_mm": [
+    0.248941,
+    0.248941,
+    0.248941
+  ],
+  "output_bytes": 11130119,
+  "staged_at": "2026-05-30T17:43:18Z"
+}

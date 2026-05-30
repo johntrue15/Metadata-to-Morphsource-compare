@@ -1,0 +1,30 @@
+{
+  "slug": "typhlonectes_skull_000649626",
+  "source_volume": "runs/clean_click_completion_000649675_20260529T104223/000649675__vs__000677539/ct_000649675.nii.gz",
+  "ct_media_id": "000649675",
+  "mesh_media_id": "000677539",
+  "method": "stage_ct_from_volume.py BinShrink",
+  "shrink_factor": 5,
+  "native_size": [
+    1034,
+    884,
+    1677
+  ],
+  "native_spacing_mm": [
+    0.021393,
+    0.021393,
+    0.021393
+  ],
+  "output_size": [
+    206,
+    176,
+    335
+  ],
+  "output_spacing_mm": [
+    0.106966,
+    0.106966,
+    0.106966
+  ],
+  "output_bytes": 6734826,
+  "staged_at": "2026-05-30T17:43:27Z"
+}
