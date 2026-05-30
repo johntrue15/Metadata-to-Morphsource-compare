@@ -1,0 +1,9 @@
+{
+  "id": "desmodus_skull_000S44285-200",
+  "fixture": "data/sample/desmodus_skull_000S44285_urls.json",
+  "max_steps": 200,
+  "headless": true,
+  "fast": true,
+  "batch_size": 8,
+  "_doc": "Colors-of-Skull desmodus_skull_000S44285: clear scene -> load CT -> bright-seed to 200 clicks or saturation, headless+batched, checkpointing to GitHub."
+}

@@ -1,0 +1,88 @@
+{
+  "tool": "stage_morphosource_sample.py",
+  "generated_utc": "2026-05-30T20:21:11Z",
+  "ct_media": {
+    "id": "000445804",
+    "title": "Whole Body [CTImageSeries] [CT]",
+    "taxonomy": "Desmodus rotundus",
+    "physical_object_id": "000S44285",
+    "physical_object_title": "UF:Mammals:9818",
+    "doi": "",
+    "ark": "ark:/87602/m4/445804",
+    "visibility": "open",
+    "x_pixel_spacing_mm": 0.04709724,
+    "y_pixel_spacing_mm": 0.04709724,
+    "z_pixel_spacing_mm": 0.04709724,
+    "native_voxel_dims_xyz": [
+      949,
+      664,
+      2020
+    ],
+    "tiff_stack_root": "/media/volume/MyData/MorphoClaw/data/morphosource-download-000445804/morphosource_media-id-000445804_download-98f79e7a/Media 000445804 - Whole Body CTImageSeries CT/UF-MAM-9818-body-MS-000445804/UF-MAM-9818-body-MS"
+  },
+  "mesh_media": {
+    "skipped": "full-volume mode (no GT mesh)"
+  },
+  "full_volume": true,
+  "grid": {
+    "max_axis_target": 384,
+    "margin_mm": 2.0,
+    "stride": 6,
+    "origin_convention": "zero",
+    "crop_index_min": [
+      0,
+      0,
+      0
+    ],
+    "crop_index_max": [
+      948,
+      663,
+      2019
+    ],
+    "mesh_axis_perm": "+x+y+z",
+    "mesh_axis_matrix": [
+      [
+        1.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "ct_dtype": "uint16"
+  },
+  "outputs": {
+    "ct_nrrd": {
+      "path": "data/sample/desmodus_skull_000S44285_ct.nrrd",
+      "size_bytes": 9913665,
+      "sha256": "300f3add27ea09164690f77c77b9008cd0c83e2dcd4ad00b6a320343c49955d4",
+      "voxel_dims_xyz": [
+        159,
+        111,
+        337
+      ],
+      "spacing_xyz_mm": [
+        0.28258344,
+        0.28258344,
+        0.28258344
+      ],
+      "origin_xyz_mm": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "dtype": "uint16"
+    }
+  },
+  "phases_completed": [
+    "ct-only"
+  ]
+}
