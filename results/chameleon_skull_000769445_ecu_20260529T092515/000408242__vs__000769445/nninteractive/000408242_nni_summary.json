@@ -1,0 +1,310 @@
+{
+  "media_id": "000408242",
+  "input_path": "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/ct_000408242.nii.gz",
+  "model_path": "/home/exouser/.nninteractive_weights/nnInteractive_v1.0",
+  "device": "cuda:0",
+  "image_shape_zyx": [
+    1714,
+    731,
+    1682
+  ],
+  "voxel_spacing_xyz": [
+    0.04978824034333229,
+    0.04978824034333229,
+    0.04978824034333229
+  ],
+  "n_prompts": 1,
+  "prompts": [
+    {
+      "kind": "reset",
+      "coords": null,
+      "include": true,
+      "label": "",
+      "note": "",
+      "click_intensity": null
+    }
+  ],
+  "voxel_count": 0,
+  "volume_mm3": 0.0,
+  "bounding_box_voxels": null,
+  "goal": "Segment the cranial bone (skull).",
+  "vision_model": "gpt-4o",
+  "labelmap_path": "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_nni_labelmap.nii.gz",
+  "history": [
+    {
+      "step": 1,
+      "tool": "ADD_POINT",
+      "args": {
+        "tool": "ADD_POINT",
+        "x": 619,
+        "y": 414,
+        "z": 1024,
+        "positive": true,
+        "label": "target seed",
+        "reason": "GT-sampled bone voxel"
+      },
+      "result": "error: [enforce fail at alloc_cpu.cpp:124] err == 0. DefaultCPUAllocator: can't allocate memory: you tried to allocate 67437919616 bytes. Error code 12 (Cannot allocate memory)",
+      "voxel_count": 0,
+      "screenshots": [
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step01_before_axial.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step01_before_coronal.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step01_before_sagittal.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step01_after_axial.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step01_after_coronal.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step01_after_sagittal.png"
+      ],
+      "click_intensity": 8772.0
+    },
+    {
+      "step": 2,
+      "tool": "ADD_POINT",
+      "args": {
+        "tool": "ADD_POINT",
+        "x": 594,
+        "y": 686,
+        "z": 930,
+        "positive": true,
+        "label": "additional target seed",
+        "reason": "GT-sampled bone voxel"
+      },
+      "result": "error: [enforce fail at alloc_cpu.cpp:124] err == 0. DefaultCPUAllocator: can't allocate memory: you tried to allocate 67437919616 bytes. Error code 12 (Cannot allocate memory)",
+      "voxel_count": 0,
+      "screenshots": [
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step02_before_axial.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step02_before_coronal.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step02_before_sagittal.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step02_after_axial.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step02_after_coronal.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step02_after_sagittal.png"
+      ],
+      "click_intensity": 93.0
+    },
+    {
+      "step": 3,
+      "tool": "ADD_POINT",
+      "args": {
+        "tool": "ADD_POINT",
+        "x": 654,
+        "y": 290,
+        "z": 1160,
+        "positive": true,
+        "label": "alternative target seed",
+        "reason": "Selecting another GT-sampled bone voxel since previous allocations failed"
+      },
+      "result": "error: [enforce fail at alloc_cpu.cpp:124] err == 0. DefaultCPUAllocator: can't allocate memory: you tried to allocate 67437919616 bytes. Error code 12 (Cannot allocate memory)",
+      "voxel_count": 0,
+      "screenshots": [
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step03_before_axial.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step03_before_coronal.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step03_before_sagittal.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step03_after_axial.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step03_after_coronal.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step03_after_sagittal.png"
+      ],
+      "click_intensity": 8283.0
+    },
+    {
+      "step": 4,
+      "tool": "ADD_POINT",
+      "args": {
+        "tool": "ADD_POINT",
+        "x": 619,
+        "y": 440,
+        "z": 761,
+        "positive": true,
+        "label": "additional target seed",
+        "reason": "GT-sampled bone voxel to assist with initialization"
+      },
+      "result": "error: [enforce fail at alloc_cpu.cpp:124] err == 0. DefaultCPUAllocator: can't allocate memory: you tried to allocate 67437919616 bytes. Error code 12 (Cannot allocate memory)",
+      "voxel_count": 0,
+      "screenshots": [
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step04_before_axial.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step04_before_coronal.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step04_before_sagittal.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step04_after_axial.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step04_after_coronal.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step04_after_sagittal.png"
+      ],
+      "click_intensity": 93.0
+    },
+    {
+      "step": 5,
+      "tool": "ADD_POINT",
+      "args": {
+        "tool": "ADD_POINT",
+        "x": 737,
+        "y": 415,
+        "z": 797,
+        "positive": true,
+        "label": "alternative target seed",
+        "reason": "Attempting a different positive seed point near a cranial bone area to resolve memory allocation issues"
+      },
+      "result": "error: [enforce fail at alloc_cpu.cpp:124] err == 0. DefaultCPUAllocator: can't allocate memory: you tried to allocate 67437919616 bytes. Error code 12 (Cannot allocate memory)",
+      "voxel_count": 0,
+      "screenshots": [
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step05_before_axial.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step05_before_coronal.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step05_before_sagittal.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step05_after_axial.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step05_after_coronal.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step05_after_sagittal.png"
+      ],
+      "click_intensity": 4661.0
+    },
+    {
+      "step": 6,
+      "tool": "ADD_POINT",
+      "args": {
+        "tool": "ADD_POINT",
+        "x": 654,
+        "y": 290,
+        "z": 1160,
+        "positive": true,
+        "label": "alternative target seed v2",
+        "reason": "Retry GT-sampled bone voxel due to previous allocation errors"
+      },
+      "result": "error: [enforce fail at alloc_cpu.cpp:124] err == 0. DefaultCPUAllocator: can't allocate memory: you tried to allocate 67437919616 bytes. Error code 12 (Cannot allocate memory)",
+      "voxel_count": 0,
+      "screenshots": [
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step06_before_axial.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step06_before_coronal.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step06_before_sagittal.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step06_after_axial.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step06_after_coronal.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step06_after_sagittal.png"
+      ],
+      "click_intensity": 8283.0
+    },
+    {
+      "step": 7,
+      "tool": "ADD_POINT",
+      "args": {
+        "tool": "ADD_POINT",
+        "x": 619,
+        "y": 440,
+        "z": 761,
+        "positive": true,
+        "label": "alternative target seed",
+        "reason": "Attempt to add a positive seed in a different location"
+      },
+      "result": "error: [enforce fail at alloc_cpu.cpp:124] err == 0. DefaultCPUAllocator: can't allocate memory: you tried to allocate 67437919616 bytes. Error code 12 (Cannot allocate memory)",
+      "voxel_count": 0,
+      "screenshots": [
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step07_before_axial.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step07_before_coronal.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step07_before_sagittal.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step07_after_axial.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step07_after_coronal.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step07_after_sagittal.png"
+      ],
+      "click_intensity": 93.0
+    },
+    {
+      "step": 8,
+      "tool": "RESET",
+      "args": {
+        "tool": "RESET",
+        "reason": "start over because the mask is wrong"
+      },
+      "result": "segment reset",
+      "voxel_count": 0,
+      "screenshots": [
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step08_after_axial.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step08_after_coronal.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step08_after_sagittal.png"
+      ],
+      "click_intensity": null
+    },
+    {
+      "step": 9,
+      "tool": "ADD_POINT",
+      "args": {
+        "tool": "ADD_POINT",
+        "x": 619,
+        "y": 414,
+        "z": 1024,
+        "positive": true,
+        "label": "target seed",
+        "reason": "GT-sampled bone voxel"
+      },
+      "result": "error: [enforce fail at alloc_cpu.cpp:124] err == 0. DefaultCPUAllocator: can't allocate memory: you tried to allocate 67437919616 bytes. Error code 12 (Cannot allocate memory)",
+      "voxel_count": 0,
+      "screenshots": [
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step09_before_axial.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step09_before_coronal.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step09_before_sagittal.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step09_after_axial.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step09_after_coronal.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step09_after_sagittal.png"
+      ],
+      "click_intensity": 8772.0
+    },
+    {
+      "step": 10,
+      "tool": "ADD_POINT",
+      "args": {
+        "tool": "ADD_POINT",
+        "x": 594,
+        "y": 686,
+        "z": 930,
+        "positive": true,
+        "label": "new target seed",
+        "reason": "Attempt a different seed point from the suggested list to address memory allocation issue."
+      },
+      "result": "error: [enforce fail at alloc_cpu.cpp:124] err == 0. DefaultCPUAllocator: can't allocate memory: you tried to allocate 67437919616 bytes. Error code 12 (Cannot allocate memory)",
+      "voxel_count": 0,
+      "screenshots": [
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step10_before_axial.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step10_before_coronal.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step10_before_sagittal.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step10_after_axial.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step10_after_coronal.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step10_after_sagittal.png"
+      ],
+      "click_intensity": 93.0
+    },
+    {
+      "step": 11,
+      "tool": "ADD_POINT",
+      "args": {
+        "tool": "ADD_POINT",
+        "x": 619,
+        "y": 414,
+        "z": 1024,
+        "positive": true,
+        "label": "target seed",
+        "reason": "GT-sampled bone voxel"
+      },
+      "result": "error: [enforce fail at alloc_cpu.cpp:124] err == 0. DefaultCPUAllocator: can't allocate memory: you tried to allocate 67437919616 bytes. Error code 12 (Cannot allocate memory)",
+      "voxel_count": 0,
+      "screenshots": [
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step11_before_axial.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step11_before_coronal.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step11_before_sagittal.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step11_after_axial.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step11_after_coronal.png",
+        "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/nninteractive/000408242_step11_after_sagittal.png"
+      ],
+      "click_intensity": 8772.0
+    },
+    {
+      "step": 12,
+      "tool": "DONE",
+      "args": {
+        "tool": "DONE",
+        "reason": "Unable to allocate memory for mask processing, and no further steps are available. Proceeding with no progress.",
+        "summary": "The segmentation process could not proceed due to memory allocation errors at every step. No steps remain to attempt further actions."
+      },
+      "result": "Unable to allocate memory for mask processing, and no further steps are available. Proceeding with no progress.",
+      "voxel_count": 0,
+      "screenshots": [],
+      "click_intensity": null
+    }
+  ],
+  "best_mask": {
+    "voxel_count": 0,
+    "step": 0
+  },
+  "restored_from_best": false,
+  "final_voxels_pre_restore": 0
+}

@@ -1,0 +1,535 @@
+[2026-05-29T19:26:10.023656+00:00] === Slicer remote bright-spot greedy segmentation ===
+[2026-05-29T19:26:10.023684+00:00] server       : http://127.0.0.1:2016
+[2026-05-29T19:26:10.023694+00:00] run id       : 20260529T192610Z_tuatara_skull_000358663_fresh_3f9190
+[2026-05-29T19:26:10.023705+00:00] out          : runs/tuatara_fresh_proof2/bright_seed
+[2026-05-29T19:26:10.023717+00:00] percentile   : 99.0
+[2026-05-29T19:26:10.023727+00:00] max steps    : 100
+[2026-05-29T19:26:10.023737+00:00] min delta    : 0  (patience=1000000000)
+[2026-05-29T19:26:10.023747+00:00] resources    : exit if avail<1.5 GB  ping_timeout=20.0s
+
+[2026-05-29T19:26:10.595127+00:00] git commit   : c5303b666aef55dad913fd4ea674230f48514e3f  dirty=True
+[2026-05-29T19:26:10.595157+00:00] WARNING: working tree is dirty; the recorded git_commit may not match the script that's running.
+[2026-05-29T19:26:10.595171+00:00] -> Lightweight remote resource snapshot (skip heavy env)…
+[2026-05-29T19:26:10.747693+00:00]   resources: avail=58.38 GB  slicer=799.2 MB  nnI=1621.1 MB  load=0.38  nodes=121
+[2026-05-29T19:26:10.748117+00:00] -> Setting active volume to 'tuatara_skull_000358663_ct'
+[2026-05-29T19:26:10.816598+00:00]    id=vtkMRMLScalarVolumeNode1  dims=[269, 233, 351]  spacing=[0.1491, 0.1491, 0.1491]
+[2026-05-29T19:26:10.816626+00:00] -> Hashing active volume…
+[2026-05-29T19:26:11.028403+00:00]    sha256(voxels) = 3c6bbfd079e000c5…  shape=[351, 233, 269]  dtype=uint16
+[2026-05-29T19:26:11.028442+00:00] -> Resetting segmentation (server + scene)…
+[2026-05-29T19:26:11.831702+00:00]    ok  cleared=['Segmentation']
+[2026-05-29T19:26:11.831901+00:00] -> Enabling segmentation visibility (2D + 3D)…
+[2026-05-29T19:26:11.925111+00:00]    ok  nodes=['Segmentation', 'ScribbleSegmentNode (do not touch)']
+[2026-05-29T19:26:11.925294+00:00] -> Building bright-pixel candidate list…
+[2026-05-29T19:26:12.448541+00:00]    volume       : tuatara_skull_000358663_ct  shape(k,j,i)=[351, 233, 269]
+[2026-05-29T19:26:12.448648+00:00]    threshold    : 41613.00  (uint16)
+[2026-05-29T19:26:12.448671+00:00]    candidates   : 200,000  intensities=[41806.0, 65535.0]
+[2026-05-29T19:26:12.448684+00:00]    total voxels : 21,999,627
+[2026-05-29T19:26:12.449118+00:00] --- Step 00 -----------------------------------------
+[2026-05-29T19:26:12.736349+00:00]   resources: avail=58.08 GB  slicer=1071.6 MB  nnI=1621.2 MB  load=0.38  nodes=134
+[2026-05-29T19:26:14.862651+00:00]   picked ijk=[216, 90, 76]  intensity=65535.0  same-seg  segments=1  skipped_inside=0  candidates_left=199,999
+[2026-05-29T19:26:14.862720+00:00]   voxels          0 ->         20  delta=+20  this segment: Segment_1 = 20 vox  (1.917s remote, 2.126s round-trip)
+[2026-05-29T19:26:15.561606+00:00] --- Step 01 -----------------------------------------
+[2026-05-29T19:26:15.773947+00:00]   resources: avail=56.99 GB  slicer=1237.0 MB  nnI=2431.1 MB  load=2.67  nodes=134
+[2026-05-29T19:26:17.061150+00:00]   picked ijk=[239, 86, 75]  intensity=65535.0  new-seg  segments=2  skipped_inside=0  candidates_left=199,998
+[2026-05-29T19:26:17.061224+00:00]   voxels         20 ->        173  delta=+153  this segment: Segment_2 = 153 vox  (0.852s remote, 1.287s round-trip)
+[2026-05-29T19:26:17.663402+00:00] --- Step 02 -----------------------------------------
+[2026-05-29T19:26:17.958794+00:00]   resources: avail=56.86 GB  slicer=1324.2 MB  nnI=2438.7 MB  load=2.67  nodes=134
+[2026-05-29T19:26:19.756589+00:00]   picked ijk=[30, 169, 129]  intensity=65535.0  new-seg  segments=3  skipped_inside=9  candidates_left=199,988
+[2026-05-29T19:26:19.756646+00:00]   voxels        173 ->      6,782  delta=+6,609  this segment: Segment_3 = 6,609 vox  (1.008s remote, 1.798s round-trip)
+[2026-05-29T19:26:20.417864+00:00] --- Step 03 -----------------------------------------
+[2026-05-29T19:26:20.698332+00:00]   resources: avail=56.85 GB  slicer=1345.9 MB  nnI=2481.7 MB  load=2.62  nodes=134
+[2026-05-29T19:26:22.607541+00:00]   picked ijk=[214, 104, 76]  intensity=65535.0  new-seg  segments=4  skipped_inside=0  candidates_left=199,987
+[2026-05-29T19:26:22.607598+00:00]   voxels      6,782 ->     17,326  delta=+10,544  this segment: Segment_4 = 10,544 vox  (0.999s remote, 1.909s round-trip)
+[2026-05-29T19:26:23.374193+00:00] --- Step 04 -----------------------------------------
+[2026-05-29T19:26:23.596276+00:00]   resources: avail=56.8 GB  slicer=1369.7 MB  nnI=2503.2 MB  load=2.49  nodes=134
+[2026-05-29T19:26:25.933604+00:00]   picked ijk=[107, 182, 230]  intensity=65535.0  new-seg  segments=5  skipped_inside=2  candidates_left=199,984
+[2026-05-29T19:26:25.933688+00:00]   voxels     17,326 ->     17,601  delta=+275  this segment: Segment_5 = 275 vox  (1.085s remote, 2.337s round-trip)
+[2026-05-29T19:26:26.645728+00:00] --- Step 05 -----------------------------------------
+[2026-05-29T19:26:27.013219+00:00]   resources: avail=56.81 GB  slicer=1394.0 MB  nnI=2503.2 MB  load=2.49  nodes=134
+[2026-05-29T19:26:29.695080+00:00]   picked ijk=[112, 139, 316]  intensity=65535.0  new-seg  segments=6  skipped_inside=0  candidates_left=199,983
+[2026-05-29T19:26:29.695212+00:00]   voxels     17,601 ->     18,143  delta=+542  this segment: Segment_6 = 542 vox  (1.109s remote, 2.682s round-trip)
+[2026-05-29T19:26:30.355059+00:00] --- Step 06 -----------------------------------------
+[2026-05-29T19:26:30.683540+00:00]   resources: avail=56.87 GB  slicer=1415.7 MB  nnI=2438.9 MB  load=2.37  nodes=134
+[2026-05-29T19:26:33.473697+00:00]   picked ijk=[218, 50, 66]  intensity=65535.0  new-seg  segments=7  skipped_inside=0  candidates_left=199,982
+[2026-05-29T19:26:33.473795+00:00]   voxels     18,143 ->     18,197  delta=+54  this segment: Segment_7 = 54 vox  (1.07s remote, 2.79s round-trip)
+[2026-05-29T19:26:34.175972+00:00] --- Step 07 -----------------------------------------
+[2026-05-29T19:26:34.368331+00:00]   resources: avail=56.78 GB  slicer=1437.4 MB  nnI=2460.2 MB  load=2.26  nodes=134
+[2026-05-29T19:26:37.185893+00:00]   picked ijk=[240, 113, 93]  intensity=65535.0  new-seg  segments=8  skipped_inside=0  candidates_left=199,981
+[2026-05-29T19:26:37.185985+00:00]   voxels     18,197 ->     21,148  delta=+2,951  this segment: Segment_8 = 2,951 vox  (1.085s remote, 2.817s round-trip)
+[2026-05-29T19:26:37.828390+00:00] --- Step 08 -----------------------------------------
+[2026-05-29T19:26:38.163974+00:00]   resources: avail=56.7 GB  slicer=1459.0 MB  nnI=2431.1 MB  load=2.26  nodes=134
+[2026-05-29T19:26:41.021547+00:00]   picked ijk=[104, 177, 229]  intensity=65535.0  new-seg  segments=9  skipped_inside=0  candidates_left=199,980
+[2026-05-29T19:26:41.021596+00:00]   voxels     21,148 ->     21,668  delta=+520  this segment: Segment_9 = 691 vox  (1.073s remote, 2.858s round-trip)
+[2026-05-29T19:26:41.698590+00:00] --- Step 09 -----------------------------------------
+[2026-05-29T19:26:42.019315+00:00]   resources: avail=56.66 GB  slicer=1480.7 MB  nnI=2474.1 MB  load=2.32  nodes=134
+[2026-05-29T19:26:45.688397+00:00]   picked ijk=[135, 140, 293]  intensity=65535.0  new-seg  segments=10  skipped_inside=2  candidates_left=199,977
+[2026-05-29T19:26:45.688454+00:00]   voxels     21,668 ->     21,943  delta=+275  this segment: Segment_10 = 275 vox  (1.229s remote, 3.669s round-trip)
+[2026-05-29T19:26:46.377831+00:00] --- Step 10 -----------------------------------------
+[2026-05-29T19:26:46.652365+00:00]   resources: avail=56.66 GB  slicer=1545.6 MB  nnI=2438.7 MB  load=2.21  nodes=134
+[2026-05-29T19:26:50.158496+00:00]   picked ijk=[124, 177, 162]  intensity=65535.0  new-seg  segments=11  skipped_inside=7  candidates_left=199,969
+[2026-05-29T19:26:50.158550+00:00]   voxels     21,943 ->     22,864  delta=+921  this segment: Segment_11 = 921 vox  (1.141s remote, 3.506s round-trip)
+[2026-05-29T19:26:50.864704+00:00] --- Step 11 -----------------------------------------
+[2026-05-29T19:26:51.123818+00:00]   resources: avail=56.57 GB  slicer=1567.3 MB  nnI=2460.2 MB  load=2.11  nodes=134
+[2026-05-29T19:26:54.656136+00:00]   picked ijk=[45, 185, 129]  intensity=65535.0  new-seg  segments=12  skipped_inside=10  candidates_left=199,958
+[2026-05-29T19:26:54.656210+00:00]   voxels     22,864 ->     23,809  delta=+945  this segment: Segment_12 = 945 vox  (1.158s remote, 3.532s round-trip)
+[2026-05-29T19:26:55.312288+00:00] --- Step 12 -----------------------------------------
+[2026-05-29T19:26:55.660921+00:00]   resources: avail=56.7 GB  slicer=1588.9 MB  nnI=2438.7 MB  load=2.02  nodes=134
+[2026-05-29T19:26:59.452902+00:00]   picked ijk=[156, 149, 122]  intensity=65535.0  new-seg  segments=13  skipped_inside=18  candidates_left=199,939
+[2026-05-29T19:26:59.452986+00:00]   voxels     23,809 ->     26,416  delta=+2,607  this segment: Segment_13 = 2,607 vox  (1.199s remote, 3.792s round-trip)
+[2026-05-29T19:27:00.179767+00:00] --- Step 13 -----------------------------------------
+[2026-05-29T19:27:00.518778+00:00]   resources: avail=56.58 GB  slicer=1588.9 MB  nnI=2460.2 MB  load=2.9  nodes=134
+[2026-05-29T19:27:04.468857+00:00]   picked ijk=[212, 81, 78]  intensity=65535.0  new-seg  segments=14  skipped_inside=0  candidates_left=199,938
+[2026-05-29T19:27:04.468928+00:00]   voxels     26,416 ->     26,588  delta=+172  this segment: Segment_14 = 172 vox  (1.214s remote, 3.95s round-trip)
+[2026-05-29T19:27:05.090889+00:00] --- Step 14 -----------------------------------------
+[2026-05-29T19:27:05.424855+00:00]   resources: avail=56.61 GB  slicer=1588.9 MB  nnI=2438.7 MB  load=2.75  nodes=134
+[2026-05-29T19:27:09.832922+00:00]   picked ijk=[98, 163, 238]  intensity=65535.0  new-seg  segments=15  skipped_inside=1  candidates_left=199,936
+[2026-05-29T19:27:09.832981+00:00]   voxels     26,588 ->     31,668  delta=+5,080  this segment: Segment_15 = 5,711 vox  (1.243s remote, 4.408s round-trip)
+[2026-05-29T19:27:10.520540+00:00] --- Step 15 -----------------------------------------
+[2026-05-29T19:27:10.817877+00:00]   resources: avail=56.52 GB  slicer=1588.9 MB  nnI=2460.2 MB  load=3.01  nodes=134
+[2026-05-29T19:27:15.638783+00:00]   picked ijk=[35, 180, 125]  intensity=65535.0  new-seg  segments=16  skipped_inside=8  candidates_left=199,927
+[2026-05-29T19:27:15.638898+00:00]   voxels     31,668 ->     31,882  delta=+214  this segment: Segment_16 = 783 vox  (1.311s remote, 4.821s round-trip)
+[2026-05-29T19:27:16.465604+00:00] --- Step 16 -----------------------------------------
+[2026-05-29T19:27:16.772553+00:00]   resources: avail=56.54 GB  slicer=1588.9 MB  nnI=2438.7 MB  load=2.85  nodes=134
+[2026-05-29T19:27:21.753124+00:00]   picked ijk=[122, 119, 294]  intensity=65535.0  new-seg  segments=17  skipped_inside=27  candidates_left=199,899
+[2026-05-29T19:27:21.753213+00:00]   voxels     31,882 ->     31,911  delta=+29  this segment: Segment_17 = 29 vox  (1.352s remote, 4.981s round-trip)
+[2026-05-29T19:27:22.437081+00:00] --- Step 17 -----------------------------------------
+[2026-05-29T19:27:22.742801+00:00]   resources: avail=56.52 GB  slicer=1610.5 MB  nnI=2460.2 MB  load=2.7  nodes=134
+[2026-05-29T19:27:27.960629+00:00]   picked ijk=[20, 151, 145]  intensity=65535.0  new-seg  segments=18  skipped_inside=3  candidates_left=199,895
+[2026-05-29T19:27:27.960765+00:00]   voxels     31,911 ->     32,505  delta=+594  this segment: Segment_18 = 724 vox  (1.303s remote, 5.218s round-trip)
+[2026-05-29T19:27:28.573990+00:00] --- Step 18 -----------------------------------------
+[2026-05-29T19:27:28.830305+00:00]   resources: avail=56.53 GB  slicer=1610.5 MB  nnI=2438.7 MB  load=2.52  nodes=134
+[2026-05-29T19:27:34.328131+00:00]   picked ijk=[10, 99, 212]  intensity=65535.0  new-seg  segments=19  skipped_inside=4  candidates_left=199,890
+[2026-05-29T19:27:34.328212+00:00]   voxels     32,505 ->     32,508  delta=+3  this segment: Segment_19 = 3 vox  (1.397s remote, 5.498s round-trip)
+[2026-05-29T19:27:34.978844+00:00] --- Step 19 -----------------------------------------
+[2026-05-29T19:27:35.192459+00:00]   resources: avail=56.54 GB  slicer=1610.6 MB  nnI=2460.2 MB  load=2.4  nodes=134
+[2026-05-29T19:27:40.518825+00:00]   picked ijk=[217, 46, 62]  intensity=65535.0  new-seg  segments=20  skipped_inside=13  candidates_left=199,876
+[2026-05-29T19:27:40.518963+00:00]   voxels     32,508 ->     32,543  delta=+35  this segment: Segment_20 = 51 vox  (1.375s remote, 5.326s round-trip)
+[2026-05-29T19:27:41.135189+00:00] --- Step 20 -----------------------------------------
+[2026-05-29T19:27:41.396702+00:00]   resources: avail=56.53 GB  slicer=1610.6 MB  nnI=2438.7 MB  load=2.29  nodes=134
+[2026-05-29T19:27:47.063553+00:00]   picked ijk=[122, 159, 154]  intensity=65535.0  new-seg  segments=21  skipped_inside=0  candidates_left=199,875
+[2026-05-29T19:27:47.063639+00:00]   voxels     32,543 ->     32,908  delta=+365  this segment: Segment_21 = 979 vox  (1.469s remote, 5.667s round-trip)
+[2026-05-29T19:27:47.793403+00:00] --- Step 21 -----------------------------------------
+[2026-05-29T19:27:48.179855+00:00]   resources: avail=56.42 GB  slicer=1610.6 MB  nnI=2460.2 MB  load=2.18  nodes=134
+[2026-05-29T19:27:54.454500+00:00]   picked ijk=[106, 191, 216]  intensity=65535.0  new-seg  segments=22  skipped_inside=9  candidates_left=199,865
+[2026-05-29T19:27:54.454569+00:00]   voxels     32,908 ->     33,321  delta=+413  this segment: Segment_22 = 413 vox  (1.49s remote, 6.275s round-trip)
+[2026-05-29T19:27:55.094762+00:00] --- Step 22 -----------------------------------------
+[2026-05-29T19:27:55.413595+00:00]   resources: avail=56.48 GB  slicer=1632.2 MB  nnI=2438.7 MB  load=2.0  nodes=134
+[2026-05-29T19:28:01.792985+00:00]   picked ijk=[145, 154, 72]  intensity=65535.0  new-seg  segments=23  skipped_inside=19  candidates_left=199,845
+[2026-05-29T19:28:01.793057+00:00]   voxels     33,321 ->     33,335  delta=+14  this segment: Segment_23 = 14 vox  (1.519s remote, 6.379s round-trip)
+[2026-05-29T19:28:02.447307+00:00] --- Step 23 -----------------------------------------
+[2026-05-29T19:28:02.692835+00:00]   resources: avail=56.42 GB  slicer=1632.3 MB  nnI=2460.2 MB  load=1.92  nodes=134
+[2026-05-29T19:28:08.759710+00:00]   picked ijk=[92, 185, 22]  intensity=65535.0  new-seg  segments=24  skipped_inside=32  candidates_left=199,812
+[2026-05-29T19:28:08.759772+00:00]   voxels     33,335 ->     33,354  delta=+19  this segment: Segment_24 = 19 vox  (1.442s remote, 6.067s round-trip)
+[2026-05-29T19:28:09.380485+00:00] --- Step 24 -----------------------------------------
+[2026-05-29T19:28:09.641632+00:00]   resources: avail=56.4 GB  slicer=1653.9 MB  nnI=2431.1 MB  load=3.03  nodes=134
+[2026-05-29T19:28:15.972006+00:00]   picked ijk=[137, 141, 279]  intensity=65535.0  new-seg  segments=25  skipped_inside=1  candidates_left=199,810
+[2026-05-29T19:28:15.972065+00:00]   voxels     33,354 ->     33,400  delta=+46  this segment: Segment_25 = 46 vox  (1.506s remote, 6.33s round-trip)
+[2026-05-29T19:28:16.665023+00:00] --- Step 25 -----------------------------------------
+[2026-05-29T19:28:16.858609+00:00]   resources: avail=56.35 GB  slicer=1653.9 MB  nnI=2474.1 MB  load=4.07  nodes=134
+[2026-05-29T19:28:23.780361+00:00]   picked ijk=[204, 90, 84]  intensity=65535.0  new-seg  segments=26  skipped_inside=2  candidates_left=199,807
+[2026-05-29T19:28:23.780441+00:00]   voxels     33,400 ->     33,457  delta=+57  this segment: Segment_26 = 57 vox  (1.559s remote, 6.922s round-trip)
+[2026-05-29T19:28:24.451515+00:00] --- Step 26 -----------------------------------------
+[2026-05-29T19:28:24.691432+00:00]   resources: avail=56.47 GB  slicer=1653.9 MB  nnI=2438.7 MB  load=3.6  nodes=134
+[2026-05-29T19:28:32.189661+00:00]   picked ijk=[87, 175, 245]  intensity=65535.0  new-seg  segments=27  skipped_inside=17  candidates_left=199,789
+[2026-05-29T19:28:32.189722+00:00]   voxels     33,457 ->     33,511  delta=+54  this segment: Segment_27 = 54 vox  (1.688s remote, 7.498s round-trip)
+[2026-05-29T19:28:32.930553+00:00] --- Step 27 -----------------------------------------
+[2026-05-29T19:28:33.290843+00:00]   resources: avail=56.39 GB  slicer=1675.5 MB  nnI=2460.2 MB  load=3.28  nodes=134
+[2026-05-29T19:28:41.371012+00:00]   picked ijk=[126, 149, 284]  intensity=65535.0  new-seg  segments=28  skipped_inside=6  candidates_left=199,782
+[2026-05-29T19:28:41.371076+00:00]   voxels     33,511 ->     33,628  delta=+117  this segment: Segment_28 = 117 vox  (1.752s remote, 8.08s round-trip)
+[2026-05-29T19:28:42.024297+00:00] --- Step 28 -----------------------------------------
+[2026-05-29T19:28:42.350760+00:00]   resources: avail=56.44 GB  slicer=1675.5 MB  nnI=2431.1 MB  load=3.09  nodes=134
+[2026-05-29T19:28:50.821987+00:00]   picked ijk=[219, 157, 149]  intensity=65535.0  new-seg  segments=29  skipped_inside=5  candidates_left=199,776
+[2026-05-29T19:28:50.822050+00:00]   voxels     33,628 ->     34,228  delta=+600  this segment: Segment_29 = 600 vox  (1.776s remote, 8.471s round-trip)
+[2026-05-29T19:28:51.491815+00:00] --- Step 29 -----------------------------------------
+[2026-05-29T19:28:51.743861+00:00]   resources: avail=56.4 GB  slicer=1675.5 MB  nnI=2474.1 MB  load=3.89  nodes=134
+[2026-05-29T19:29:00.186595+00:00]   picked ijk=[181, 114, 101]  intensity=65535.0  new-seg  segments=30  skipped_inside=23  candidates_left=199,752
+[2026-05-29T19:29:00.186652+00:00]   voxels     34,228 ->     34,335  delta=+107  this segment: Segment_30 = 107 vox  (1.853s remote, 8.443s round-trip)
+[2026-05-29T19:29:00.857626+00:00] --- Step 30 -----------------------------------------
+[2026-05-29T19:29:01.103961+00:00]   resources: avail=56.4 GB  slicer=1697.2 MB  nnI=2438.7 MB  load=3.45  nodes=134
+[2026-05-29T19:29:10.211529+00:00]   picked ijk=[214, 91, 79]  intensity=65535.0  new-seg  segments=31  skipped_inside=15  candidates_left=199,736
+[2026-05-29T19:29:10.211593+00:00]   voxels     34,335 ->     34,499  delta=+164  this segment: Segment_31 = 224 vox  (1.868s remote, 9.108s round-trip)
+[2026-05-29T19:29:10.922310+00:00] --- Step 31 -----------------------------------------
+[2026-05-29T19:29:11.275461+00:00]   resources: avail=56.41 GB  slicer=1697.2 MB  nnI=2460.2 MB  load=3.07  nodes=134
+[2026-05-29T19:29:20.859589+00:00]   picked ijk=[225, 99, 61]  intensity=64699.0  new-seg  segments=32  skipped_inside=28  candidates_left=199,707
+[2026-05-29T19:29:20.859679+00:00]   voxels     34,499 ->     91,274  delta=+56,775  this segment: Segment_32 = 67,342 vox  (2.029s remote, 9.584s round-trip)
+[2026-05-29T19:29:21.504864+00:00] --- Step 32 -----------------------------------------
+[2026-05-29T19:29:21.851955+00:00]   resources: avail=56.41 GB  slicer=1718.8 MB  nnI=2438.7 MB  load=2.75  nodes=134
+[2026-05-29T19:29:32.746127+00:00]   picked ijk=[208, 93, 83]  intensity=64134.0  new-seg  segments=33  skipped_inside=4  candidates_left=199,702
+[2026-05-29T19:29:32.746230+00:00]   voxels     91,274 ->     91,363  delta=+89  this segment: Segment_33 = 156 vox  (2.133s remote, 10.894s round-trip)
+[2026-05-29T19:29:33.508738+00:00] --- Step 33 -----------------------------------------
+[2026-05-29T19:29:33.882152+00:00]   resources: avail=56.4 GB  slicer=1718.8 MB  nnI=2460.2 MB  load=3.38  nodes=134
+[2026-05-29T19:29:43.995582+00:00]   picked ijk=[180, 69, 155]  intensity=63823.0  new-seg  segments=34  skipped_inside=3  candidates_left=199,698
+[2026-05-29T19:29:43.995648+00:00]   voxels     91,363 ->     97,669  delta=+6,306  this segment: Segment_34 = 6,306 vox  (2.148s remote, 10.113s round-trip)
+[2026-05-29T19:29:44.791540+00:00] --- Step 34 -----------------------------------------
+[2026-05-29T19:29:45.139561+00:00]   resources: avail=56.42 GB  slicer=1740.4 MB  nnI=2438.7 MB  load=3.01  nodes=134
+[2026-05-29T19:29:55.651900+00:00]   picked ijk=[186, 173, 53]  intensity=59061.0  new-seg  segments=35  skipped_inside=40  candidates_left=199,657
+[2026-05-29T19:29:55.651970+00:00]   voxels     97,669 ->     98,705  delta=+1,036  this segment: Segment_35 = 1,036 vox  (2.138s remote, 10.512s round-trip)
+[2026-05-29T19:29:56.386131+00:00] --- Step 35 -----------------------------------------
+[2026-05-29T19:29:56.725589+00:00]   resources: avail=56.35 GB  slicer=1762.0 MB  nnI=2460.2 MB  load=2.7  nodes=134
+[2026-05-29T19:30:07.663049+00:00]   picked ijk=[130, 149, 286]  intensity=58854.0  new-seg  segments=36  skipped_inside=2  candidates_left=199,654
+[2026-05-29T19:30:07.663116+00:00]   voxels     98,705 ->    102,162  delta=+3,457  this segment: Segment_36 = 3,603 vox  (2.192s remote, 10.937s round-trip)
+[2026-05-29T19:30:08.409125+00:00] --- Step 36 -----------------------------------------
+[2026-05-29T19:30:08.604388+00:00]   resources: avail=56.36 GB  slicer=1778.7 MB  nnI=2438.7 MB  load=3.34  nodes=134
+[2026-05-29T19:30:21.217582+00:00]   picked ijk=[45, 94, 184]  intensity=58748.0  new-seg  segments=37  skipped_inside=3  candidates_left=199,650
+[2026-05-29T19:30:21.217650+00:00]   voxels    102,162 ->    102,359  delta=+197  this segment: Segment_37 = 197 vox  (2.467s remote, 12.613s round-trip)
+[2026-05-29T19:30:21.965520+00:00] --- Step 37 -----------------------------------------
+[2026-05-29T19:30:22.213059+00:00]   resources: avail=56.32 GB  slicer=1800.9 MB  nnI=2460.2 MB  load=3.06  nodes=134
+[2026-05-29T19:30:34.887342+00:00]   picked ijk=[173, 72, 152]  intensity=58191.0  new-seg  segments=38  skipped_inside=5  candidates_left=199,644
+[2026-05-29T19:30:34.887470+00:00]   voxels    102,359 ->    102,400  delta=+41  this segment: Segment_38 = 41 vox  (2.456s remote, 12.674s round-trip)
+[2026-05-29T19:30:35.658696+00:00] --- Step 38 -----------------------------------------
+[2026-05-29T19:30:35.891320+00:00]   resources: avail=56.31 GB  slicer=1801.4 MB  nnI=2438.7 MB  load=2.6  nodes=134
+[2026-05-29T19:30:49.384552+00:00]   picked ijk=[61, 36, 4]  intensity=57450.0  new-seg  segments=39  skipped_inside=11  candidates_left=199,632
+[2026-05-29T19:30:49.384629+00:00]   voxels    102,400 ->    105,023  delta=+2,623  this segment: Segment_39 = 2,623 vox  (2.449s remote, 13.493s round-trip)
+[2026-05-29T19:30:50.089838+00:00] --- Step 39 -----------------------------------------
+[2026-05-29T19:30:50.373369+00:00]   resources: avail=56.26 GB  slicer=1823.4 MB  nnI=2460.2 MB  load=2.25  nodes=134
+[2026-05-29T19:31:01.942459+00:00]   picked ijk=[165, 163, 105]  intensity=57251.0  new-seg  segments=40  skipped_inside=2  candidates_left=199,629
+[2026-05-29T19:31:01.942523+00:00]   voxels    105,023 ->    105,879  delta=+856  this segment: Segment_40 = 1,187 vox  (2.043s remote, 11.569s round-trip)
+[2026-05-29T19:31:02.704674+00:00] --- Step 40 -----------------------------------------
+[2026-05-29T19:31:02.915819+00:00]   resources: avail=56.25 GB  slicer=1867.8 MB  nnI=2438.7 MB  load=2.06  nodes=134
+[2026-05-29T19:31:16.450103+00:00]   picked ijk=[53, 92, 190]  intensity=56955.0  new-seg  segments=41  skipped_inside=3  candidates_left=199,625
+[2026-05-29T19:31:16.450203+00:00]   voxels    105,879 ->    111,891  delta=+6,012  this segment: Segment_41 = 6,012 vox  (2.373s remote, 13.534s round-trip)
+[2026-05-29T19:31:17.230029+00:00] --- Step 41 -----------------------------------------
+[2026-05-29T19:31:17.496617+00:00]   resources: avail=56.28 GB  slicer=1868.3 MB  nnI=2460.2 MB  load=1.82  nodes=134
+[2026-05-29T19:31:31.770019+00:00]   picked ijk=[172, 86, 197]  intensity=56359.0  new-seg  segments=42  skipped_inside=4  candidates_left=199,620
+[2026-05-29T19:31:31.770114+00:00]   voxels    111,891 ->    111,964  delta=+73  this segment: Segment_42 = 73 vox  (2.445s remote, 14.273s round-trip)
+[2026-05-29T19:31:32.509903+00:00] --- Step 42 -----------------------------------------
+[2026-05-29T19:31:32.712500+00:00]   resources: avail=56.27 GB  slicer=1869.0 MB  nnI=2438.7 MB  load=2.84  nodes=134
+[2026-05-29T19:31:46.653800+00:00]   picked ijk=[46, 92, 174]  intensity=55763.0  new-seg  segments=43  skipped_inside=3  candidates_left=199,616
+[2026-05-29T19:31:46.653867+00:00]   voxels    111,964 ->    112,130  delta=+166  this segment: Segment_43 = 166 vox  (2.365s remote, 13.941s round-trip)
+[2026-05-29T19:31:47.332083+00:00] --- Step 43 -----------------------------------------
+[2026-05-29T19:31:47.556108+00:00]   resources: avail=56.19 GB  slicer=1891.5 MB  nnI=2460.2 MB  load=3.54  nodes=134
+[2026-05-29T19:32:00.604535+00:00]   picked ijk=[44, 94, 194]  intensity=55510.0  new-seg  segments=44  skipped_inside=5  candidates_left=199,610
+[2026-05-29T19:32:00.604595+00:00]   voxels    112,130 ->    112,310  delta=+180  this segment: Segment_44 = 180 vox  (2.466s remote, 13.048s round-trip)
+[2026-05-29T19:32:01.280764+00:00] --- Step 44 -----------------------------------------
+[2026-05-29T19:32:01.568877+00:00]   resources: avail=56.27 GB  slicer=1892.0 MB  nnI=2438.7 MB  load=2.97  nodes=134
+[2026-05-29T19:32:17.140591+00:00]   picked ijk=[171, 94, 197]  intensity=55433.0  new-seg  segments=45  skipped_inside=0  candidates_left=199,609
+[2026-05-29T19:32:17.140675+00:00]   voxels    112,310 ->    113,835  delta=+1,525  this segment: Segment_45 = 1,525 vox  (2.57s remote, 15.572s round-trip)
+[2026-05-29T19:32:17.925161+00:00] --- Step 45 -----------------------------------------
+[2026-05-29T19:32:18.234778+00:00]   resources: avail=56.2 GB  slicer=1914.5 MB  nnI=2487.6 MB  load=2.68  nodes=134
+[2026-05-29T19:32:33.467809+00:00]   picked ijk=[70, 34, 24]  intensity=55329.0  new-seg  segments=46  skipped_inside=2  candidates_left=199,606
+[2026-05-29T19:32:33.467886+00:00]   voxels    113,835 ->    114,480  delta=+645  this segment: Segment_46 = 645 vox  (2.83s remote, 15.233s round-trip)
+[2026-05-29T19:32:34.198643+00:00] --- Step 46 -----------------------------------------
+[2026-05-29T19:32:34.516891+00:00]   resources: avail=56.24 GB  slicer=1914.9 MB  nnI=2438.7 MB  load=2.27  nodes=134
+[2026-05-29T19:32:52.074822+00:00]   picked ijk=[37, 41, 100]  intensity=54538.0  new-seg  segments=47  skipped_inside=12  candidates_left=199,593
+[2026-05-29T19:32:52.074909+00:00]   voxels    114,480 ->    325,805  delta=+211,325  this segment: Segment_47 = 211,733 vox  (3.894s remote, 17.558s round-trip)
+[2026-05-29T19:32:52.782627+00:00] --- Step 47 -----------------------------------------
+[2026-05-29T19:32:53.006756+00:00]   resources: avail=56.16 GB  slicer=1919.5 MB  nnI=2547.0 MB  load=1.99  nodes=134
+[2026-05-29T19:33:07.683705+00:00]   picked ijk=[170, 87, 205]  intensity=54352.0  new-seg  segments=48  skipped_inside=2  candidates_left=199,590
+[2026-05-29T19:33:07.683769+00:00]   voxels    325,805 ->    325,900  delta=+95  this segment: Segment_48 = 95 vox  (2.69s remote, 14.677s round-trip)
+[2026-05-29T19:33:08.401965+00:00] --- Step 48 -----------------------------------------
+[2026-05-29T19:33:08.624879+00:00]   resources: avail=56.08 GB  slicer=1942.0 MB  nnI=2594.9 MB  load=1.71  nodes=134
+[2026-05-29T19:33:23.669110+00:00]   picked ijk=[70, 45, 22]  intensity=54045.0  new-seg  segments=49  skipped_inside=8  candidates_left=199,581
+[2026-05-29T19:33:23.669173+00:00]   voxels    325,900 ->    326,085  delta=+185  this segment: Segment_49 = 613 vox  (2.692s remote, 15.044s round-trip)
+[2026-05-29T19:33:24.339701+00:00] --- Step 49 -----------------------------------------
+[2026-05-29T19:33:24.713117+00:00]   resources: avail=56.04 GB  slicer=1964.4 MB  nnI=2594.9 MB  load=2.58  nodes=134
+[2026-05-29T19:33:40.370551+00:00]   picked ijk=[53, 93, 205]  intensity=53883.0  new-seg  segments=50  skipped_inside=1  candidates_left=199,579
+[2026-05-29T19:33:40.370615+00:00]   voxels    326,085 ->    326,326  delta=+241  this segment: Segment_50 = 1,333 vox  (2.699s remote, 15.657s round-trip)
+[2026-05-29T19:33:41.181274+00:00] --- Step 50 -----------------------------------------
+[2026-05-29T19:33:41.403557+00:00]   resources: avail=56.03 GB  slicer=1987.0 MB  nnI=2611.5 MB  load=2.23  nodes=134
+[2026-05-29T19:33:57.614477+00:00]   picked ijk=[162, 89, 215]  intensity=53769.0  new-seg  segments=51  skipped_inside=0  candidates_left=199,578
+[2026-05-29T19:33:57.614544+00:00]   voxels    326,326 ->    330,743  delta=+4,417  this segment: Segment_51 = 5,875 vox  (2.816s remote, 16.211s round-trip)
+[2026-05-29T19:33:58.303718+00:00] --- Step 51 -----------------------------------------
+[2026-05-29T19:33:58.503005+00:00]   resources: avail=55.95 GB  slicer=1987.5 MB  nnI=2659.6 MB  load=1.88  nodes=134
+[2026-05-29T19:34:16.613321+00:00]   picked ijk=[46, 179, 125]  intensity=53399.0  new-seg  segments=52  skipped_inside=10  candidates_left=199,567
+[2026-05-29T19:34:16.613414+00:00]   voxels    330,743 ->    331,244  delta=+501  this segment: Segment_52 = 582 vox  (2.985s remote, 18.11s round-trip)
+[2026-05-29T19:34:17.385462+00:00] --- Step 52 -----------------------------------------
+[2026-05-29T19:34:17.656800+00:00]   resources: avail=55.92 GB  slicer=2010.0 MB  nnI=2590.1 MB  load=1.68  nodes=134
+[2026-05-29T19:34:33.331052+00:00]   picked ijk=[180, 112, 79]  intensity=53363.0  new-seg  segments=53  skipped_inside=0  candidates_left=199,566
+[2026-05-29T19:34:33.331174+00:00]   voxels    331,244 ->    333,974  delta=+2,730  this segment: Segment_53 = 2,730 vox  (3.061s remote, 15.674s round-trip)
+[2026-05-29T19:34:34.034111+00:00] --- Step 53 -----------------------------------------
+[2026-05-29T19:34:34.253690+00:00]   resources: avail=55.89 GB  slicer=2054.5 MB  nnI=2635.8 MB  load=3.23  nodes=134
+[2026-05-29T19:34:50.383553+00:00]   picked ijk=[59, 95, 12]  intensity=53350.0  new-seg  segments=54  skipped_inside=1  candidates_left=199,564
+[2026-05-29T19:34:50.383634+00:00]   voxels    333,974 ->    334,114  delta=+140  this segment: Segment_54 = 140 vox  (3.144s remote, 16.13s round-trip)
+[2026-05-29T19:34:51.095359+00:00] --- Step 54 -----------------------------------------
+[2026-05-29T19:34:51.481670+00:00]   resources: avail=55.88 GB  slicer=2077.0 MB  nnI=2635.8 MB  load=3.09  nodes=134
+[2026-05-29T19:35:08.164741+00:00]   picked ijk=[65, 31, 67]  intensity=53135.0  new-seg  segments=55  skipped_inside=3  candidates_left=199,560
+[2026-05-29T19:35:08.164889+00:00]   voxels    334,114 ->    334,763  delta=+649  this segment: Segment_55 = 746 vox  (3.051s remote, 16.683s round-trip)
+[2026-05-29T19:35:08.860185+00:00] --- Step 55 -----------------------------------------
+[2026-05-29T19:35:09.157873+00:00]   resources: avail=55.82 GB  slicer=2099.4 MB  nnI=2635.8 MB  load=2.7  nodes=134
+[2026-05-29T19:35:29.320765+00:00]   picked ijk=[57, 153, 317]  intensity=52910.0  new-seg  segments=56  skipped_inside=11  candidates_left=199,548
+[2026-05-29T19:35:29.320834+00:00]   voxels    334,763 ->    335,329  delta=+566  this segment: Segment_56 = 566 vox  (3.196s remote, 20.163s round-trip)
+[2026-05-29T19:35:30.112037+00:00] --- Step 56 -----------------------------------------
+[2026-05-29T19:35:30.320152+00:00]   resources: avail=55.82 GB  slicer=2121.9 MB  nnI=2635.8 MB  load=2.22  nodes=134
+[2026-05-29T19:35:48.635606+00:00]   picked ijk=[166, 88, 213]  intensity=52796.0  new-seg  segments=57  skipped_inside=6  candidates_left=199,541
+[2026-05-29T19:35:48.635677+00:00]   voxels    335,329 ->    335,454  delta=+125  this segment: Segment_57 = 142 vox  (3.028s remote, 18.315s round-trip)
+[2026-05-29T19:35:49.333830+00:00] --- Step 57 -----------------------------------------
+[2026-05-29T19:35:49.590898+00:00]   resources: avail=55.75 GB  slicer=2122.4 MB  nnI=2659.5 MB  load=2.89  nodes=134
+[2026-05-29T19:36:08.165950+00:00]   picked ijk=[45, 38, 46]  intensity=52667.0  new-seg  segments=58  skipped_inside=5  candidates_left=199,535
+[2026-05-29T19:36:08.166010+00:00]   voxels    335,454 ->    335,511  delta=+57  this segment: Segment_58 = 68 vox  (3.169s remote, 18.575s round-trip)
+[2026-05-29T19:36:08.937379+00:00] --- Step 58 -----------------------------------------
+[2026-05-29T19:36:09.240737+00:00]   resources: avail=55.81 GB  slicer=2144.8 MB  nnI=2590.1 MB  load=3.45  nodes=134
+[2026-05-29T19:36:28.471191+00:00]   picked ijk=[168, 86, 230]  intensity=52499.0  new-seg  segments=59  skipped_inside=13  candidates_left=199,521
+[2026-05-29T19:36:28.471281+00:00]   voxels    335,511 ->    335,672  delta=+161  this segment: Segment_59 = 161 vox  (3.222s remote, 19.23s round-trip)
+[2026-05-29T19:36:29.268176+00:00] --- Step 59 -----------------------------------------
+[2026-05-29T19:36:29.567730+00:00]   resources: avail=55.8 GB  slicer=2167.3 MB  nnI=2594.7 MB  load=3.77  nodes=134
+[2026-05-29T19:36:48.832598+00:00]   picked ijk=[98, 128, 66]  intensity=52259.0  new-seg  segments=60  skipped_inside=12  candidates_left=199,508
+[2026-05-29T19:36:48.832661+00:00]   voxels    335,672 ->    338,454  delta=+2,782  this segment: Segment_60 = 2,782 vox  (3.351s remote, 19.265s round-trip)
+[2026-05-29T19:36:49.625146+00:00] --- Step 60 -----------------------------------------
+[2026-05-29T19:36:49.926129+00:00]   resources: avail=55.79 GB  slicer=2167.8 MB  nnI=2613.3 MB  load=2.98  nodes=134
+[2026-05-29T19:37:11.901614+00:00]   picked ijk=[138, 99, 268]  intensity=52138.0  new-seg  segments=61  skipped_inside=4  candidates_left=199,503
+[2026-05-29T19:37:11.901686+00:00]   voxels    338,454 ->    338,913  delta=+459  this segment: Segment_61 = 459 vox  (3.702s remote, 21.975s round-trip)
+[2026-05-29T19:37:12.694093+00:00] --- Step 61 -----------------------------------------
+[2026-05-29T19:37:12.971593+00:00]   resources: avail=55.77 GB  slicer=2168.3 MB  nnI=2613.3 MB  load=3.42  nodes=134
+[2026-05-29T19:37:33.008628+00:00]   picked ijk=[169, 85, 203]  intensity=52091.0  new-seg  segments=62  skipped_inside=1  candidates_left=199,501
+[2026-05-29T19:37:33.008690+00:00]   voxels    338,913 ->    339,024  delta=+111  this segment: Segment_62 = 192 vox  (3.502s remote, 20.037s round-trip)
+[2026-05-29T19:37:33.760772+00:00] --- Step 62 -----------------------------------------
+[2026-05-29T19:37:34.030030+00:00]   resources: avail=55.78 GB  slicer=2190.8 MB  nnI=2568.6 MB  load=2.59  nodes=134
+[2026-05-29T19:37:55.061821+00:00]   picked ijk=[179, 96, 198]  intensity=51992.0  new-seg  segments=63  skipped_inside=8  candidates_left=199,492
+[2026-05-29T19:37:55.061900+00:00]   voxels    339,024 ->    339,153  delta=+129  this segment: Segment_63 = 129 vox  (3.671s remote, 21.032s round-trip)
+[2026-05-29T19:37:55.853716+00:00] --- Step 63 -----------------------------------------
+[2026-05-29T19:37:56.141730+00:00]   resources: avail=55.74 GB  slicer=2191.3 MB  nnI=2616.8 MB  load=3.16  nodes=134
+[2026-05-29T19:38:20.253238+00:00]   picked ijk=[65, 146, 246]  intensity=51936.0  new-seg  segments=64  skipped_inside=2  candidates_left=199,489
+[2026-05-29T19:38:20.253387+00:00]   voxels    339,153 ->    374,860  delta=+35,707  this segment: Segment_64 = 41,701 vox  (4.024s remote, 24.111s round-trip)
+[2026-05-29T19:38:20.970475+00:00] --- Step 64 -----------------------------------------
+[2026-05-29T19:38:21.296594+00:00]   resources: avail=55.7 GB  slicer=2191.8 MB  nnI=2633.6 MB  load=3.44  nodes=134
+[2026-05-29T19:38:43.113714+00:00]   picked ijk=[59, 37, 110]  intensity=51849.0  new-seg  segments=65  skipped_inside=4  candidates_left=199,484
+[2026-05-29T19:38:43.113776+00:00]   voxels    374,860 ->    375,034  delta=+174  this segment: Segment_65 = 284 vox  (3.74s remote, 21.817s round-trip)
+[2026-05-29T19:38:43.834679+00:00] --- Step 65 -----------------------------------------
+[2026-05-29T19:38:44.167609+00:00]   resources: avail=55.78 GB  slicer=2192.3 MB  nnI=2568.6 MB  load=2.89  nodes=134
+[2026-05-29T19:39:09.496786+00:00]   picked ijk=[41, 94, 195]  intensity=51837.0  new-seg  segments=66  skipped_inside=0  candidates_left=199,483
+[2026-05-29T19:39:09.496874+00:00]   voxels    375,034 ->    382,340  delta=+7,306  this segment: Segment_66 = 7,433 vox  (4.106s remote, 25.329s round-trip)
+[2026-05-29T19:39:10.333533+00:00] --- Step 66 -----------------------------------------
+[2026-05-29T19:39:10.649330+00:00]   resources: avail=55.74 GB  slicer=2192.8 MB  nnI=2590.0 MB  load=3.44  nodes=134
+[2026-05-29T19:39:36.768881+00:00]   picked ijk=[52, 93, 176]  intensity=51732.0  new-seg  segments=67  skipped_inside=13  candidates_left=199,469
+[2026-05-29T19:39:36.768952+00:00]   voxels    382,340 ->    382,382  delta=+42  this segment: Segment_67 = 130 vox  (4.213s remote, 26.119s round-trip)
+[2026-05-29T19:39:37.552038+00:00] --- Step 67 -----------------------------------------
+[2026-05-29T19:39:37.878090+00:00]   resources: avail=55.71 GB  slicer=2193.3 MB  nnI=2611.5 MB  load=3.14  nodes=134
+[2026-05-29T19:40:04.695230+00:00]   picked ijk=[30, 92, 53]  intensity=51654.0  new-seg  segments=68  skipped_inside=7  candidates_left=199,461
+[2026-05-29T19:40:04.695359+00:00]   voxels    382,382 ->    384,178  delta=+1,796  this segment: Segment_68 = 1,796 vox  (4.335s remote, 26.817s round-trip)
+[2026-05-29T19:40:05.477634+00:00] --- Step 68 -----------------------------------------
+[2026-05-29T19:40:05.772283+00:00]   resources: avail=55.72 GB  slicer=2215.8 MB  nnI=2611.5 MB  load=2.41  nodes=134
+[2026-05-29T19:40:27.938145+00:00]   picked ijk=[80, 120, 348]  intensity=51128.0  new-seg  segments=69  skipped_inside=62  candidates_left=199,398
+[2026-05-29T19:40:27.938235+00:00]   voxels    384,178 ->    396,330  delta=+12,152  this segment: Segment_69 = 12,152 vox  (4.325s remote, 22.166s round-trip)
+[2026-05-29T19:40:28.704858+00:00] --- Step 69 -----------------------------------------
+[2026-05-29T19:40:29.056986+00:00]   resources: avail=55.68 GB  slicer=2216.3 MB  nnI=2611.5 MB  load=2.09  nodes=134
+[2026-05-29T19:40:52.323673+00:00]   picked ijk=[124, 145, 149]  intensity=50898.0  new-seg  segments=70  skipped_inside=25  candidates_left=199,372
+[2026-05-29T19:40:52.323739+00:00]   voxels    396,330 ->    396,668  delta=+338  this segment: Segment_70 = 551 vox  (4.082s remote, 23.267s round-trip)
+[2026-05-29T19:40:53.185230+00:00] --- Step 70 -----------------------------------------
+[2026-05-29T19:40:53.422749+00:00]   resources: avail=55.62 GB  slicer=2238.8 MB  nnI=2638.0 MB  load=2.51  nodes=134
+[2026-05-29T19:41:21.114111+00:00]   picked ijk=[53, 108, 16]  intensity=50249.0  new-seg  segments=71  skipped_inside=111  candidates_left=199,260
+[2026-05-29T19:41:21.114203+00:00]   voxels    396,668 ->    405,546  delta=+8,878  this segment: Segment_71 = 8,900 vox  (4.543s remote, 27.691s round-trip)
+[2026-05-29T19:41:21.899560+00:00] --- Step 71 -----------------------------------------
+[2026-05-29T19:41:22.233496+00:00]   resources: avail=55.6 GB  slicer=2239.2 MB  nnI=2638.0 MB  load=1.99  nodes=134
+[2026-05-29T19:41:46.370062+00:00]   picked ijk=[69, 63, 56]  intensity=50178.0  new-seg  segments=72  skipped_inside=9  candidates_left=199,250
+[2026-05-29T19:41:46.370335+00:00]   voxels    405,546 ->    414,888  delta=+9,342  this segment: Segment_72 = 9,343 vox  (4.276s remote, 24.136s round-trip)
+[2026-05-29T19:41:47.164492+00:00] --- Step 72 -----------------------------------------
+[2026-05-29T19:41:47.515983+00:00]   resources: avail=55.6 GB  slicer=2261.7 MB  nnI=2638.0 MB  load=2.97  nodes=134
+[2026-05-29T19:42:13.055888+00:00]   picked ijk=[221, 107, 41]  intensity=50133.0  new-seg  segments=73  skipped_inside=10  candidates_left=199,239
+[2026-05-29T19:42:13.055951+00:00]   voxels    414,888 ->    415,095  delta=+207  this segment: Segment_73 = 207 vox  (4.369s remote, 25.54s round-trip)
+[2026-05-29T19:42:13.806754+00:00] --- Step 73 -----------------------------------------
+[2026-05-29T19:42:14.090670+00:00]   resources: avail=55.59 GB  slicer=2284.7 MB  nnI=2568.6 MB  load=2.43  nodes=134
+[2026-05-29T19:42:39.609801+00:00]   picked ijk=[136, 173, 303]  intensity=50050.0  new-seg  segments=74  skipped_inside=15  candidates_left=199,223
+[2026-05-29T19:42:39.609862+00:00]   voxels    415,095 ->    415,147  delta=+52  this segment: Segment_74 = 52 vox  (4.393s remote, 25.519s round-trip)
+[2026-05-29T19:42:40.338613+00:00] --- Step 74 -----------------------------------------
+[2026-05-29T19:42:40.543597+00:00]   resources: avail=55.58 GB  slicer=2285.1 MB  nnI=2590.0 MB  load=3.19  nodes=134
+[2026-05-29T19:43:11.101827+00:00]   picked ijk=[109, 72, 311]  intensity=49714.0  new-seg  segments=75  skipped_inside=84  candidates_left=199,138
+[2026-05-29T19:43:11.101910+00:00]   voxels    415,147 ->    490,339  delta=+75,192  this segment: Segment_75 = 75,192 vox  (5.507s remote, 30.558s round-trip)
+[2026-05-29T19:43:11.898409+00:00] --- Step 75 -----------------------------------------
+[2026-05-29T19:43:12.228482+00:00]   resources: avail=55.48 GB  slicer=2307.6 MB  nnI=2650.7 MB  load=2.39  nodes=134
+[2026-05-29T19:43:40.298647+00:00]   picked ijk=[163, 89, 238]  intensity=49506.0  new-seg  segments=76  skipped_inside=51  candidates_left=199,086
+[2026-05-29T19:43:40.298717+00:00]   voxels    490,339 ->    498,246  delta=+7,907  this segment: Segment_76 = 8,134 vox  (4.64s remote, 28.07s round-trip)
+[2026-05-29T19:43:41.099438+00:00] --- Step 76 -----------------------------------------
+[2026-05-29T19:43:41.452461+00:00]   resources: avail=55.44 GB  slicer=2308.1 MB  nnI=2650.7 MB  load=2.45  nodes=134
+[2026-05-29T19:44:14.097845+00:00]   picked ijk=[14, 124, 176]  intensity=49505.0  new-seg  segments=77  skipped_inside=0  candidates_left=199,085
+[2026-05-29T19:44:14.097939+00:00]   voxels    498,246 ->    552,627  delta=+54,381  this segment: Segment_77 = 60,315 vox  (6.332s remote, 32.645s round-trip)
+[2026-05-29T19:44:15.019704+00:00] --- Step 77 -----------------------------------------
+[2026-05-29T19:44:15.417703+00:00]   resources: avail=55.43 GB  slicer=2308.6 MB  nnI=2652.9 MB  load=2.74  nodes=134
+[2026-05-29T19:44:41.937709+00:00]   picked ijk=[67, 64, 6]  intensity=49270.0  new-seg  segments=78  skipped_inside=61  candidates_left=199,023
+[2026-05-29T19:44:41.937775+00:00]   voxels    552,627 ->    552,898  delta=+271  this segment: Segment_78 = 638 vox  (5.292s remote, 26.52s round-trip)
+[2026-05-29T19:44:42.617439+00:00] --- Step 78 -----------------------------------------
+[2026-05-29T19:44:42.922124+00:00]   resources: avail=55.47 GB  slicer=2331.0 MB  nnI=2568.6 MB  load=2.15  nodes=134
+[2026-05-29T19:45:14.964698+00:00]   picked ijk=[22, 89, 72]  intensity=49193.0  new-seg  segments=79  skipped_inside=21  candidates_left=199,001
+[2026-05-29T19:45:14.964792+00:00]   voxels    552,898 ->    559,252  delta=+6,354  this segment: Segment_79 = 11,040 vox  (5.402s remote, 32.043s round-trip)
+[2026-05-29T19:45:15.746942+00:00] --- Step 79 -----------------------------------------
+[2026-05-29T19:45:15.952173+00:00]   resources: avail=55.45 GB  slicer=2331.5 MB  nnI=2590.0 MB  load=3.6  nodes=134
+[2026-05-29T19:45:47.581819+00:00]   picked ijk=[227, 36, 57]  intensity=49116.0  new-seg  segments=80  skipped_inside=22  candidates_left=198,978
+[2026-05-29T19:45:47.581904+00:00]   voxels    559,252 ->    565,725  delta=+6,473  this segment: Segment_80 = 6,473 vox  (5.696s remote, 31.63s round-trip)
+[2026-05-29T19:45:48.333056+00:00] --- Step 80 -----------------------------------------
+[2026-05-29T19:45:48.715130+00:00]   resources: avail=55.42 GB  slicer=2332.0 MB  nnI=2611.5 MB  load=2.61  nodes=134
+[2026-05-29T19:46:21.269818+00:00]   picked ijk=[85, 89, 80]  intensity=49115.0  new-seg  segments=81  skipped_inside=0  candidates_left=198,977
+[2026-05-29T19:46:21.269903+00:00]   voxels    565,725 ->    651,736  delta=+86,011  this segment: Segment_81 = 113,217 vox  (6.572s remote, 32.555s round-trip)
+[2026-05-29T19:46:22.194620+00:00] --- Step 81 -----------------------------------------
+[2026-05-29T19:46:22.535076+00:00]   resources: avail=55.37 GB  slicer=2354.4 MB  nnI=2615.3 MB  load=2.92  nodes=134
+[2026-05-29T19:46:56.688274+00:00]   picked ijk=[171, 83, 196]  intensity=49106.0  new-seg  segments=82  skipped_inside=3  candidates_left=198,973
+[2026-05-29T19:46:56.688358+00:00]   voxels    651,736 ->    651,916  delta=+180  this segment: Segment_82 = 257 vox  (6.258s remote, 34.153s round-trip)
+[2026-05-29T19:46:57.494238+00:00] --- Step 82 -----------------------------------------
+[2026-05-29T19:46:57.803851+00:00]   resources: avail=55.36 GB  slicer=2377.0 MB  nnI=2568.5 MB  load=2.12  nodes=134
+[2026-05-29T19:47:28.491484+00:00]   picked ijk=[122, 194, 33]  intensity=49088.0  new-seg  segments=83  skipped_inside=6  candidates_left=198,966
+[2026-05-29T19:47:28.491668+00:00]   voxels    651,916 ->    652,378  delta=+462  this segment: Segment_83 = 462 vox  (5.829s remote, 30.688s round-trip)
+[2026-05-29T19:47:29.291892+00:00] --- Step 83 -----------------------------------------
+[2026-05-29T19:47:29.581782+00:00]   resources: avail=55.31 GB  slicer=2398.9 MB  nnI=2590.0 MB  load=2.43  nodes=134
+[2026-05-29T19:48:04.188066+00:00]   picked ijk=[159, 88, 228]  intensity=49088.0  new-seg  segments=84  skipped_inside=0  candidates_left=198,965
+[2026-05-29T19:48:04.188151+00:00]   voxels    652,378 ->    652,522  delta=+144  this segment: Segment_84 = 146 vox  (5.998s remote, 34.606s round-trip)
+[2026-05-29T19:48:05.030884+00:00] --- Step 84 -----------------------------------------
+[2026-05-29T19:48:05.257710+00:00]   resources: avail=55.21 GB  slicer=2443.5 MB  nnI=2638.0 MB  load=2.53  nodes=134
+[2026-05-29T19:48:38.369825+00:00]   picked ijk=[129, 170, 301]  intensity=48986.0  new-seg  segments=85  skipped_inside=38  candidates_left=198,926
+[2026-05-29T19:48:38.369910+00:00]   voxels    652,522 ->    657,643  delta=+5,121  this segment: Segment_85 = 5,122 vox  (6.4s remote, 33.112s round-trip)
+[2026-05-29T19:48:39.168283+00:00] --- Step 85 -----------------------------------------
+[2026-05-29T19:48:39.520843+00:00]   resources: avail=55.21 GB  slicer=2465.5 MB  nnI=2568.6 MB  load=1.88  nodes=134
+[2026-05-29T19:49:11.228145+00:00]   picked ijk=[130, 181, 301]  intensity=48900.0  new-seg  segments=86  skipped_inside=29  candidates_left=198,896
+[2026-05-29T19:49:11.228208+00:00]   voxels    657,643 ->    657,945  delta=+302  this segment: Segment_86 = 335 vox  (6.15s remote, 31.707s round-trip)
+[2026-05-29T19:49:12.017319+00:00] --- Step 86 -----------------------------------------
+[2026-05-29T19:49:12.344217+00:00]   resources: avail=55.15 GB  slicer=2487.9 MB  nnI=2590.0 MB  load=1.53  nodes=134
+[2026-05-29T19:49:46.792561+00:00]   picked ijk=[96, 200, 216]  intensity=48860.0  new-seg  segments=87  skipped_inside=14  candidates_left=198,881
+[2026-05-29T19:49:46.792643+00:00]   voxels    657,945 ->    659,520  delta=+1,575  this segment: Segment_87 = 1,575 vox  (6.509s remote, 34.448s round-trip)
+[2026-05-29T19:49:47.533586+00:00] --- Step 87 -----------------------------------------
+[2026-05-29T19:49:47.769449+00:00]   resources: avail=55.11 GB  slicer=2510.1 MB  nnI=2611.5 MB  load=1.3  nodes=134
+[2026-05-29T19:50:25.007584+00:00]   picked ijk=[104, 205, 187]  intensity=48858.0  new-seg  segments=88  skipped_inside=1  candidates_left=198,879
+[2026-05-29T19:50:25.007659+00:00]   voxels    659,520 ->    662,964  delta=+3,444  this segment: Segment_88 = 4,501 vox  (6.426s remote, 37.238s round-trip)
+[2026-05-29T19:50:25.774133+00:00] --- Step 88 -----------------------------------------
+[2026-05-29T19:50:26.155005+00:00]   resources: avail=55.1 GB  slicer=2532.6 MB  nnI=2611.5 MB  load=1.15  nodes=134
+[2026-05-29T19:51:03.781524+00:00]   picked ijk=[75, 106, 63]  intensity=48853.0  new-seg  segments=89  skipped_inside=4  candidates_left=198,874
+[2026-05-29T19:51:03.781594+00:00]   voxels    662,964 ->    667,138  delta=+4,174  this segment: Segment_89 = 42,805 vox  (6.747s remote, 37.626s round-trip)
+[2026-05-29T19:51:04.525323+00:00] --- Step 89 -----------------------------------------
+[2026-05-29T19:51:04.753907+00:00]   resources: avail=55.03 GB  slicer=2554.7 MB  nnI=2611.5 MB  load=1.94  nodes=134
+[2026-05-29T19:51:36.479782+00:00]   picked ijk=[126, 127, 139]  intensity=48812.0  new-seg  segments=90  skipped_inside=15  candidates_left=198,858
+[2026-05-29T19:51:36.479844+00:00]   voxels    667,138 ->    667,335  delta=+197  this segment: Segment_90 = 197 vox  (6.706s remote, 31.726s round-trip)
+[2026-05-29T19:51:37.245809+00:00] --- Step 90 -----------------------------------------
+[2026-05-29T19:51:37.518969+00:00]   resources: avail=54.99 GB  slicer=2577.2 MB  nnI=2639.1 MB  load=2.49  nodes=134
+[2026-05-29T19:52:16.068856+00:00]   picked ijk=[58, 79, 318]  intensity=48750.0  new-seg  segments=91  skipped_inside=27  candidates_left=198,830
+[2026-05-29T19:52:16.068972+00:00]   voxels    667,335 ->    678,089  delta=+10,754  this segment: Segment_91 = 110,068 vox  (7.754s remote, 38.55s round-trip)
+[2026-05-29T19:52:16.857491+00:00] --- Step 91 -----------------------------------------
+[2026-05-29T19:52:17.216833+00:00]   resources: avail=54.98 GB  slicer=2599.8 MB  nnI=2599.6 MB  load=1.82  nodes=134
+[2026-05-29T19:52:55.116380+00:00]   picked ijk=[176, 48, 215]  intensity=48749.0  new-seg  segments=92  skipped_inside=0  candidates_left=198,829
+[2026-05-29T19:52:55.116546+00:00]   voxels    678,089 ->    717,073  delta=+38,984  this segment: Segment_92 = 62,241 vox  (7.449s remote, 37.899s round-trip)
+[2026-05-29T19:52:55.982666+00:00] --- Step 92 -----------------------------------------
+[2026-05-29T19:52:56.296382+00:00]   resources: avail=54.98 GB  slicer=2600.3 MB  nnI=2599.6 MB  load=1.42  nodes=134
+[2026-05-29T19:53:34.563812+00:00]   picked ijk=[53, 178, 295]  intensity=48727.0  new-seg  segments=93  skipped_inside=12  candidates_left=198,816
+[2026-05-29T19:53:34.563900+00:00]   voxels    717,073 ->    718,898  delta=+1,825  this segment: Segment_93 = 1,825 vox  (7.499s remote, 38.267s round-trip)
+[2026-05-29T19:53:35.382763+00:00] --- Step 93 -----------------------------------------
+[2026-05-29T19:53:35.594047+00:00]   resources: avail=54.94 GB  slicer=2600.7 MB  nnI=2611.5 MB  load=2.01  nodes=134
+[2026-05-29T19:54:13.106868+00:00]   picked ijk=[152, 96, 0]  intensity=48711.0  new-seg  segments=94  skipped_inside=6  candidates_left=198,809
+[2026-05-29T19:54:13.106946+00:00]   voxels    718,898 ->    756,096  delta=+37,198  this segment: Segment_94 = 37,198 vox  (7.628s remote, 37.513s round-trip)
+[2026-05-29T19:54:13.903512+00:00] --- Step 94 -----------------------------------------
+[2026-05-29T19:54:14.180680+00:00]   resources: avail=54.87 GB  slicer=2645.2 MB  nnI=2611.5 MB  load=1.6  nodes=134
+[2026-05-29T19:54:48.781497+00:00]   picked ijk=[118, 174, 313]  intensity=48582.0  new-seg  segments=95  skipped_inside=67  candidates_left=198,741
+[2026-05-29T19:54:48.781592+00:00]   voxels    756,096 ->    757,876  delta=+1,780  this segment: Segment_95 = 2,658 vox  (7.644s remote, 34.601s round-trip)
+[2026-05-29T19:54:49.557982+00:00] --- Step 95 -----------------------------------------
+[2026-05-29T19:54:49.854568+00:00]   resources: avail=54.84 GB  slicer=2667.2 MB  nnI=2611.5 MB  load=1.62  nodes=134
+[2026-05-29T19:55:27.012432+00:00]   picked ijk=[136, 110, 110]  intensity=48459.0  new-seg  segments=96  skipped_inside=75  candidates_left=198,665
+[2026-05-29T19:55:27.012496+00:00]   voxels    757,876 ->    760,684  delta=+2,808  this segment: Segment_96 = 2,808 vox  (7.76s remote, 37.158s round-trip)
+[2026-05-29T19:55:27.944130+00:00] --- Step 96 -----------------------------------------
+[2026-05-29T19:55:28.182153+00:00]   resources: avail=54.76 GB  slicer=2711.7 MB  nnI=2639.1 MB  load=2.28  nodes=134
+[2026-05-29T19:56:04.472206+00:00]   picked ijk=[139, 170, 301]  intensity=48440.0  new-seg  segments=97  skipped_inside=12  candidates_left=198,652
+[2026-05-29T19:56:04.472294+00:00]   voxels    760,684 ->    760,776  delta=+92  this segment: Segment_97 = 108 vox  (7.485s remote, 36.29s round-trip)
+[2026-05-29T19:56:05.196500+00:00] --- Step 97 -----------------------------------------
+[2026-05-29T19:56:05.589811+00:00]   resources: avail=54.71 GB  slicer=2712.4 MB  nnI=2639.1 MB  load=2.38  nodes=134
+[2026-05-29T19:56:42.591479+00:00]   picked ijk=[56, 192, 72]  intensity=48395.0  new-seg  segments=98  skipped_inside=25  candidates_left=198,626
+[2026-05-29T19:56:42.591572+00:00]   voxels    760,776 ->    790,036  delta=+29,260  this segment: Segment_98 = 29,905 vox  (7.482s remote, 37.002s round-trip)
+[2026-05-29T19:56:43.329145+00:00] --- Step 98 -----------------------------------------
+[2026-05-29T19:56:43.598397+00:00]   resources: avail=54.67 GB  slicer=2756.7 MB  nnI=2639.1 MB  load=1.71  nodes=134
+[2026-05-29T19:57:21.428769+00:00]   picked ijk=[227, 116, 44]  intensity=48285.0  new-seg  segments=99  skipped_inside=70  candidates_left=198,555
+[2026-05-29T19:57:21.428840+00:00]   voxels    790,036 ->    792,585  delta=+2,549  this segment: Segment_99 = 2,756 vox  (7.675s remote, 37.83s round-trip)
+[2026-05-29T19:57:22.157355+00:00] --- Step 99 -----------------------------------------
+[2026-05-29T19:57:22.362970+00:00]   resources: avail=54.7 GB  slicer=2779.2 MB  nnI=2568.6 MB  load=1.97  nodes=134
+[2026-05-29T19:57:59.675502+00:00]   picked ijk=[108, 173, 318]  intensity=48248.0  new-seg  segments=100  skipped_inside=20  candidates_left=198,534
+[2026-05-29T19:57:59.675596+00:00]   voxels    792,585 ->    792,961  delta=+376  this segment: Segment_100 = 773 vox  (7.637s remote, 37.312s round-trip)
+[2026-05-29T19:58:00.345577+00:00] -> Exporting final segmentation as NIfTI artifacts…
+[2026-05-29T19:58:52.084612+00:00]   composite     : artifacts/composite.nii.gz  228,487 bytes  sha256=a53f9ad0f6dac81f…
+[2026-05-29T19:58:52.085170+00:00]   segment      Segment_1:    42,946 bytes  sha256=131c45a7f50b…
+[2026-05-29T19:58:52.085703+00:00]   segment      Segment_2:    42,991 bytes  sha256=dbb59336eacc…
+[2026-05-29T19:58:52.086221+00:00]   segment      Segment_3:    44,713 bytes  sha256=482fb5904290…
+[2026-05-29T19:58:52.086780+00:00]   segment      Segment_4:    45,492 bytes  sha256=dff6d8c3d615…
+[2026-05-29T19:58:52.087313+00:00]   segment      Segment_5:    43,177 bytes  sha256=bee0cc2e9fa9…
+[2026-05-29T19:58:52.087826+00:00]   segment      Segment_6:    43,182 bytes  sha256=fc8968f46b41…
+[2026-05-29T19:58:52.088401+00:00]   segment      Segment_7:    42,977 bytes  sha256=168e60cbb55d…
+[2026-05-29T19:58:52.088956+00:00]   segment      Segment_8:    43,867 bytes  sha256=11b22d0dcb58…
+[2026-05-29T19:58:52.089570+00:00]   segment      Segment_9:    43,476 bytes  sha256=b72014ba7955…
+[2026-05-29T19:58:52.090143+00:00]   segment     Segment_10:    43,192 bytes  sha256=105bb9a35378…
+[2026-05-29T19:58:52.090778+00:00]   segment     Segment_11:    43,491 bytes  sha256=4808c55f5790…
+[2026-05-29T19:58:52.091410+00:00]   segment     Segment_12:    43,296 bytes  sha256=a64204abc653…
+[2026-05-29T19:58:52.092036+00:00]   segment     Segment_13:    44,188 bytes  sha256=b05f6ef6f62f…
+[2026-05-29T19:58:52.092695+00:00]   segment     Segment_14:    43,066 bytes  sha256=59a6bdb4acfe…
+[2026-05-29T19:58:52.093359+00:00]   segment     Segment_15:    46,058 bytes  sha256=fb556f097483…
+[2026-05-29T19:58:52.094009+00:00]   segment     Segment_16:    43,424 bytes  sha256=6a39379ea883…
+[2026-05-29T19:58:52.094706+00:00]   segment     Segment_17:    42,956 bytes  sha256=3fa28a2b135a…
+[2026-05-29T19:58:52.095406+00:00]   segment     Segment_18:    43,385 bytes  sha256=a03bf0f92a2f…
+[2026-05-29T19:58:52.096077+00:00]   segment     Segment_19:    42,923 bytes  sha256=995c3846fcc5…
+[2026-05-29T19:58:52.096816+00:00]   segment     Segment_20:    42,957 bytes  sha256=4daa063a231f…
+[2026-05-29T19:58:52.099384+00:00]   segment     Segment_21:    43,688 bytes  sha256=60bfd46b18dd…
+[2026-05-29T19:58:52.100129+00:00]   segment     Segment_22:    43,265 bytes  sha256=ebf69d056a12…
+[2026-05-29T19:58:52.100956+00:00]   segment     Segment_23:    42,943 bytes  sha256=044facefb054…
+[2026-05-29T19:58:52.101716+00:00]   segment     Segment_24:    42,936 bytes  sha256=9d72ad3a8628…
+[2026-05-29T19:58:52.102491+00:00]   segment     Segment_25:    42,973 bytes  sha256=316006b9f28f…
+[2026-05-29T19:58:52.103237+00:00]   segment     Segment_26:    42,965 bytes  sha256=c17586014fbb…
+[2026-05-29T19:58:52.104070+00:00]   segment     Segment_27:    42,968 bytes  sha256=c41c7dab1ccb…
+[2026-05-29T19:58:52.104888+00:00]   segment     Segment_28:    42,997 bytes  sha256=046c1c68aab8…
+[2026-05-29T19:58:52.105721+00:00]   segment     Segment_29:    43,135 bytes  sha256=562575d09104…
+[2026-05-29T19:58:52.106546+00:00]   segment     Segment_30:    43,008 bytes  sha256=e7f1499f3227…
+[2026-05-29T19:58:52.107384+00:00]   segment     Segment_31:    43,079 bytes  sha256=840444a0db3c…
+[2026-05-29T19:58:52.108317+00:00]   segment     Segment_32:    59,550 bytes  sha256=9bbc92c1ef74…
+[2026-05-29T19:58:52.109152+00:00]   segment     Segment_33:    43,025 bytes  sha256=f755ba782e90…
+[2026-05-29T19:58:52.110057+00:00]   segment     Segment_34:    44,710 bytes  sha256=6dd6489b6b37…
+[2026-05-29T19:58:52.110929+00:00]   segment     Segment_35:    43,227 bytes  sha256=0f4a5038cada…
+[2026-05-29T19:58:52.111833+00:00]   segment     Segment_36:    44,097 bytes  sha256=423c4385d171…
+[2026-05-29T19:58:52.112754+00:00]   segment     Segment_37:    43,064 bytes  sha256=bf2f82462415…
+[2026-05-29T19:58:52.113717+00:00]   segment     Segment_38:    42,962 bytes  sha256=d34cd6634356…
+[2026-05-29T19:58:52.114691+00:00]   segment     Segment_39:    44,272 bytes  sha256=86207677a74e…
+[2026-05-29T19:58:52.115642+00:00]   segment     Segment_40:    43,748 bytes  sha256=ac1279c0d2b8…
+[2026-05-29T19:58:52.116624+00:00]   segment     Segment_41:    44,905 bytes  sha256=0134a7fbbda2…
+[2026-05-29T19:58:52.117619+00:00]   segment     Segment_42:    42,981 bytes  sha256=97fc98ee1c58…
+[2026-05-29T19:58:52.118596+00:00]   segment     Segment_43:    43,024 bytes  sha256=cd3f535e4b7d…
+[2026-05-29T19:58:52.119592+00:00]   segment     Segment_44:    43,064 bytes  sha256=9387c0b7d623…
+[2026-05-29T19:58:52.120567+00:00]   segment     Segment_45:    43,528 bytes  sha256=30023768939e…
+[2026-05-29T19:58:52.121669+00:00]   segment     Segment_46:    43,565 bytes  sha256=ccfce52769ea…
+[2026-05-29T19:58:52.123147+00:00]   segment     Segment_47:    76,723 bytes  sha256=ced99293b0c6…
+[2026-05-29T19:58:52.124180+00:00]   segment     Segment_48:    43,009 bytes  sha256=7c3dc540d059…
+[2026-05-29T19:58:52.125228+00:00]   segment     Segment_49:    43,316 bytes  sha256=bf102bd5ffc4…
+[2026-05-29T19:58:52.126333+00:00]   segment     Segment_50:    43,823 bytes  sha256=2706f7359a01…
+[2026-05-29T19:58:52.127403+00:00]   segment     Segment_51:    44,857 bytes  sha256=e8074fc67011…
+[2026-05-29T19:58:52.128501+00:00]   segment     Segment_52:    43,133 bytes  sha256=395088fa58ee…
+[2026-05-29T19:58:52.129591+00:00]   segment     Segment_53:    43,733 bytes  sha256=dd02fd3b8eea…
+[2026-05-29T19:58:52.130713+00:00]   segment     Segment_54:    43,046 bytes  sha256=f38e7dc60a87…
+[2026-05-29T19:58:52.131816+00:00]   segment     Segment_55:    43,667 bytes  sha256=1330c0e0a96e…
+[2026-05-29T19:58:52.132968+00:00]   segment     Segment_56:    43,386 bytes  sha256=88c0b1e65840…
+[2026-05-29T19:58:52.134080+00:00]   segment     Segment_57:    43,018 bytes  sha256=1bd0d52367ff…
+[2026-05-29T19:58:52.135270+00:00]   segment     Segment_58:    42,984 bytes  sha256=b35cc5ab85d6…
+[2026-05-29T19:58:52.136426+00:00]   segment     Segment_59:    43,059 bytes  sha256=530d784da20c…
+[2026-05-29T19:58:52.137618+00:00]   segment     Segment_60:    43,739 bytes  sha256=c14e9f37729c…
+[2026-05-29T19:58:52.138777+00:00]   segment     Segment_61:    43,144 bytes  sha256=515293e0a910…
+[2026-05-29T19:58:52.139965+00:00]   segment     Segment_62:    43,049 bytes  sha256=c4f16e3ac6d2…
+[2026-05-29T19:58:52.141190+00:00]   segment     Segment_63:    43,037 bytes  sha256=3fb2bab98be1…
+[2026-05-29T19:58:52.142457+00:00]   segment     Segment_64:    53,414 bytes  sha256=1247b5b0d607…
+[2026-05-29T19:58:52.143711+00:00]   segment     Segment_65:    43,222 bytes  sha256=96711bf8f9e2…
+[2026-05-29T19:58:52.144969+00:00]   segment     Segment_66:    45,618 bytes  sha256=2352de3fa729…
+[2026-05-29T19:58:52.146225+00:00]   segment     Segment_67:    43,045 bytes  sha256=bd99d002f9c0…
+[2026-05-29T19:58:52.147469+00:00]   segment     Segment_68:    43,670 bytes  sha256=1b671329e688…
+[2026-05-29T19:58:52.148838+00:00]   segment     Segment_69:    44,767 bytes  sha256=966d0ddac685…
+[2026-05-29T19:58:52.150148+00:00]   segment     Segment_70:    43,338 bytes  sha256=458cd0316305…
+[2026-05-29T19:58:52.151501+00:00]   segment     Segment_71:    45,240 bytes  sha256=9260527310fa…
+[2026-05-29T19:58:52.152854+00:00]   segment     Segment_72:    45,388 bytes  sha256=43b4df98639a…
+[2026-05-29T19:58:52.154167+00:00]   segment     Segment_73:    43,015 bytes  sha256=acf29e3bbefa…
+[2026-05-29T19:58:52.155514+00:00]   segment     Segment_74:    42,984 bytes  sha256=7a0e6cdc9bc4…
+[2026-05-29T19:58:52.156923+00:00]   segment     Segment_75:    55,520 bytes  sha256=0267ff141381…
+[2026-05-29T19:58:52.158311+00:00]   segment     Segment_76:    45,152 bytes  sha256=8da210fe31bc…
+[2026-05-29T19:58:52.159700+00:00]   segment     Segment_77:    56,728 bytes  sha256=95c4e2244b3d…
+[2026-05-29T19:58:52.161082+00:00]   segment     Segment_78:    43,500 bytes  sha256=37ebb7f3a06a…
+[2026-05-29T19:58:52.162489+00:00]   segment     Segment_79:    47,198 bytes  sha256=80421c946f2c…
+[2026-05-29T19:58:52.163895+00:00]   segment     Segment_80:    44,446 bytes  sha256=84f345a36fd7…
+[2026-05-29T19:58:52.165437+00:00]   segment     Segment_81:    71,956 bytes  sha256=bcbdfd82d8f2…
+[2026-05-29T19:58:52.166871+00:00]   segment     Segment_82:    43,099 bytes  sha256=5cab4bb5dbda…
+[2026-05-29T19:58:52.168331+00:00]   segment     Segment_83:    43,118 bytes  sha256=21d349b2eb98…
+[2026-05-29T19:58:52.169815+00:00]   segment     Segment_84:    43,032 bytes  sha256=93283458aca0…
+[2026-05-29T19:58:52.171286+00:00]   segment     Segment_85:    44,599 bytes  sha256=424ec8dfcd39…
+[2026-05-29T19:58:52.172759+00:00]   segment     Segment_86:    43,135 bytes  sha256=088fe4f34a5e…
+[2026-05-29T19:58:52.174437+00:00]   segment     Segment_87:    43,676 bytes  sha256=bcb0d65a78bb…
+[2026-05-29T19:58:52.175936+00:00]   segment     Segment_88:    44,621 bytes  sha256=0dbec5218208…
+[2026-05-29T19:58:52.177489+00:00]   segment     Segment_89:    55,084 bytes  sha256=ac91aa838998…
+[2026-05-29T19:58:52.179013+00:00]   segment     Segment_90:    43,122 bytes  sha256=bc9d2ff9a314…
+[2026-05-29T19:58:52.180637+00:00]   segment     Segment_91:    62,556 bytes  sha256=095e22fae80b…
+[2026-05-29T19:58:52.182213+00:00]   segment     Segment_92:    58,858 bytes  sha256=9fe069aa5d44…
+[2026-05-29T19:58:52.184210+00:00]   segment     Segment_93:    43,563 bytes  sha256=73b5922ec8aa…
+[2026-05-29T19:58:52.185845+00:00]   segment     Segment_94:    49,865 bytes  sha256=0c415382abe3…
+[2026-05-29T19:58:52.187419+00:00]   segment     Segment_95:    43,677 bytes  sha256=0f8868c7c66f…
+[2026-05-29T19:58:52.189017+00:00]   segment     Segment_96:    43,791 bytes  sha256=5fbe7461d68e…
+[2026-05-29T19:58:52.190641+00:00]   segment     Segment_97:    43,025 bytes  sha256=08b8da6bf3d6…
+[2026-05-29T19:58:52.192463+00:00]   segment     Segment_98:    54,813 bytes  sha256=d5f037261b63…
+[2026-05-29T19:58:52.194124+00:00]   segment     Segment_99:    43,522 bytes  sha256=add9ea5a09f3…
+[2026-05-29T19:58:52.195815+00:00]   segment    Segment_100:    43,183 bytes  sha256=a9c559a56ef9…
+
+[2026-05-29T19:58:52.201805+00:00] DONE. final voxels = 792,961 / 21,999,627 (3.60%)
+[2026-05-29T19:58:52.201820+00:00]       stop reason = {'reason': 'max_steps', 'max_steps': 100}
+[2026-05-29T19:58:52.201842+00:00]       summary    -> runs/tuatara_fresh_proof2/bright_seed/summary.json
+[2026-05-29T19:58:52.201853+00:00]       events     -> runs/tuatara_fresh_proof2/bright_seed/events.jsonl
+[2026-05-29T19:58:52.201863+00:00]       artifacts  -> runs/tuatara_fresh_proof2/bright_seed/artifacts
+[2026-05-29T19:58:52.201872+00:00]       replay     -> runs/tuatara_fresh_proof2/bright_seed/replay.sh

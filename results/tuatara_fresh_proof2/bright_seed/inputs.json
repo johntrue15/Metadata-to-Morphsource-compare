@@ -1,0 +1,29 @@
+{
+  "status": "ok",
+  "volume_id": "vtkMRMLScalarVolumeNode1",
+  "volume_name": "tuatara_skull_000358663_ct",
+  "shape_kji": [
+    351,
+    233,
+    269
+  ],
+  "dtype": "uint16",
+  "nbytes": 43999254,
+  "spacing_mm": [
+    0.149124,
+    0.149124,
+    0.149124
+  ],
+  "origin": [
+    19.997468,
+    17.343069,
+    -25.380828
+  ],
+  "scalar_min": 0.0,
+  "scalar_max": 65535.0,
+  "scalar_mean": 10832.375315772399,
+  "sha256_voxels": "3c6bbfd079e000c5f87ccdf0261e65806a7c8d68fb262cd3db50183ce4a1edc0",
+  "source_filename": "/tmp/ms_remote_samples/tuatara_skull_000358663_ct.nrrd",
+  "_dt_s": 0.211,
+  "_retries_used": 0
+}

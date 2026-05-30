@@ -1,0 +1,53 @@
+{
+  "reference_volume": "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/ct_000408242.nii.gz",
+  "mesh_path": "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/download/gt_000769445/morphosource_media-id-000769445_download-da4a2c42/Media 000769445 - Skull/veiled-chameleon-skull-anatomy-000769445.ply",
+  "output_path": "runs/chameleon_skull_000769445_ecu_20260529T092515/000408242__vs__000769445/gt_voxelized.nii.gz",
+  "fill_value": 1,
+  "reference_dims": [
+    1682,
+    731,
+    1714
+  ],
+  "reference_spacing_xyz": [
+    0.04978824034333229,
+    0.04978824034333229,
+    0.04978824034333229
+  ],
+  "reference_origin": [
+    -41.847015380859375,
+    -18.17270851135254,
+    -42.64362716674805
+  ],
+  "reference_direction": [
+    1.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0
+  ],
+  "mesh_n_points": 2170335,
+  "mesh_n_cells": 4366930,
+  "mesh_world_bounds": [
+    -13.819629669189453,
+    13.009419441223145,
+    -21.725780487060547,
+    35.894737243652344,
+    -13.154215812683105,
+    52.76105880737305
+  ],
+  "mesh_index_bounds": [
+    562.9318237304688,
+    1101.7950439453125,
+    -71.36367797851562,
+    1085.9481201171875,
+    592.2966918945312,
+    1916.209228515625
+  ],
+  "foreground_voxels": 21459340,
+  "foreground_volume_mm3": 2648.48,
+  "backend": "vtk"
+}

@@ -23,3 +23,5 @@ scripts/runners/gpu_smoke.py                    text eol=lf
 # Generated knowledge-graph snapshots: don't try to normalise their
 # whitespace (they're produced verbatim by the runner).
 docs/data/**/*.json -text
+results/**/*.nrrd filter=lfs diff=lfs merge=lfs -text
+results/**/*.nii.gz filter=lfs diff=lfs merge=lfs -text

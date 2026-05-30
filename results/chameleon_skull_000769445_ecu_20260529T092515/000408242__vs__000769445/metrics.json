@@ -1,0 +1,29 @@
+{
+  "voxel_count_pred": 0,
+  "voxel_count_gt": 21459340,
+  "volume_mm3_pred": 0.0,
+  "volume_mm3_gt": 2648.48,
+  "volume_difference_pct": 100.0,
+  "intersection_voxels": 0,
+  "union_voxels": 21459340,
+  "dice": 0.0,
+  "iou": 0.0,
+  "precision": 0.0,
+  "recall": 0.0,
+  "false_positive_rate": 0.0,
+  "false_negative_rate": 1.0,
+  "hausdorff_mm": null,
+  "hausdorff_95_mm": null,
+  "average_surface_dist_mm": null,
+  "centroid_distance_mm": null,
+  "spacing_xyz_mm": [
+    0.049788,
+    0.049788,
+    0.049788
+  ],
+  "image_shape_zyx": [
+    1714,
+    731,
+    1682
+  ]
+}
