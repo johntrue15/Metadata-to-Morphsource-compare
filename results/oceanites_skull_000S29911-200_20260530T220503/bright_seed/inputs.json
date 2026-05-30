@@ -1,0 +1,29 @@
+{
+  "status": "ok",
+  "volume_id": "vtkMRMLScalarVolumeNode1",
+  "volume_name": "oceanites_skull_000S29911_ct",
+  "shape_kji": [
+    289,
+    311,
+    302
+  ],
+  "dtype": "uint8",
+  "nbytes": 27143458,
+  "spacing_mm": [
+    0.179617,
+    0.179617,
+    0.179617
+  ],
+  "origin": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "scalar_min": 0.0,
+  "scalar_max": 255.0,
+  "scalar_mean": 6.791586466249068,
+  "sha256_voxels": "822c24274a81577c4c331939cc9412ff446cfab7d8f98c7614cc9b0be73a4e7b",
+  "source_filename": "/tmp/ms_remote_samples/oceanites_skull_000S29911_ct.nrrd",
+  "_dt_s": 0.12,
+  "_retries_used": 0
+}
