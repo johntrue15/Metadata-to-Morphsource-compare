@@ -1,0 +1,9 @@
+{
+  "id": "oceanites_skull_000S29911-200",
+  "fixture": "data/sample/oceanites_skull_000S29911_urls.json",
+  "max_steps": 200,
+  "headless": true,
+  "fast": true,
+  "batch_size": 8,
+  "_doc": "Colors-of-Skull oceanites_skull_000S29911: clear scene -> load CT -> bright-seed to 200 clicks or saturation, headless+batched, checkpointing to GitHub."
+}

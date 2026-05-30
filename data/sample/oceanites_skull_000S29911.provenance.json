@@ -1,0 +1,88 @@
+{
+  "tool": "stage_morphosource_sample.py",
+  "generated_utc": "2026-05-30T20:17:23Z",
+  "ct_media": {
+    "id": "000108748",
+    "title": "Element Unspecified [CTImageSeries] [CT]",
+    "taxonomy": "Oceanites oceanicus",
+    "physical_object_id": "000S29911",
+    "physical_object_title": "nhmuk:zoo:S/1957.11.2",
+    "doi": "",
+    "ark": "ark:/87602/m4/M108748",
+    "visibility": "open",
+    "x_pixel_spacing_mm": 0.035923429310214,
+    "y_pixel_spacing_mm": 0.035923429310214,
+    "z_pixel_spacing_mm": 0.035923429310214,
+    "native_voxel_dims_xyz": [
+      1506,
+      1554,
+      1443
+    ],
+    "tiff_stack_root": "/media/volume/MyData/MorphoClaw/data/morphosource-download-000108748/morphosource_media-id-000108748_download-0f18602a/Media 000108748 - Element Unspecified CTImageSeries CT/Oceanites_oceanicus_NHMUK_S_1957.11.2_8bit_crop-000108748/Oceanites_oceanicus_NHMUK_S_1957.11.2_8bit_crop"
+  },
+  "mesh_media": {
+    "skipped": "full-volume mode (no GT mesh)"
+  },
+  "full_volume": true,
+  "grid": {
+    "max_axis_target": 384,
+    "margin_mm": 2.0,
+    "stride": 5,
+    "origin_convention": "zero",
+    "crop_index_min": [
+      0,
+      0,
+      0
+    ],
+    "crop_index_max": [
+      1505,
+      1553,
+      1442
+    ],
+    "mesh_axis_perm": "+x+y+z",
+    "mesh_axis_matrix": [
+      [
+        1.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "ct_dtype": "uint16"
+  },
+  "outputs": {
+    "ct_nrrd": {
+      "path": "data/sample/oceanites_skull_000S29911_ct.nrrd",
+      "size_bytes": 13977158,
+      "sha256": "81c1b72f7c674b1d3563e7cb502c5ec589d543f42e9843f72800e48e86d71811",
+      "voxel_dims_xyz": [
+        302,
+        311,
+        289
+      ],
+      "spacing_xyz_mm": [
+        0.17961714655107,
+        0.17961714655107,
+        0.17961714655107
+      ],
+      "origin_xyz_mm": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "dtype": "uint8"
+    }
+  },
+  "phases_completed": [
+    "ct-only"
+  ]
+}
