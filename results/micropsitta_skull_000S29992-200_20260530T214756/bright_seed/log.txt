@@ -503,3 +503,11 @@
 [2026-05-30T22:04:58.983654+00:00]   segment    Segment_199:     9,711 bytes  sha256=a9fc5cfe5e4b…
 [2026-05-30T22:04:58.986445+00:00]   segment    Segment_200:     9,966 bytes  sha256=cddaf87985e4…
 [2026-05-30T22:04:58.986466+00:00] -> Building combined surface of completed mask for viewing…
+[2026-05-30T22:05:00.172167+00:00]    completed_mask shown: 194,195 voxels
+
+[2026-05-30T22:05:00.184426+00:00] DONE. final voxels = 194,195 / 4,860,100 (4.00%)
+[2026-05-30T22:05:00.184442+00:00]       stop reason = {'reason': 'max_steps', 'max_steps': 200}
+[2026-05-30T22:05:00.184465+00:00]       summary    -> /media/volume/MyData/MorphoClaw/runs/micropsitta_skull_000S29992-200_20260530T214756/bright_seed/summary.json
+[2026-05-30T22:05:00.184477+00:00]       events     -> /media/volume/MyData/MorphoClaw/runs/micropsitta_skull_000S29992-200_20260530T214756/bright_seed/events.jsonl
+[2026-05-30T22:05:00.184488+00:00]       artifacts  -> /media/volume/MyData/MorphoClaw/runs/micropsitta_skull_000S29992-200_20260530T214756/bright_seed/artifacts
+[2026-05-30T22:05:00.184503+00:00]       replay     -> /media/volume/MyData/MorphoClaw/runs/micropsitta_skull_000S29992-200_20260530T214756/bright_seed/replay.sh
