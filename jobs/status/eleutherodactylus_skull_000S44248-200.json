@@ -1,0 +1,10 @@
+{
+  "state": "running",
+  "run_dir": "eleutherodactylus_skull_000S44248-200_20260530T205755",
+  "max_steps": 200,
+  "fixture": "data/sample/eleutherodactylus_skull_000S44248_urls.json",
+  "started_at": "2026-05-30T20:57:55Z",
+  "checkpoints": 0,
+  "id": "eleutherodactylus_skull_000S44248-200",
+  "updated_at": "2026-05-30T20:57:55Z"
+}
