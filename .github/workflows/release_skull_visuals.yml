@@ -1,0 +1,143 @@
+name: Release Skull Visuals
+
+# Turns a completed Jetstream segmentation (composite labelmap committed under
+# results/<run>/) into release-ready 3D assets (.glb / .usdz / .stl + preview
+# renders) and publishes them as a GitHub Release, so each skull can be viewed
+# as a clean, shareable artifact.
+#
+# Triggers:
+#   - push to main touching jobs/status/** (the ECU worker commits a status file
+#     with state=done on completion) -> auto-release any newly-finished skulls.
+#   - manual workflow_dispatch (optionally a single job_id, with force re-build)
+#     -> used to test on already-committed scans.
+
+on:
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: "Single job id to build (e.g. chameleon-200). Blank = all done jobs."
+        required: false
+        default: ""
+      force:
+        description: "Rebuild + replace the release even if it already exists."
+        type: boolean
+        required: false
+        default: false
+  push:
+    branches: [main]
+    paths:
+      - 'jobs/status/**'
+      - '.github/workflows/release_skull_visuals.yml'
+      - '.github/scripts/labelmap_to_visuals.py'
+      - '.github/scripts/select_skull_releases.py'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: skull-visuals
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build 3D visuals + release
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      FORCE: ${{ github.event.inputs.force }}
+      JOB_ID: ${{ github.event.inputs.job_id }}
+    steps:
+      - name: Checkout (with LFS)
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Ensure LFS objects present
+        run: git lfs pull || true
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install rendering system libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            libgl1 libglx-mesa0 libgl1-mesa-dri libosmesa6 \
+            libxrender1 libxext6 libsm6 libxt6 xvfb
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install \
+            numpy SimpleITK scikit-image trimesh fast-simplification \
+            usd-core pyvista imageio Pillow
+          echo "--- versions ---"
+          python -c "import numpy, SimpleITK, skimage, trimesh, pyvista, pxr; print('all import OK')"
+
+      - name: Select completed jobs
+        id: select
+        run: |
+          ARGS=""
+          if [ -n "$JOB_ID" ]; then ARGS="--job-id $JOB_ID"; fi
+          python .github/scripts/select_skull_releases.py $ARGS > build_list.jsonl || true
+          echo "--- jobs selected ---"
+          cat build_list.jsonl || true
+          echo "count=$(wc -l < build_list.jsonl)" >> "$GITHUB_OUTPUT"
+
+      - name: Build assets + publish releases
+        if: ${{ steps.select.outputs.count != '0' }}
+        run: |
+          set -euo pipefail
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            id=$(echo "$line"      | python -c "import sys,json;print(json.load(sys.stdin)['id'])")
+            run_dir=$(echo "$line" | python -c "import sys,json;print(json.load(sys.stdin)['run_dir'])")
+            composite=$(echo "$line" | python -c "import sys,json;print(json.load(sys.stdin)['composite'])")
+            summary=$(echo "$line"  | python -c "import sys,json;print(json.load(sys.stdin).get('summary',''))")
+            tag="skull-${id}"
+            echo "::group::$id  ($composite)"
+
+            if [ "${FORCE:-false}" = "true" ]; then
+              gh release delete "$tag" --yes --cleanup-tag 2>/dev/null || true
+            fi
+            if gh release view "$tag" >/dev/null 2>&1; then
+              echo "release $tag already exists; skipping (set force=true to rebuild)"
+              echo "::endgroup::"
+              continue
+            fi
+
+            outdir="visuals_out/${id}"
+            mkdir -p "$outdir"
+            meta_arg=""
+            if [ -n "$summary" ] && [ -f "$summary" ]; then meta_arg="--metadata-json $summary"; fi
+
+            xvfb-run -a python .github/scripts/labelmap_to_visuals.py \
+              --labelmap "$composite" \
+              --out-dir "$outdir" \
+              --name "$id" \
+              $meta_arg
+
+            # Compose release notes from the generated visuals.json (+ run summary).
+            python .github/scripts/compose_release_notes.py \
+              "$id" "$run_dir" "$outdir/${id}.visuals.json" "$line" > "$outdir/NOTES.md"
+
+            title="$id — segmented skull"
+            # shellcheck disable=SC2046
+            gh release create "$tag" \
+              --title "$title" \
+              --notes-file "$outdir/NOTES.md" \
+              $(ls "$outdir"/* )
+            echo "published release $tag"
+            echo "::endgroup::"
+          done < build_list.jsonl
+
+      - name: Upload assets as workflow artifact
+        if: ${{ steps.select.outputs.count != '0' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: skull-visuals
+          path: visuals_out/**
+          if-no-files-found: warn
