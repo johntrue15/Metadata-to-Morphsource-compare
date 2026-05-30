@@ -4,10 +4,10 @@
   "max_steps": 200,
   "fixture": "data/sample/canis_skull_000S28215_urls.json",
   "started_at": "2026-05-30T20:30:55Z",
-  "checkpoints": 5,
+  "checkpoints": 6,
   "id": "canis_skull_000S28215-200",
-  "updated_at": "2026-05-30T20:42:41Z",
-  "steps": 192,
-  "union_voxels": 329277,
-  "n_segments": 192
+  "updated_at": "2026-05-30T20:44:58Z",
+  "steps": 200,
+  "union_voxels": 330387,
+  "n_segments": 200
 }
