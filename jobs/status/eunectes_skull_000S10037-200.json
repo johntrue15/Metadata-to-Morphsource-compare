@@ -4,10 +4,10 @@
   "max_steps": 200,
   "fixture": "data/sample/eunectes_skull_000S10037_urls.json",
   "started_at": "2026-05-30T21:13:29Z",
-  "checkpoints": 2,
+  "checkpoints": 3,
   "id": "eunectes_skull_000S10037-200",
-  "updated_at": "2026-05-30T21:18:28Z",
-  "steps": 104,
-  "union_voxels": 619982,
-  "n_segments": 104
+  "updated_at": "2026-05-30T21:20:57Z",
+  "steps": 136,
+  "union_voxels": 676547,
+  "n_segments": 136
 }
