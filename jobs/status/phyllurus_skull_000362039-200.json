@@ -1,0 +1,10 @@
+{
+  "state": "running",
+  "run_dir": "phyllurus_skull_000362039-200_20260530T222916",
+  "max_steps": 200,
+  "fixture": "data/sample/phyllurus_skull_000362039_urls.json",
+  "started_at": "2026-05-30T22:29:16Z",
+  "checkpoints": 0,
+  "id": "phyllurus_skull_000362039-200",
+  "updated_at": "2026-05-30T22:29:16Z"
+}
