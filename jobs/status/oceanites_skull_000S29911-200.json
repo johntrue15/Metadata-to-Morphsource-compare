@@ -1,0 +1,10 @@
+{
+  "state": "running",
+  "run_dir": "oceanites_skull_000S29911-200_20260530T220503",
+  "max_steps": 200,
+  "fixture": "data/sample/oceanites_skull_000S29911_urls.json",
+  "started_at": "2026-05-30T22:05:03Z",
+  "checkpoints": 0,
+  "id": "oceanites_skull_000S29911-200",
+  "updated_at": "2026-05-30T22:05:03Z"
+}
