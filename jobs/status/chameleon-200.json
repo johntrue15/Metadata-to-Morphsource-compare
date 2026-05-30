@@ -4,10 +4,10 @@
   "max_steps": 200,
   "fixture": "data/sample/chameleon_skull_000408235_urls.json",
   "started_at": "2026-05-30T18:18:13Z",
-  "checkpoints": 3,
+  "checkpoints": 4,
   "id": "chameleon-200",
-  "updated_at": "2026-05-30T18:25:24Z",
-  "steps": 176,
-  "union_voxels": 516352,
-  "n_segments": 176
+  "updated_at": "2026-05-30T18:29:13Z",
+  "steps": 200,
+  "union_voxels": 523902,
+  "n_segments": 200
 }
