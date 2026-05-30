@@ -64,11 +64,20 @@ log = logging.getLogger("compare_gt")
 
 def _align_gt_mesh(mesh_path: Path, reference_volume: Path,
                    output_dir: Path, *, mesh_axis_perm: str,
-                   min_overlap_ratio: float) -> dict:
+                   min_overlap_ratio: float,
+                   force_search: bool = True) -> dict:
     """Orient the GT mesh into the prediction/CT world frame.
 
     Returns the alignment summary dict from mesh_ct_alignment. On success the
     aligned mesh path is under ``alignment["output_path"]``.
+
+    With ``force_search`` (default), the full 48 signed-axis-permutation x
+    origin-convention search is always run and the BEST-overlap orientation
+    is chosen. Without it, ``align_mesh_to_reference_volume`` short-circuits on
+    the first identity match above ``min_overlap_ratio`` — which silently
+    accepts a mis-registered axis order when the mesh's long axis doesn't line
+    up with the CT's long axis (observed on Crotalus: identity overlap 0.44 but
+    the mesh y-extent spilled far outside the grid).
     """
     import mesh_ct_alignment as mca
 
@@ -79,6 +88,7 @@ def _align_gt_mesh(mesh_path: Path, reference_volume: Path,
         output_mesh_path=aligned,
         min_overlap_ratio=min_overlap_ratio,
         mesh_axis_perm=mesh_axis_perm,
+        force=force_search,
     )
     return summary
 
@@ -92,6 +102,7 @@ def compare(
     reference_volume: Optional[Path] = None,
     mesh_axis_perm: str = "auto",
     min_overlap_ratio: float = 0.05,
+    force_register: bool = True,
     compute_surface: bool = True,
     overlay: bool = True,
 ) -> dict:
@@ -142,7 +153,12 @@ def compare(
             gt_mesh, prediction, output_dir,
             mesh_axis_perm=mesh_axis_perm,
             min_overlap_ratio=min_overlap_ratio,
+            force_search=force_register,
         )
+        log.info("Alignment chosen: axes=%s origin=%s overlap=%s",
+                 align_summary.get("mesh_M_label"),
+                 align_summary.get("origin_convention"),
+                 align_summary.get("overlap_ratio"))
         result["alignment"] = align_summary
         if "error" in align_summary:
             result.update(stage="align_mesh")
@@ -240,6 +256,11 @@ def _parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     p.add_argument("--min-overlap-ratio", type=float, default=0.05,
                    help="Minimum mesh/CT bbox overlap to accept an alignment "
                         "(default: 0.05).")
+    p.add_argument("--trust-identity-orientation", action="store_true",
+                   help="Skip the full orientation search and accept the "
+                        "identity axis order if it clears --min-overlap-ratio. "
+                        "By default the module searches all 48 signed axis "
+                        "permutations x origin conventions and picks the best.")
     p.add_argument("--no-surface", action="store_true",
                    help="Skip the (expensive) Hausdorff/surface metrics.")
     p.add_argument("--no-overlay", action="store_true",
@@ -264,6 +285,7 @@ def main(argv: Optional[list[str]] = None) -> int:
                           if args.reference_volume else None),
         mesh_axis_perm=args.mesh_axis_perm,
         min_overlap_ratio=args.min_overlap_ratio,
+        force_register=not args.trust_identity_orientation,
         compute_surface=not args.no_surface,
         overlay=not args.no_overlay,
     )

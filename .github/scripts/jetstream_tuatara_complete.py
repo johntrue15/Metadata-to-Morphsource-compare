@@ -60,6 +60,15 @@ def main(argv: Optional[list[str]] = None) -> int:
     p.add_argument("--no-reset", action="store_true",
                    help="Do not clear segmentation before clicking (continue)")
     p.add_argument("--no-screenshots", action="store_true")
+    p.add_argument("--batch-size", type=int, default=1,
+                   help="clicks per /slicer/exec call (>1 = server-side "
+                        "batching + incremental union mask; much faster)")
+    p.add_argument("--fast", action="store_true",
+                   help="throughput preset: --batch-size 8 + --no-screenshots")
+    p.add_argument("--headless", action="store_true",
+                   help="segmentation display OFF during clicking (render cost "
+                        "won't grow with segment count); show one combined "
+                        "surface of the completed mask at the end")
     p.add_argument("--out-dir", type=Path, default=None)
     args = p.parse_args(argv)
 
@@ -118,6 +127,9 @@ def main(argv: Optional[list[str]] = None) -> int:
         intensity_percentile=intensity,
         no_screenshots=args.no_screenshots,
         reset_first=not args.no_reset,
+        batch_size=args.batch_size,
+        fast=args.fast,
+        headless=args.headless,
     )
     if rc != 0:
         print(f"bright_seed failed with exit {rc}", file=sys.stderr)

@@ -1,0 +1,9 @@
+{
+  "id": "crotalus-200",
+  "fixture": "data/sample/colors_of_skull_urls.json",
+  "max_steps": 200,
+  "headless": true,
+  "fast": true,
+  "batch_size": 8,
+  "_doc": "Colors-of-Skull worker test: clear scene -> load crotalus CT -> bright-seed to 200 clicks or saturation, headless+batched, checkpointing to GitHub every --checkpoint-sec."
+}

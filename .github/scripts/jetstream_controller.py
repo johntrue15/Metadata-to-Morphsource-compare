@@ -50,6 +50,8 @@ DEPLOY_FILES = (
     ".github/scripts/slicer_remote_loop.py",
     ".github/scripts/remote_volume_io.py",
     ".github/scripts/run_telemetry.py",
+    ".github/scripts/jetstream_harvest_results.py",
+    ".github/scripts/jetstream_ecu_worker.py",
     # Modular GT-vs-prediction comparison (segmentation-free) + its deps.
     ".github/scripts/compare_gt_to_prediction.py",
     ".github/scripts/voxelize_mesh_vtk.py",
@@ -153,6 +155,95 @@ def _wait_job(job_id: str, poll: float, tail: int) -> int:
             sys.stdout.flush()
             last_log_len = len(log)
         time.sleep(poll)
+
+
+def _forward_github_token(explicit: Optional[str]) -> str:
+    token = (explicit or os.environ.get("GITHUB_TOKEN", "")
+             or os.environ.get("GH_TOKEN", "")).strip()
+    if not token:
+        sys.exit("ERROR: set GITHUB_TOKEN in the Mac env (or pass --token) so "
+                 "the box can push to GitHub")
+    return token
+
+
+def cmd_harvest(args: argparse.Namespace) -> int:
+    """Harvest a git-friendly subset of runs/ on the box, commit + push."""
+    remote_argv = [
+        "python3", ".github/scripts/jetstream_harvest_results.py",
+        "--runs", *args.runs,
+        "--max-small-mb", str(args.max_small_mb),
+        "--max-lfs-mb", str(args.max_lfs_mb),
+    ]
+    if args.include_steps:
+        remote_argv.append("--include-steps")
+    env: dict[str, str] = {}
+    if args.dry_run:
+        remote_argv.append("--dry-run")
+    else:
+        remote_argv.append("--commit")
+        if not args.no_push:
+            remote_argv.append("--push")
+            env["GITHUB_TOKEN"] = _forward_github_token(args.token)
+    body = {"argv": remote_argv, "cwd": ECU_CWD, "label": "harvest", "env": env}
+    r = _request("POST", "/v1/jobs", body)
+    job_id = r["job_id"]
+    print(f"submitted harvest job {job_id}")
+    if args.wait:
+        return _wait_job(job_id, args.poll, args.tail)
+    print(f"poll: python3 .github/scripts/jetstream_controller.py status --job {job_id}")
+    return 0
+
+
+def cmd_box_pull(args: argparse.Namespace) -> int:
+    """Pull repo updates (and LFS objects) down onto the box (repo <- GitHub)."""
+    token = _forward_github_token(args.token)
+    slug = "johntrue15/MorphoClaw"
+    # token-in-URL so private/LFS fetch works; autostash protects deployed edits.
+    inner = (
+        f'git pull --rebase --autostash '
+        f'"https://x-access-token:${{GITHUB_TOKEN}}@github.com/{slug}.git" {args.branch} '
+        f'&& git lfs install --local && git lfs pull '
+        f'"https://x-access-token:${{GITHUB_TOKEN}}@github.com/{slug}.git" '
+        f'&& git log --oneline -3'
+    )
+    body = {
+        "argv": ["bash", "-lc", inner],
+        "cwd": ECU_CWD,
+        "label": "box-pull",
+        "env": {"GITHUB_TOKEN": token},
+    }
+    r = _request("POST", "/v1/jobs", body)
+    job_id = r["job_id"]
+    print(f"submitted box-pull job {job_id}")
+    if args.wait:
+        return _wait_job(job_id, args.poll, args.tail)
+    print(f"poll: python3 .github/scripts/jetstream_controller.py status --job {job_id}")
+    return 0
+
+
+def cmd_worker(args: argparse.Namespace) -> int:
+    """Launch the git-driven ECU worker on the box (job pickup + checkpointing)."""
+    token = _forward_github_token(args.token)
+    remote_argv = ["python3", ".github/scripts/jetstream_ecu_worker.py",
+                   "--branch", args.branch,
+                   "--checkpoint-sec", str(args.checkpoint_sec)]
+    if args.poll:
+        remote_argv += ["--poll", "--poll-sec", str(args.poll_sec)]
+        label = "worker-poll"
+    else:
+        if not args.job:
+            sys.exit("ERROR: worker needs --job <id> (or use --poll)")
+        remote_argv += ["--once", "--job", args.job]
+        label = f"worker-{args.job}"
+    body = {"argv": remote_argv, "cwd": ECU_CWD, "label": label,
+            "env": {"GITHUB_TOKEN": token}}
+    r = _request("POST", "/v1/jobs", body)
+    job_id = r["job_id"]
+    print(f"submitted {label} job {job_id}")
+    if args.wait:
+        return _wait_job(job_id, args.poll_interval, args.tail)
+    print(f"poll: python3 .github/scripts/jetstream_controller.py status --job {job_id}")
+    return 0
 
 
 def cmd_status(args: argparse.Namespace) -> int:
@@ -416,6 +507,58 @@ def main(argv: Optional[list[str]] = None) -> int:
     pd.add_argument("--poll", type=float, default=5.0)
     pd.add_argument("--tail", type=int, default=65536)
     pd.set_defaults(func=cmd_deploy)
+
+    phv = sub.add_parser(
+        "harvest",
+        help="copy a git-friendly subset of runs/ into results/, commit + push",
+    )
+    phv.add_argument("--runs", nargs="+", required=True,
+                     help="run dir names under runs/ to harvest")
+    phv.add_argument("--max-small-mb", type=float, default=25.0)
+    phv.add_argument("--max-lfs-mb", type=float, default=200.0)
+    phv.add_argument("--token", default=None,
+                     help="GitHub PAT (else GITHUB_TOKEN/GH_TOKEN from Mac env)")
+    phv.add_argument("--no-push", action="store_true",
+                     help="commit on the box but do not push")
+    phv.add_argument("--dry-run", action="store_true",
+                     help="report what would be copied; no copy/commit/push")
+    phv.add_argument("--include-steps", action="store_true",
+                     help="also copy per-step debug dirs (step_*/ screenshots)")
+    phv.add_argument("--wait", action="store_true")
+    phv.add_argument("--poll", type=float, default=5.0)
+    phv.add_argument("--tail", type=int, default=131072)
+    phv.set_defaults(func=cmd_harvest)
+
+    pbp = sub.add_parser(
+        "box-pull",
+        help="pull repo updates + LFS objects onto the box (repo <- GitHub)",
+    )
+    pbp.add_argument("--branch", default="main")
+    pbp.add_argument("--token", default=None,
+                     help="GitHub PAT (else GITHUB_TOKEN/GH_TOKEN from Mac env)")
+    pbp.add_argument("--wait", action="store_true")
+    pbp.add_argument("--poll", type=float, default=5.0)
+    pbp.add_argument("--tail", type=int, default=131072)
+    pbp.set_defaults(func=cmd_box_pull)
+
+    pw = sub.add_parser(
+        "worker",
+        help="launch git-driven ECU worker (job pickup + checkpoint to GitHub)",
+    )
+    pw.add_argument("--job", default=None, help="job id under jobs/queue/<id>.json")
+    pw.add_argument("--poll", action="store_true",
+                    help="poll git queue forever instead of running one --job")
+    pw.add_argument("--branch", default="main")
+    pw.add_argument("--checkpoint-sec", type=float, default=120.0)
+    pw.add_argument("--poll-sec", type=float, default=60.0,
+                    help="worker git-queue poll interval (poll mode)")
+    pw.add_argument("--token", default=None,
+                    help="GitHub PAT (else GITHUB_TOKEN/GH_TOKEN from Mac env)")
+    pw.add_argument("--wait", action="store_true", help="stream worker log")
+    pw.add_argument("--poll-interval", type=float, default=5.0,
+                    help="controller log-poll cadence while --wait")
+    pw.add_argument("--tail", type=int, default=131072)
+    pw.set_defaults(func=cmd_worker)
 
     args = p.parse_args(argv)
     return args.func(args)

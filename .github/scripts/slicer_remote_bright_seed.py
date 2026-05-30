@@ -294,6 +294,233 @@ def _run_step_with_recovery(base_url: str, logger: RunLogger, step: int,
     return r
 
 
+BATCH_STATE_PROBE_SRC = textwrap.dedent("""
+    import slicer
+    import numpy as np
+    out = {}
+    try:
+        state = globals().get("_BS_STATE")
+        if state is None:
+            out["status"] = "not_initialized"
+        else:
+            hist = state.get("history", [])
+            union = state.get("union_mask")
+            out["status"] = "ok"
+            out["history_len"] = int(len(hist))
+            out["next_idx"] = int(state.get("next_idx", 0))
+            out["voxels"] = int(union.sum()) if union is not None else None
+            # Return the tail of history so the caller can resync the clicks
+            # that completed server-side before the proxy timed out.
+            n = int(globals().get("__probe_since", 0))
+            out["tail"] = list(hist[n:])
+    except Exception as e:
+        out["status"] = "error"
+        out["error"] = repr(e)
+    __execResult.update(out)
+""").strip()
+
+
+def _run_batch_with_recovery(base_url: str, logger: RunLogger, step0: int,
+                             batch_size: int, new_segment_per_click: bool,
+                             history_len_before: int) -> dict:
+    """Issue up to ``batch_size`` clicks in one exec; survive proxy timeouts.
+
+    On a transport timeout the server may have already completed some (or all)
+    of the clicks — server-side ``_BS_STATE.history`` is authoritative — so we
+    probe it and reconstruct the per-click ``results`` from the history tail.
+    """
+    batch_src = STEP_BATCH_SRC_TEMPLATE.format(
+        batch_size=batch_size,
+        click_positive=True,
+        new_segment=new_segment_per_click,
+    )
+    timeout = max(180, batch_size * 45)
+    try:
+        r = post_python(base_url, batch_src, timeout=timeout)
+    except RuntimeError as exc:
+        logger.log(f"  batch transport error: {exc!r}  probing server state…")
+        logger.event("batch_transport_error", step=step0, error=repr(exc))
+        probe_src = BATCH_STATE_PROBE_SRC.replace(
+            'globals().get("__probe_since", 0)', str(int(history_len_before))
+        )
+        try:
+            probe = post_python(base_url, probe_src, timeout=60, retries=3,
+                                retry_sleep=10)
+        except RuntimeError:
+            raise exc
+        if probe.get("status") != "ok":
+            raise exc
+        tail = probe.get("tail", [])
+        results = []
+        for h in tail:
+            results.append({
+                "status": "ok",
+                "picked_ijk": h.get("ijk"),
+                "intensity": h.get("intensity"),
+                "voxels_before": h.get("voxels_before"),
+                "voxels_after": h.get("voxels_after"),
+                "delta": h.get("delta"),
+                "click_positive": h.get("click_positive", True),
+                "skipped_inside": h.get("skipped_inside", 0),
+                "made_new_segment": h.get("made_new_segment"),
+                "segment_id": h.get("segment_id"),
+                "segment_voxels": h.get("segment_voxels", 0),
+                "n_segments_after": probe.get("history_len"),
+                "recovered_after_timeout": True,
+            })
+        logger.event("batch_recovered", step=step0, recovered=len(results),
+                     voxels=probe.get("voxels"))
+        return {
+            "status": "ok" if results else "no_more_candidates",
+            "results": results,
+            "voxels": probe.get("voxels"),
+            "candidates_left": -1,
+            "batch_clicks": len(results),
+            "recovered_after_timeout": True,
+        }
+    return r
+
+
+def _run_batched_clicks(base_url: str, logger: "RunLogger", args,
+                        total_voxels: int, explosion_threshold: int,
+                        new_segment_per_click: bool, resource_cfg: dict):
+    """Greedy click loop using server-side batching (``--batch-size`` > 1).
+
+    Mirrors the per-step loop's bookkeeping (logging, state.json, history,
+    stop rules) but issues ``args.batch_size`` clicks per /slicer/exec call
+    and skips per-click screenshots. Returns (history, stop_reason,
+    consecutive_small).
+    """
+    history: list[dict] = []
+    consecutive_small = 0
+    stop_reason = None
+    clicks_done = 0
+    batch_idx = 0
+
+    while clicks_done < args.max_steps:
+        if not args.no_resource_monitor:
+            exit_reason = _check_resource_exit(
+                base_url, logger, clicks_done, resource_cfg,
+            )
+            if exit_reason is not None:
+                stop_reason = exit_reason
+                break
+
+        this_batch = min(args.batch_size, args.max_steps - clicks_done)
+        logger.log(f"=== Batch {batch_idx:02d}  (clicks {clicks_done}.."
+                   f"{clicks_done + this_batch - 1}, size {this_batch}) ===")
+        logger.event("batch_begin", batch=batch_idx, start_click=clicks_done,
+                     size=this_batch)
+        t_batch0 = time.time()
+        try:
+            br = _run_batch_with_recovery(
+                base_url, logger, clicks_done, this_batch,
+                new_segment_per_click, len(history),
+            )
+        except RuntimeError as exc:
+            logger.log(f"  BATCH unrecoverable: {exc!r}")
+            logger.event("batch_failed", batch=batch_idx, error=repr(exc))
+            if args.skip_failed_steps:
+                logger.log("  (continuing — --skip-failed-steps)")
+                batch_idx += 1
+                continue
+            stop_reason = {"reason": "batch_failed", "batch": batch_idx,
+                           "error": repr(exc)}
+            return history, stop_reason, consecutive_small
+
+        batch_status = br.get("status")
+        results = br.get("results", [])
+        batch_wall = round(time.time() - t_batch0, 3)
+        per_click_wall = round(batch_wall / max(len(results), 1), 3)
+        logger.log(f"  batch returned {len(results)} clicks in {batch_wall}s "
+                   f"({per_click_wall}s/click incl. round-trip)"
+                   + ("  [recovered]" if br.get("recovered_after_timeout") else "")
+                   + ("  [union rebuilt]" if br.get("rebuilt_union") else ""))
+
+        if not results and batch_status == "no_more_candidates":
+            logger.log(f"  no more bright candidates outside the mask "
+                       f"(voxels={br.get('voxels')})")
+            stop_reason = {"reason": "no_more_candidates",
+                           "step": clicks_done, "voxels": br.get("voxels")}
+            break
+
+        if not results and batch_status not in ("ok", "no_more_candidates"):
+            logger.log(f"  BATCH FAILED: {br}")
+            logger.event("batch_status_bad", batch=batch_idx, **{
+                k: v for k, v in br.items() if k != "results"})
+            if args.skip_failed_steps:
+                batch_idx += 1
+                continue
+            stop_reason = {"reason": "batch_failed", "batch": batch_idx,
+                           "details": {k: v for k, v in br.items()
+                                       if k != "results"}}
+            return history, stop_reason, consecutive_small
+
+        stop_now = False
+        for r in results:
+            step = clicks_done
+            step_dir = args.out_dir / f"step_{step:02d}"
+            step_dir.mkdir(parents=True, exist_ok=True)
+            r["step"] = step
+            r["batch"] = batch_idx
+            r["batch_per_click_s"] = per_click_wall
+
+            ijk = r.get("picked_ijk")
+            intensity = r.get("intensity") or 0.0
+            before = r.get("voxels_before", 0)
+            after = r.get("voxels_after", 0)
+            delta = r.get("delta", 0)
+            skipped = r.get("skipped_inside", 0)
+            cand_left = r.get("candidates_left", -1)
+            click_s = r.get("click_seconds", 0.0)
+            seg_id = r.get("segment_id")
+            seg_vox = r.get("segment_voxels", 0)
+            n_segs = r.get("n_segments_after", "?")
+            new_seg = "new-seg" if r.get("made_new_segment") else "same-seg"
+            logger.log(f"  [{step:02d}] ijk={ijk} I={intensity:.1f} {new_seg} "
+                       f"segs={n_segs} skip={skipped} left={cand_left:,}  "
+                       f"vox {before:,}->{after:,} d={delta:+,} "
+                       f"seg={seg_vox:,} ({click_s}s gpu)")
+
+            (step_dir / "state.json").write_text(json.dumps(r, indent=2))
+            logger.event("step_end", **r)
+            history.append(r)
+            clicks_done += 1
+
+            if delta >= explosion_threshold:
+                logger.log(f"  RUNAWAY: delta={delta:,} >= "
+                           f"{explosion_threshold:,}. Stopping.")
+                stop_reason = {"reason": "runaway", "step": step,
+                               "delta": delta,
+                               "explosion_threshold": explosion_threshold}
+                stop_now = True
+                break
+            if delta <= args.min_delta:
+                consecutive_small += 1
+                if consecutive_small >= args.patience:
+                    logger.log(f"  saturated (last {consecutive_small} deltas "
+                               f"<= {args.min_delta}). Stopping.")
+                    stop_reason = {"reason": "saturated", "step": step,
+                                   "consecutive_small": consecutive_small,
+                                   "min_delta": args.min_delta,
+                                   "patience": args.patience}
+                    stop_now = True
+                    break
+            else:
+                consecutive_small = 0
+
+        if stop_now:
+            break
+        if batch_status == "no_more_candidates":
+            logger.log("  candidate list exhausted mid-batch. Stopping.")
+            stop_reason = {"reason": "no_more_candidates",
+                           "step": clicks_done, "voxels": br.get("voxels")}
+            break
+        batch_idx += 1
+
+    return history, stop_reason, consecutive_small
+
+
 def _resource_config() -> dict:
     return {
         "min_available_gb": float(
@@ -804,6 +1031,167 @@ except Exception as e:
 """
 
 
+# Batched step recipe: issue up to {batch_size} bright-seed clicks inside a
+# SINGLE /slicer/exec call. This is the big throughput lever — it amortises
+# the exec/HTTP round-trip across M clicks instead of paying it per click.
+#
+# It also fixes the growing per-step cost: instead of rebuilding the union
+# mask from EVERY segment twice per click (O(n_segments x volume) and getting
+# slower as segments accumulate), we keep the union mask in ``_BS_STATE`` and
+# update it INCREMENTALLY — after each click we read only the freshly created
+# segment's labelmap and OR it into the cached union.
+#
+# Returns ``__execResult["results"]`` = list of per-click dicts whose keys
+# match the single-click recipe, so the Mac-side loop can treat each entry
+# exactly like a normal step.
+#
+# Written flush-left (top-level Python for /slicer/exec). Don't reindent.
+STEP_BATCH_SRC_TEMPLATE = """\
+import slicer, time, traceback
+import numpy as np
+def _bs_iter_segnodes():
+    for sn in slicer.util.getNodesByClass("vtkMRMLSegmentationNode"):
+        if "do not touch" in sn.GetName().lower():
+            continue
+        yield sn
+def _bs_build_union(shape):
+    total = np.zeros(shape, dtype=bool)
+    n_seg = 0
+    for sn in _bs_iter_segnodes():
+        seg = sn.GetSegmentation()
+        for ii in range(seg.GetNumberOfSegments()):
+            sid = seg.GetNthSegmentID(ii)
+            try:
+                a = slicer.util.arrayFromSegmentBinaryLabelmap(sn, sid)
+            except Exception:
+                a = None
+            if a is None or a.shape != shape:
+                continue
+            total |= (a > 0)
+            n_seg += 1
+    return total, n_seg
+def _bs_node_for_sid(sid):
+    for sn in _bs_iter_segnodes():
+        if sn.GetSegmentation().GetSegment(sid) is not None:
+            return sn
+    return None
+try:
+    state = globals().get("_BS_STATE")
+    if state is None:
+        __execResult["status"] = "not_initialized"
+    else:
+        shape = tuple(state["shape_kji"])
+        cand_kji = state["candidates_kji"]
+        cand_int = state["candidates_intensity"]
+        idx = int(state["next_idx"])
+        union = state.get("union_mask")
+        if union is None or getattr(union, "shape", None) != shape:
+            union, n_existing = _bs_build_union(shape)
+        else:
+            n_existing = int(state.get("n_segments", 0))
+        union_count = int(union.sum())
+        B = int({batch_size})
+        click_positive = bool({click_positive})
+        make_new = bool({new_segment})
+        mod = slicer.modules.slicernninteractive
+        plugin = mod.widgetRepresentation().self()
+        results = []
+        total_skipped = 0
+        made_any = False
+        rebuilt = False
+        for _b in range(B):
+            picked = None
+            skipped_inside = 0
+            while idx < len(cand_int):
+                k = int(cand_kji[idx, 0]); j = int(cand_kji[idx, 1]); i = int(cand_kji[idx, 2])
+                if union[k, j, i]:
+                    idx += 1; skipped_inside += 1; total_skipped += 1; continue
+                picked = (k, j, i, float(cand_int[idx])); idx += 1; break
+            if picked is None:
+                break
+            k, j, i, intensity = picked
+            voxels_before = union_count
+            new_segment = make_new and (
+                len(state["history"]) > 0 or union_count > 0
+                or n_existing > 0 or made_any
+            )
+            if new_segment:
+                plugin.make_new_segment()
+            if click_positive:
+                plugin.on_prompt_type_positive_clicked()
+            else:
+                plugin.on_prompt_type_negative_clicked()
+            t0 = time.time()
+            plugin.point_prompt(xyz=[i, j, k], positive_click=click_positive)
+            t1 = time.time()
+            made_any = True
+            sid = None
+            try:
+                sid = plugin.get_current_segment_id()
+            except Exception:
+                sid = None
+            seg_vox = 0
+            added = 0
+            ab = None
+            if sid is not None:
+                node = _bs_node_for_sid(sid)
+                if node is not None:
+                    try:
+                        a = slicer.util.arrayFromSegmentBinaryLabelmap(node, sid)
+                    except Exception:
+                        a = None
+                    if a is not None and a.shape == shape:
+                        ab = (a > 0)
+                        seg_vox = int(ab.sum())
+            if ab is not None:
+                added = int(np.count_nonzero(ab & ~union))
+                union |= ab
+            else:
+                # Fallback: couldn't read just the new segment — rebuild the
+                # full union (slow path) so the running count stays correct.
+                new_union, n_existing = _bs_build_union(shape)
+                added = int(new_union.sum()) - union_count
+                union = new_union
+                rebuilt = True
+            union_count = voxels_before + added
+            delta = added
+            state["history"].append({{
+                "ijk": [i, j, k], "intensity": intensity,
+                "voxels_before": voxels_before, "voxels_after": union_count,
+                "delta": delta, "click_positive": click_positive,
+                "skipped_inside": skipped_inside,
+                "made_new_segment": new_segment,
+                "segment_id": sid, "segment_voxels": seg_vox,
+            }})
+            results.append({{
+                "status": "ok",
+                "picked_ijk": [i, j, k], "intensity": intensity,
+                "voxels_before": voxels_before, "voxels_after": union_count,
+                "delta": delta, "new_voxels_at_picked": int(bool(ab is not None)),
+                "click_positive": click_positive, "skipped_inside": skipped_inside,
+                "candidates_left": int(len(cand_int) - idx),
+                "click_seconds": round(t1 - t0, 3),
+                "made_new_segment": new_segment,
+                "segment_id": sid, "segment_voxels": seg_vox,
+                "n_segments_after": len(state["history"]),
+            }})
+        state["next_idx"] = idx
+        state["union_mask"] = union
+        state["n_segments"] = int(n_existing) + len([r for r in results if r["made_new_segment"]])
+        __execResult["status"] = "ok" if results else "no_more_candidates"
+        __execResult["results"] = results
+        __execResult["voxels"] = union_count
+        __execResult["candidates_left"] = int(len(cand_int) - idx)
+        __execResult["skipped_inside"] = total_skipped
+        __execResult["batch_clicks"] = len(results)
+        __execResult["rebuilt_union"] = rebuilt
+except Exception as e:
+    __execResult["status"] = "exception"
+    __execResult["error"] = repr(e)
+    __execResult["traceback"] = traceback.format_exc()
+"""
+
+
 # One-time configuration to make the segmentation actually visible in
 # slice views and the 3D view. Without this, the screenshots show only
 # the underlying CT and an empty 3D box.
@@ -832,6 +1220,106 @@ try:
         v.resetCamera()
     __execResult["nodes"] = [n.GetName() for n in nodes]
     __execResult["status"] = "ok"
+except Exception as e:
+    __execResult["status"] = "exception"
+    __execResult["error"] = repr(e)
+    __execResult["traceback"] = traceback.format_exc()
+"""
+
+
+# Headless: keep the segmentation display OFF during the click loop. The 3D
+# closed-surface representation is what gets expensive once 100+ segments
+# accumulate (Slicer re-renders every surface at each batch boundary), so we
+# never create surfaces and never turn on 2D/3D visibility while clicking.
+HEADLESS_HIDE_SRC = """\
+import slicer, traceback
+try:
+    nodes = slicer.util.getNodesByClass("vtkMRMLSegmentationNode")
+    for sn in nodes:
+        if "do not touch" in sn.GetName().lower():
+            continue
+        sn.CreateDefaultDisplayNodes()
+        d = sn.GetDisplayNode()
+        if d:
+            d.SetVisibility(False)
+            d.SetVisibility2DFill(False)
+            d.SetVisibility2DOutline(False)
+            d.SetVisibility3D(False)
+    __execResult["nodes"] = [n.GetName() for n in nodes]
+    __execResult["status"] = "ok"
+except Exception as e:
+    __execResult["status"] = "exception"
+    __execResult["error"] = repr(e)
+    __execResult["traceback"] = traceback.format_exc()
+"""
+
+
+# View the completed result as a SINGLE combined surface. After a headless
+# run we don't want to pay for rendering hundreds of per-click segments, so
+# we collapse the final union mask into one binary segment + one closed
+# surface and show only that. Uses the cached _BS_STATE["union_mask"] when
+# available, else rebuilds the union from the in-scene segments.
+VIEW_COMPLETED_SRC = """\
+import slicer, vtk, traceback
+import numpy as np
+try:
+    sel = slicer.app.applicationLogic().GetSelectionNode()
+    vol = slicer.mrmlScene.GetNodeByID(sel.GetActiveVolumeID())
+    if vol is None:
+        __execResult["status"] = "no_active_volume"
+    else:
+        arr = slicer.util.arrayFromVolume(vol)
+        shape = arr.shape
+        st = globals().get("_BS_STATE") or {}
+        union = st.get("union_mask")
+        if union is None or getattr(union, "shape", None) != shape:
+            union = np.zeros(shape, dtype=bool)
+            for sn in slicer.util.getNodesByClass("vtkMRMLSegmentationNode"):
+                if "do not touch" in sn.GetName().lower():
+                    continue
+                seg = sn.GetSegmentation()
+                for ii in range(seg.GetNumberOfSegments()):
+                    sid = seg.GetNthSegmentID(ii)
+                    try:
+                        a = slicer.util.arrayFromSegmentBinaryLabelmap(sn, sid)
+                    except Exception:
+                        a = None
+                    if a is not None and a.shape == shape:
+                        union |= (a > 0)
+        m = vtk.vtkMatrix4x4()
+        vol.GetIJKToRASMatrix(m)
+        # Hide the noisy per-click segmentation node(s) so only the clean
+        # combined mask is rendered.
+        for sn in slicer.util.getNodesByClass("vtkMRMLSegmentationNode"):
+            if "do not touch" in sn.GetName().lower():
+                continue
+            d = sn.GetDisplayNode()
+            if d:
+                d.SetVisibility(False)
+        lm = slicer.util.addVolumeFromArray(
+            union.astype("uint8"), ijkToRAS=m, name="completed_mask_lm",
+            nodeClassName="vtkMRMLLabelMapVolumeNode",
+        )
+        seg = slicer.mrmlScene.AddNewNodeByClass(
+            "vtkMRMLSegmentationNode", "completed_mask")
+        seg.SetReferenceImageGeometryParameterFromVolumeNode(vol)
+        slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(lm, seg)
+        slicer.mrmlScene.RemoveNode(lm)
+        seg.CreateClosedSurfaceRepresentation()
+        d = seg.GetDisplayNode()
+        if d:
+            d.SetVisibility(True)
+            d.SetVisibility3D(True)
+            d.SetVisibility2DFill(True)
+            d.SetVisibility2DOutline(True)
+            d.SetOpacity(0.7)
+        lmgr = slicer.app.layoutManager()
+        for vi in range(lmgr.threeDViewCount):
+            v = lmgr.threeDWidget(vi).threeDView()
+            v.resetFocalPoint()
+            v.resetCamera()
+        __execResult["status"] = "ok"
+        __execResult["voxels"] = int(union.sum())
 except Exception as e:
     __execResult["status"] = "exception"
     __execResult["error"] = repr(e)
@@ -907,6 +1395,32 @@ def main(argv: list[str] | None = None) -> int:
                         "stay separable)")
     p.add_argument("--no-screenshots", action="store_true",
                    help="skip per-step view captures (faster)")
+    p.add_argument("--batch-size", type=int, default=1,
+                   help="number of clicks to issue per /slicer/exec call "
+                        "(default 1). Values >1 enable server-side click "
+                        "batching: M point_prompts run inside a single exec "
+                        "and the union mask is maintained INCREMENTALLY "
+                        "(only the new segment is read each click instead of "
+                        "re-scanning every segment). Amortises HTTP/exec "
+                        "overhead and removes the growing per-step mask "
+                        "rebuild. Per-click screenshots are skipped in batch "
+                        "mode.")
+    p.add_argument("--fast", action="store_true",
+                   help="convenience preset for maximum throughput: implies "
+                        "--batch-size 8 (unless --batch-size given) and "
+                        "--no-screenshots.")
+    p.add_argument("--headless", action="store_true",
+                   help="keep the segmentation display OFF during the click "
+                        "loop (no 2D/3D visibility, no closed surfaces). "
+                        "Avoids Slicer re-rendering hundreds of per-click "
+                        "segments at every batch boundary — render cost no "
+                        "longer grows with segment count. Implies "
+                        "--no-screenshots. At the end, the completed mask is "
+                        "collapsed into ONE combined surface and shown (unless "
+                        "--no-view-result).")
+    p.add_argument("--no-view-result", action="store_true",
+                   help="in --headless mode, skip building/showing the final "
+                        "combined surface (leave the scene non-rendered)")
     p.add_argument("--no-export-segmentation", action="store_true",
                    help="skip exporting per-segment + composite NIfTI "
                         "labelmaps as run artifacts (saves bandwidth, but "
@@ -932,6 +1446,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--out-dir", type=Path,
                    default=Path("runs") / time.strftime("bright_%Y%m%d_%H%M%S"))
     args = p.parse_args(argv)
+
+    if args.fast:
+        if args.batch_size <= 1:
+            args.batch_size = 8
+        args.no_screenshots = True
+
+    if args.headless:
+        args.no_screenshots = True
 
     if args.no_stop_rules:
         args.min_delta = 0
@@ -1056,10 +1578,16 @@ def main(argv: list[str] | None = None) -> int:
         logger.log(f"   {r.get('status')}  cleared={r.get('cleared_nodes')}")
         logger.event("reset", **r)
 
-    logger.log("-> Enabling segmentation visibility (2D + 3D)…")
-    r = post_python(base_url, ENABLE_VISIBILITY_SRC, timeout=30)
-    logger.log(f"   {r.get('status')}  nodes={r.get('nodes')}")
-    logger.event("visibility_enabled", **r)
+    if args.headless:
+        logger.log("-> HEADLESS: disabling segmentation display during loop…")
+        r = post_python(base_url, HEADLESS_HIDE_SRC, timeout=30)
+        logger.log(f"   {r.get('status')}  nodes={r.get('nodes')}")
+        logger.event("visibility_disabled_headless", **r)
+    else:
+        logger.log("-> Enabling segmentation visibility (2D + 3D)…")
+        r = post_python(base_url, ENABLE_VISIBILITY_SRC, timeout=30)
+        logger.log(f"   {r.get('status')}  nodes={r.get('nodes')}")
+        logger.event("visibility_enabled", **r)
 
     logger.log("-> Building bright-pixel candidate list…")
     init = post_python(
@@ -1095,7 +1623,18 @@ def main(argv: list[str] | None = None) -> int:
     new_segment_per_click = not args.no_new_segment_per_click
     stop_reason = None
 
+    use_batching = bool(args.batch_size and args.batch_size > 1)
+    if use_batching:
+        logger.log(f"-> Server-side click batching ENABLED "
+                   f"(batch_size={args.batch_size}, per-click screenshots off)")
+        history, stop_reason, consecutive_small = _run_batched_clicks(
+            base_url, logger, args, total_voxels,
+            explosion_threshold, new_segment_per_click, resource_cfg,
+        )
+
     for step in range(args.max_steps):
+        if use_batching:
+            break
         step_dir = args.out_dir / f"step_{step:02d}"
         step_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1263,6 +1802,23 @@ def main(argv: list[str] | None = None) -> int:
             logger.event("export_error", error=repr(e))
 
     # ------------------------------------------------------------------
+    # Headless runs render nothing during the loop. Collapse the final
+    # union into ONE combined surface and show it (paid once, not per batch).
+    # ------------------------------------------------------------------
+    if args.headless and not args.no_view_result:
+        logger.log("-> Building combined surface of completed mask for viewing…")
+        try:
+            v = post_python(base_url, VIEW_COMPLETED_SRC, timeout=300)
+            if v.get("status") == "ok":
+                logger.log(f"   completed_mask shown: {v.get('voxels'):,} voxels")
+            else:
+                logger.log(f"   view-result failed: {v}")
+            logger.event("view_completed", **v)
+        except Exception as e:
+            logger.log(f"   view-result error: {e}")
+            logger.event("view_completed_error", error=repr(e))
+
+    # ------------------------------------------------------------------
     # Summary + replay script
     # ------------------------------------------------------------------
     final_voxels = (history[-1]["voxels_after"] if history else 0)
@@ -1317,6 +1873,10 @@ def main(argv: list[str] | None = None) -> int:
         replay_cmd.append("--no-new-segment-per-click")
     if args.no_screenshots:
         replay_cmd.append("--no-screenshots")
+    if args.batch_size and args.batch_size > 1:
+        replay_cmd.append(f"--batch-size {args.batch_size}")
+    if args.headless:
+        replay_cmd.append("--headless")
     replay_cmd.append(f'--out-dir runs/replay_{logger.run_id}')
     if args.label:
         replay_cmd.append(f'--label "{args.label}"')

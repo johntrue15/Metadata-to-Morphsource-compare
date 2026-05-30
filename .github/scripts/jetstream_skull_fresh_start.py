@@ -79,6 +79,13 @@ def main(argv=None) -> int:
     p.add_argument("--local-ct-path", type=Path, default=None,
                    help="Upload CT from this Mac via chunked push (no GitHub URL)")
     p.add_argument("--no-screenshots", action="store_true")
+    p.add_argument("--batch-size", type=int, default=1,
+                   help="clicks per /slicer/exec call (>1 = server-side "
+                        "batching + incremental union mask; much faster)")
+    p.add_argument("--fast", action="store_true",
+                   help="throughput preset: --batch-size 8 + --no-screenshots")
+    p.add_argument("--headless", action="store_true",
+                   help="display off during clicking; show combined surface at end")
     p.add_argument("--skip-clear", action="store_true")
     args = p.parse_args(argv)
 
@@ -147,6 +154,9 @@ def main(argv=None) -> int:
         max_steps=max_steps,
         reset_first=True,
         no_screenshots=args.no_screenshots,
+        batch_size=args.batch_size,
+        fast=args.fast,
+        headless=args.headless,
     )
     if rc != 0:
         return rc

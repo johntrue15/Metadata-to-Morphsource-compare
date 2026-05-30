@@ -701,7 +701,10 @@ def run_bright_seed(volume_name: str, out_dir: Path, label: str,
                      max_steps: int,
                      intensity_percentile: float = 99.0,
                      no_screenshots: bool = False,
-                     reset_first: bool = True) -> int:
+                     reset_first: bool = True,
+                     batch_size: int = 1,
+                     fast: bool = False,
+                     headless: bool = False) -> int:
     """Run slicer_remote_bright_seed.main() in-process.
 
     Always passes ``--no-stop-rules`` so we can post-hoc slice unions at
@@ -724,6 +727,12 @@ def run_bright_seed(volume_name: str, out_dir: Path, label: str,
         argv.append("--skip-volume-hash")
     if no_screenshots:
         argv.append("--no-screenshots")
+    if fast:
+        argv.append("--fast")
+    elif batch_size and batch_size > 1:
+        argv.extend(["--batch-size", str(batch_size)])
+    if headless:
+        argv.append("--headless")
     log.info("bright_seed argv: %s", " ".join(argv))
     return bs.main(argv)
 
