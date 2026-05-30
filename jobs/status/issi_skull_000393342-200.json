@@ -1,0 +1,10 @@
+{
+  "state": "running",
+  "run_dir": "issi_skull_000393342-200_20260530T200733",
+  "max_steps": 200,
+  "fixture": "data/sample/issi_skull_000393342_urls.json",
+  "started_at": "2026-05-30T20:07:33Z",
+  "checkpoints": 0,
+  "id": "issi_skull_000393342-200",
+  "updated_at": "2026-05-30T20:07:33Z"
+}
