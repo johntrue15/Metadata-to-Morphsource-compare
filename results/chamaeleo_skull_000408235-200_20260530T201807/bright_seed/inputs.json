@@ -1,0 +1,29 @@
+{
+  "status": "ok",
+  "volume_id": "vtkMRMLScalarVolumeNode1",
+  "volume_name": "chamaeleo_skull_000408235_ct",
+  "shape_kji": [
+    343,
+    147,
+    337
+  ],
+  "dtype": "uint16",
+  "nbytes": 33983754,
+  "spacing_mm": [
+    0.248941,
+    0.248941,
+    0.248941
+  ],
+  "origin": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "scalar_min": 93.0,
+  "scalar_max": 26508.0,
+  "scalar_mean": 2892.904671096666,
+  "sha256_voxels": "7520550ad55ff2c82618d36d583e6008cf1da77930eaeeb26adec7385e247157",
+  "source_filename": "/tmp/ms_remote_samples/chamaeleo_skull_000408235_ct.nrrd",
+  "_dt_s": 0.152,
+  "_retries_used": 0
+}
