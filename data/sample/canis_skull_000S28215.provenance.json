@@ -1,0 +1,88 @@
+{
+  "tool": "stage_morphosource_sample.py",
+  "generated_utc": "2026-05-30T20:18:11Z",
+  "ct_media": {
+    "id": "000100312",
+    "title": "Skull [CTImageSeries] [CT]",
+    "taxonomy": "Canis lupus arctos",
+    "physical_object_id": "000S28215",
+    "physical_object_title": "USNM:MAMM:USNM 507338",
+    "doi": "",
+    "ark": "ark:/87602/m4/M100312",
+    "visibility": "open",
+    "x_pixel_spacing_mm": 0.27,
+    "y_pixel_spacing_mm": 0.27,
+    "z_pixel_spacing_mm": 0.25,
+    "native_voxel_dims_xyz": [
+      518,
+      917,
+      485
+    ],
+    "tiff_stack_root": "/media/volume/MyData/MorphoClaw/data/morphosource-download-000100312/morphosource_media-id-000100312_download-9cee5369/Media 000100312 - Skull CTImageSeries CT/16bit-000100312/16bit"
+  },
+  "mesh_media": {
+    "skipped": "full-volume mode (no GT mesh)"
+  },
+  "full_volume": true,
+  "grid": {
+    "max_axis_target": 384,
+    "margin_mm": 2.0,
+    "stride": 3,
+    "origin_convention": "zero",
+    "crop_index_min": [
+      0,
+      0,
+      0
+    ],
+    "crop_index_max": [
+      517,
+      916,
+      484
+    ],
+    "mesh_axis_perm": "+x+y+z",
+    "mesh_axis_matrix": [
+      [
+        1.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "ct_dtype": "uint16"
+  },
+  "outputs": {
+    "ct_nrrd": {
+      "path": "data/sample/canis_skull_000S28215_ct.nrrd",
+      "size_bytes": 13462426,
+      "sha256": "5a4d265223ad9e57239466da692b84687e60b1dbb2948cc6c0292cb0bd3d9493",
+      "voxel_dims_xyz": [
+        173,
+        306,
+        162
+      ],
+      "spacing_xyz_mm": [
+        0.81,
+        0.81,
+        0.75
+      ],
+      "origin_xyz_mm": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "dtype": ">u2"
+    }
+  },
+  "phases_completed": [
+    "ct-only"
+  ]
+}
