@@ -1,0 +1,88 @@
+{
+  "tool": "stage_morphosource_sample.py",
+  "generated_utc": "2026-05-30T20:22:05Z",
+  "ct_media": {
+    "id": "000048796",
+    "title": "Element Unspecified [CTImageSeries] [Etc]",
+    "taxonomy": "Lacerta viridis",
+    "physical_object_id": "000S12333",
+    "physical_object_title": "UF:Herp:65017",
+    "doi": "",
+    "ark": "ark:/87602/m4/M48796",
+    "visibility": "open",
+    "x_pixel_spacing_mm": 0.07466321,
+    "y_pixel_spacing_mm": 0.07466321,
+    "z_pixel_spacing_mm": 0.07466321,
+    "native_voxel_dims_xyz": [
+      991,
+      527,
+      1818
+    ],
+    "tiff_stack_root": "/media/volume/MyData/MorphoClaw/data/morphosource-download-000048796/morphosource_media-id-000048796_download-bd354504/Media 000048796 - Element Unspecified CTImageSeries Etc/UF-H-65017-000048796/UF-H-65017"
+  },
+  "mesh_media": {
+    "skipped": "full-volume mode (no GT mesh)"
+  },
+  "full_volume": true,
+  "grid": {
+    "max_axis_target": 384,
+    "margin_mm": 2.0,
+    "stride": 5,
+    "origin_convention": "zero",
+    "crop_index_min": [
+      0,
+      0,
+      0
+    ],
+    "crop_index_max": [
+      990,
+      526,
+      1817
+    ],
+    "mesh_axis_perm": "+x+y+z",
+    "mesh_axis_matrix": [
+      [
+        1.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "ct_dtype": "uint16"
+  },
+  "outputs": {
+    "ct_nrrd": {
+      "path": "data/sample/lacerta_skull_000S12333_ct.nrrd",
+      "size_bytes": 2530190,
+      "sha256": "08e81c63a184dd6d268e793efea2a78e92f903b7b6198a0013a60f9c1cf73977",
+      "voxel_dims_xyz": [
+        199,
+        106,
+        364
+      ],
+      "spacing_xyz_mm": [
+        0.37331604999999995,
+        0.37331604999999995,
+        0.37331604999999995
+      ],
+      "origin_xyz_mm": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "dtype": "uint16"
+    }
+  },
+  "phases_completed": [
+    "ct-only"
+  ]
+}
