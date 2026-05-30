@@ -1,0 +1,29 @@
+{
+  "status": "ok",
+  "volume_id": "vtkMRMLScalarVolumeNode1",
+  "volume_name": "eleutherodactylus_skull_000S44248_ct",
+  "shape_kji": [
+    322,
+    150,
+    213
+  ],
+  "dtype": "uint16",
+  "nbytes": 20575800,
+  "spacing_mm": [
+    0.097217,
+    0.097217,
+    0.097217
+  ],
+  "origin": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "scalar_min": 0.0,
+  "scalar_max": 65535.0,
+  "scalar_mean": 5603.11998444775,
+  "sha256_voxels": "8b77af12267cc85959a3995fe7f086ca7da43f0407f515113e4c190765473d85",
+  "source_filename": "/tmp/ms_remote_samples/eleutherodactylus_skull_000S44248_ct.nrrd",
+  "_dt_s": 0.099,
+  "_retries_used": 0
+}
