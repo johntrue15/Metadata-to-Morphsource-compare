@@ -4,7 +4,10 @@
   "max_steps": 200,
   "fixture": "data/sample/phyllurus_skull_000362039_urls.json",
   "started_at": "2026-05-30T22:29:16Z",
-  "checkpoints": 0,
+  "checkpoints": 1,
   "id": "phyllurus_skull_000362039-200",
-  "updated_at": "2026-05-30T22:29:16Z"
+  "updated_at": "2026-05-30T22:31:48Z",
+  "steps": 32,
+  "union_voxels": 211714,
+  "n_segments": 32
 }
