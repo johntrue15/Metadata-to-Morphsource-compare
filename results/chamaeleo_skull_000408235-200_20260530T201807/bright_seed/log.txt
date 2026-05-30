@@ -503,3 +503,11 @@
 [2026-05-30T20:30:50.923550+00:00]   segment    Segment_199:    34,132 bytes  sha256=a42e401fde2b…
 [2026-05-30T20:30:50.926493+00:00]   segment    Segment_200:    33,185 bytes  sha256=2b85067f78a2…
 [2026-05-30T20:30:50.926515+00:00] -> Building combined surface of completed mask for viewing…
+[2026-05-30T20:30:51.839301+00:00]    completed_mask shown: 513,097 voxels
+
+[2026-05-30T20:30:51.850322+00:00] DONE. final voxels = 513,097 / 16,991,877 (3.02%)
+[2026-05-30T20:30:51.850339+00:00]       stop reason = {'reason': 'max_steps', 'max_steps': 200}
+[2026-05-30T20:30:51.850362+00:00]       summary    -> /media/volume/MyData/MorphoClaw/runs/chamaeleo_skull_000408235-200_20260530T201807/bright_seed/summary.json
+[2026-05-30T20:30:51.850374+00:00]       events     -> /media/volume/MyData/MorphoClaw/runs/chamaeleo_skull_000408235-200_20260530T201807/bright_seed/events.jsonl
+[2026-05-30T20:30:51.850385+00:00]       artifacts  -> /media/volume/MyData/MorphoClaw/runs/chamaeleo_skull_000408235-200_20260530T201807/bright_seed/artifacts
+[2026-05-30T20:30:51.850396+00:00]       replay     -> /media/volume/MyData/MorphoClaw/runs/chamaeleo_skull_000408235-200_20260530T201807/bright_seed/replay.sh

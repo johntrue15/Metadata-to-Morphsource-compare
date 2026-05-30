@@ -1,13 +1,19 @@
 {
-  "state": "running",
+  "state": "done",
   "run_dir": "chamaeleo_skull_000408235-200_20260530T201807",
   "max_steps": 200,
   "fixture": "data/sample/chamaeleo_skull_000408235_urls.json",
   "started_at": "2026-05-30T20:18:07Z",
   "checkpoints": 5,
   "id": "chamaeleo_skull_000408235-200",
-  "updated_at": "2026-05-30T20:30:51Z",
+  "updated_at": "2026-05-30T20:30:53Z",
   "steps": 200,
   "union_voxels": 513097,
-  "n_segments": 200
+  "n_segments": 200,
+  "exit_code": 0,
+  "stop_reason": {
+    "reason": "max_steps",
+    "max_steps": 200
+  },
+  "finished_at": "2026-05-30T20:30:53Z"
 }
