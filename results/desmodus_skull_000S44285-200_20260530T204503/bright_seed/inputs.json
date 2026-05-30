@@ -1,0 +1,29 @@
+{
+  "status": "ok",
+  "volume_id": "vtkMRMLScalarVolumeNode1",
+  "volume_name": "desmodus_skull_000S44285_ct",
+  "shape_kji": [
+    337,
+    111,
+    159
+  ],
+  "dtype": "uint16",
+  "nbytes": 11895426,
+  "spacing_mm": [
+    0.282583,
+    0.282583,
+    0.282583
+  ],
+  "origin": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "scalar_min": 0.0,
+  "scalar_max": 65535.0,
+  "scalar_mean": 12010.385287084297,
+  "sha256_voxels": "bee83dc99c5a873306005e108c0bbb364a01bea4caa47e2e08d9084666da2b52",
+  "source_filename": "/tmp/ms_remote_samples/desmodus_skull_000S44285_ct.nrrd",
+  "_dt_s": 0.147,
+  "_retries_used": 0
+}
