@@ -1,13 +1,19 @@
 {
-  "state": "running",
+  "state": "done",
   "run_dir": "issi_skull_000393342-200_20260530T200733",
   "max_steps": 200,
   "fixture": "data/sample/issi_skull_000393342_urls.json",
   "started_at": "2026-05-30T20:07:33Z",
   "checkpoints": 4,
   "id": "issi_skull_000393342-200",
-  "updated_at": "2026-05-30T20:16:08Z",
-  "steps": 192,
+  "updated_at": "2026-05-30T20:18:02Z",
+  "steps": 200,
   "union_voxels": 466423,
-  "n_segments": 192
+  "n_segments": 192,
+  "exit_code": 0,
+  "stop_reason": {
+    "reason": "max_steps",
+    "max_steps": 200
+  },
+  "finished_at": "2026-05-30T20:18:02Z"
 }
