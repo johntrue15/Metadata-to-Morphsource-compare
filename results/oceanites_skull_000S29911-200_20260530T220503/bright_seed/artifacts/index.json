@@ -3207,5 +3207,11 @@
       ],
       "sha256_remote": "e3ac5c03954188978f644389f633f7cbef7ec510f7925f4a64c57c4fd9dd22b0"
     }
+  },
+  {
+    "path": "summary.json",
+    "kind": "summary",
+    "size_bytes": 113689,
+    "sha256": "a592c16d57fc192b925fd66c920aad0999e8de9d7f395151a056ad31c754a752"
   }
 ]

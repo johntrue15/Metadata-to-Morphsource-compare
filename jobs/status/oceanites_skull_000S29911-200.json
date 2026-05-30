@@ -1,13 +1,19 @@
 {
-  "state": "running",
+  "state": "done",
   "run_dir": "oceanites_skull_000S29911-200_20260530T220503",
   "max_steps": 200,
   "fixture": "data/sample/oceanites_skull_000S29911_urls.json",
   "started_at": "2026-05-30T22:05:03Z",
   "checkpoints": 8,
   "id": "oceanites_skull_000S29911-200",
-  "updated_at": "2026-05-30T22:29:11Z",
+  "updated_at": "2026-05-30T22:29:14Z",
   "steps": 200,
   "union_voxels": 597107,
-  "n_segments": 200
+  "n_segments": 200,
+  "exit_code": 0,
+  "stop_reason": {
+    "reason": "max_steps",
+    "max_steps": 200
+  },
+  "finished_at": "2026-05-30T22:29:14Z"
 }

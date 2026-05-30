@@ -1,10 +1,10 @@
 {
   "run": "oceanites_skull_000S29911-200_20260530T220503",
-  "small": 7,
+  "small": 10,
   "lfs": 2,
   "skipped_big": 1,
   "skipped_path": 400,
-  "harvested_at": "2026-05-30T22:29:11Z",
+  "harvested_at": "2026-05-30T22:29:14Z",
   "detail": {
     "run": "oceanites_skull_000S29911-200_20260530T220503",
     "small": [
@@ -14,7 +14,10 @@
       "bright_seed/events.jsonl",
       "bright_seed/inputs.json",
       "bright_seed/log.txt",
-      "bright_seed/manifest.json"
+      "bright_seed/manifest.json",
+      "bright_seed/replay.sh",
+      "bright_seed/stop_reason.json",
+      "bright_seed/summary.json"
     ],
     "lfs": [
       "bright_seed/artifacts/composite.nii.gz",

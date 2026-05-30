@@ -503,3 +503,11 @@
 [2026-05-30T22:29:11.360607+00:00]   segment    Segment_199:    53,028 bytes  sha256=3d40c0b13884…
 [2026-05-30T22:29:11.363700+00:00]   segment    Segment_200:    53,995 bytes  sha256=e3ac5c039541…
 [2026-05-30T22:29:11.363723+00:00] -> Building combined surface of completed mask for viewing…
+[2026-05-30T22:29:12.513433+00:00]    completed_mask shown: 597,107 voxels
+
+[2026-05-30T22:29:12.526042+00:00] DONE. final voxels = 597,107 / 27,143,458 (2.20%)
+[2026-05-30T22:29:12.526062+00:00]       stop reason = {'reason': 'max_steps', 'max_steps': 200}
+[2026-05-30T22:29:12.526087+00:00]       summary    -> /media/volume/MyData/MorphoClaw/runs/oceanites_skull_000S29911-200_20260530T220503/bright_seed/summary.json
+[2026-05-30T22:29:12.526100+00:00]       events     -> /media/volume/MyData/MorphoClaw/runs/oceanites_skull_000S29911-200_20260530T220503/bright_seed/events.jsonl
+[2026-05-30T22:29:12.526111+00:00]       artifacts  -> /media/volume/MyData/MorphoClaw/runs/oceanites_skull_000S29911-200_20260530T220503/bright_seed/artifacts
+[2026-05-30T22:29:12.526121+00:00]       replay     -> /media/volume/MyData/MorphoClaw/runs/oceanites_skull_000S29911-200_20260530T220503/bright_seed/replay.sh
