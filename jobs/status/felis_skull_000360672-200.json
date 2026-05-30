@@ -1,0 +1,10 @@
+{
+  "state": "running",
+  "run_dir": "felis_skull_000360672-200_20260530T200621",
+  "max_steps": 200,
+  "fixture": "data/sample/felis_skull_000360672_urls.json",
+  "started_at": "2026-05-30T20:06:21Z",
+  "checkpoints": 0,
+  "id": "felis_skull_000360672-200",
+  "updated_at": "2026-05-30T20:06:21Z"
+}
