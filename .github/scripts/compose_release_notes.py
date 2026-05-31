@@ -12,11 +12,17 @@ embed a python heredoc inside a YAML block scalar.
 from __future__ import annotations
 
 import json
+import os
 import sys
 
 
 def _fmt(n):
     return f"{n:,}" if isinstance(n, int) else str(n)
+
+
+def _asset_url(repo: str, tag: str, filename: str) -> str:
+    """Public download URL for a release asset (valid once the release exists)."""
+    return f"https://github.com/{repo}/releases/download/{tag}/{filename}"
 
 
 def main(argv=None) -> int:
@@ -39,9 +45,27 @@ def main(argv=None) -> int:
     stop = st.get("stop_reason") or {}
     reason = stop.get("reason") if isinstance(stop, dict) else stop
 
+    # Embed the preview renders inline so they're viewable natively in the
+    # browser on the release page. Release assets resolve at this URL once the
+    # release is created (which happens in the same `gh release create` call).
+    repo = os.environ.get("GITHUB_REPOSITORY", "johntrue15/MorphoClaw")
+    tag = f"skull-{job_id}"
+    assets = v.get("assets") or {}
+    embeds = []
+    gif = assets.get("gif")
+    png = assets.get("png")
+    if gif:
+        embeds.append(f"![{job_id} turntable]({_asset_url(repo, tag, gif)})")
+    elif png:
+        embeds.append(f"![{job_id} render]({_asset_url(repo, tag, png)})")
+
     lines = [
         f"# {job_id} — segmented skull",
         "",
+    ]
+    if embeds:
+        lines += embeds + [""]
+    lines += [
         f"Auto-generated 3D visuals from the Jetstream nnInteractive bright-seed "
         f"run **{run_dir}**.",
         "",
