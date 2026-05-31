@@ -1,28 +1,35 @@
 #!/usr/bin/env python3
 """Convert a segmentation composite labelmap into release-ready 3D visuals.
 
-Input: a labelmap volume (``.nii.gz`` / ``.nrrd``) such as the bright-seed
-composite committed by the Jetstream ECU
-(``results/<run>/bright_seed/artifacts/composite.nii.gz``).
+Input: a *multi-label* composite labelmap (``.nii.gz`` / ``.nrrd``) such as the
+bright-seed composite committed by the Jetstream ECU
+(``results/<run>/bright_seed/artifacts/composite.nii.gz``). Each segment in the
+volume has a distinct integer label (written by Slicer's
+``ExportAllSegmentsToLabelmapNode``).
 
 Outputs (under ``--out-dir``):
-  <name>.glb       - glTF binary mesh (GitHub renders this inline + AR-on-Android)
-  <name>.usdz      - Apple Quick Look / AR (USD packaged, metres scale)
-  <name>.stl       - universal mesh interchange
-  <name>.png       - hero render (best-effort, off-screen)
+  <name>.glb       - glTF binary, one colored node per segment (renders inline
+                     on GitHub + AR-on-Android, colors preserved)
+  <name>.usdz      - Apple Quick Look / AR, one colored mesh per segment
+  <name>.obj (+ .mtl) - OBJ with one material (``usemtl``) per segment, so DCC
+                     tools (Blender/Maya/MeshLab) show the individual colored
+                     segments
+  <name>.stl       - universal mesh interchange (geometry only, no color)
+  <name>.png       - hero render (best-effort, off-screen, colored)
   <name>_turntable.gif - rotating preview (best-effort)
-  <name>.visuals.json  - provenance + mesh stats
+  <name>.visuals.json  - provenance + per-segment stats
 
-The mesh is extracted with marching cubes over the binary union (label > 0),
-in millimetre world coordinates derived from the volume spacing, optionally
-smoothed and decimated for a lean release asset. Rendering steps are
-best-effort: if no GL context is available the geometry assets are still
-produced.
+Each segment is surfaced with marching cubes over ``label == value`` (cropped to
+the label bounding box for speed), smoothed and decimated to a per-segment
+budget, then assigned a distinct color from a golden-angle palette so the
+individual segments are visually separable. Rendering steps are best-effort: if
+no GL context is available the geometry assets are still produced.
 """
 
 from __future__ import annotations
 
 import argparse
+import colorsys
 import json
 import sys
 import time
@@ -33,87 +40,190 @@ def _log(msg: str) -> None:
     print(f"[visuals] {msg}", flush=True)
 
 
-def load_mask(path: Path):
-    """Return (binary_mask[z,y,x] bool, spacing_xyz mm tuple)."""
+# A neutral bone color used when the labelmap has a single segment (or is a
+# binary union with no per-segment information to color).
+BONE_RGBA = [220, 213, 196, 255]
+
+
+def load_labelmap(path: Path):
+    """Return (labelmap[z,y,x] int ndarray, spacing_xyz mm tuple)."""
     import SimpleITK as sitk
-    import numpy as np
 
     img = sitk.ReadImage(str(path))
     arr = sitk.GetArrayFromImage(img)  # (z, y, x)
     spacing = img.GetSpacing()  # (x, y, z)
-    mask = arr > 0
-    return mask, spacing, arr
+    return arr, spacing
 
 
-def extract_mesh(mask, spacing, *, smooth_iter: int, decimate_faces: int):
-    """Marching-cubes surface in mm; returns a trimesh.Trimesh."""
+def segment_palette(n: int):
+    """``n`` visually-distinct RGBA colors via golden-angle hue rotation."""
+    if n <= 1:
+        return [list(BONE_RGBA)]
+    cols = []
+    for i in range(n):
+        h = (i * 0.6180339887498949) % 1.0          # golden-angle hue
+        s = 0.55 + 0.25 * ((i * 0.37) % 1.0)         # gentle saturation jitter
+        v = 0.82 + 0.16 * ((i * 0.13) % 1.0)         # gentle value jitter
+        r, g, b = colorsys.hsv_to_rgb(h, s, v)
+        cols.append([int(round(r * 255)), int(round(g * 255)),
+                     int(round(b * 255)), 255])
+    return cols
+
+
+def extract_label_meshes(arr, spacing, *, smooth_iter: int,
+                         per_segment_faces: int, min_voxels: int,
+                         max_segments: int):
+    """Surface every label>0 as its own colored ``trimesh.Trimesh``.
+
+    Returns a list of dicts: ``{"label", "mesh", "rgba", "voxels"}`` sorted by
+    descending voxel count (largest segments first / most stable colors).
+    """
     import numpy as np
     from skimage import measure
     import trimesh
 
-    if not mask.any():
+    sx, sy, sz = spacing
+    labels = [int(v) for v in np.unique(arr) if v != 0]
+    if not labels:
         raise SystemExit("ERROR: labelmap is empty (no label > 0)")
 
-    # Pad so surfaces on the volume border close cleanly.
-    mask = np.pad(mask, 1, mode="constant", constant_values=False)
-    # skimage spacing order matches array order (z, y, x).
-    sx, sy, sz = spacing
-    verts, faces, normals, _ = measure.marching_cubes(
-        mask.astype(np.float32), level=0.5, spacing=(sz, sy, sx))
-    # verts are (z, y, x) -> reorder to (x, y, z) world mm.
-    verts = verts[:, ::-1]
-    mesh = trimesh.Trimesh(vertices=verts, faces=faces, process=True)
+    # Order by size so the biggest, most meaningful structures get the first
+    # (most saturated/stable) palette entries, and so --max-segments keeps the
+    # largest ones.
+    sizes = {l: int((arr == l).sum()) for l in labels}
+    labels = [l for l in sorted(labels, key=lambda l: sizes[l], reverse=True)
+              if sizes[l] >= min_voxels]
+    if max_segments and len(labels) > max_segments:
+        _log(f"capping {len(labels)} -> {max_segments} largest segments")
+        labels = labels[:max_segments]
 
-    # Keep only the largest connected component(s) to drop floating speckles.
-    comps = mesh.split(only_watertight=False)
-    if len(comps) > 1:
-        comps = sorted(comps, key=lambda m: m.area, reverse=True)
-        keep = [c for c in comps if c.area >= 0.02 * comps[0].area]
-        mesh = trimesh.util.concatenate(keep) if keep else comps[0]
-        _log(f"kept {len(keep) or 1}/{len(comps)} connected components")
-
-    if smooth_iter > 0:
+    palette = segment_palette(len(labels))
+    segs = []
+    for idx, l in enumerate(labels):
+        m = arr == l
+        zz, yy, xx = np.where(m)
+        z0, z1 = int(zz.min()), int(zz.max())
+        y0, y1 = int(yy.min()), int(yy.max())
+        x0, x1 = int(xx.min()), int(xx.max())
+        sub = m[z0:z1 + 1, y0:y1 + 1, x0:x1 + 1]
+        sub = np.pad(sub, 1, mode="constant", constant_values=False)
         try:
-            trimesh.smoothing.filter_taubin(mesh, iterations=smooth_iter)
-        except Exception as e:  # pragma: no cover
-            _log(f"smoothing skipped: {e!r}")
+            verts, faces, _, _ = measure.marching_cubes(
+                sub.astype(np.float32), level=0.5, spacing=(sz, sy, sx))
+        except (ValueError, RuntimeError):
+            continue
+        if len(faces) == 0:
+            continue
+        # verts are (z, y, x) world-mm within the padded sub-volume -> reorder
+        # to (x, y, z) and offset back to the global volume origin.
+        verts = verts[:, ::-1].copy()
+        verts[:, 0] += (x0 - 1) * sx
+        verts[:, 1] += (y0 - 1) * sy
+        verts[:, 2] += (z0 - 1) * sz
 
-    if decimate_faces and len(mesh.faces) > decimate_faces:
-        before = len(mesh.faces)
-        try:
-            mesh = mesh.simplify_quadric_decimation(face_count=decimate_faces)
-            _log(f"decimated {before} -> {len(mesh.faces)} faces")
-        except Exception as e:  # pragma: no cover
-            _log(f"decimation skipped ({e!r}); keeping {before} faces")
+        mesh = trimesh.Trimesh(vertices=verts, faces=faces, process=True)
+        if smooth_iter > 0:
+            try:
+                trimesh.smoothing.filter_taubin(mesh, iterations=smooth_iter)
+            except Exception:  # pragma: no cover
+                pass
+        if per_segment_faces and len(mesh.faces) > per_segment_faces:
+            try:
+                mesh = mesh.simplify_quadric_decimation(
+                    face_count=per_segment_faces)
+            except Exception:  # pragma: no cover
+                pass
+        if len(mesh.faces) == 0:
+            continue
+        mesh.fix_normals()
+        rgba = palette[idx]
+        mesh.visual = trimesh.visual.ColorVisuals(
+            mesh, vertex_colors=np.tile(rgba, (len(mesh.vertices), 1)))
+        segs.append({"label": l, "mesh": mesh, "rgba": rgba,
+                     "voxels": sizes[l]})
 
-    mesh.fix_normals()
-    return mesh
+    if not segs:
+        raise SystemExit("ERROR: no segment produced a surface mesh")
+    _log(f"surfaced {len(segs)} segment(s); "
+         f"total faces={sum(len(s['mesh'].faces) for s in segs):,}")
+    return segs
 
 
-BONE_RGBA = [220, 213, 196, 255]
-
-
-def export_geometry(mesh, out_dir: Path, name: str) -> dict:
-    import numpy as np
+def combine_colored(segs):
+    """Concatenate all segment meshes into one vertex-colored ``Trimesh``."""
     import trimesh
+    if len(segs) == 1:
+        return segs[0]["mesh"]
+    return trimesh.util.concatenate([s["mesh"] for s in segs])
 
-    mesh.visual = trimesh.visual.ColorVisuals(
-        mesh, vertex_colors=np.tile(BONE_RGBA, (len(mesh.vertices), 1)))
+
+def export_geometry(segs, combined, out_dir: Path, name: str) -> dict:
+    """Write GLB (per-segment colored scene), OBJ+MTL (materials), and STL."""
+    import trimesh
 
     glb = out_dir / f"{name}.glb"
     stl = out_dir / f"{name}.stl"
-    obj = out_dir / f"{name}.obj"
-    mesh.export(glb)
-    mesh.export(stl)
-    mesh.export(obj)  # writes <name>.obj (+ <name>.mtl for colors)
-    _log(f"wrote {glb.name} ({glb.stat().st_size/1e6:.2f} MB), "
-         f"{stl.name} ({stl.stat().st_size/1e6:.2f} MB), "
-         f"{obj.name} ({obj.stat().st_size/1e6:.2f} MB)")
-    return {"glb": glb.name, "stl": stl.name, "obj": obj.name}
+
+    # GLB: a Scene with one named, colored node per segment so viewers can
+    # distinguish (and toggle) the individual segments.
+    scene = trimesh.Scene()
+    for s in segs:
+        scene.add_geometry(s["mesh"].copy(),
+                           geom_name=f"segment_{s['label']:03d}")
+    try:
+        scene.export(glb)
+    except Exception as e:  # pragma: no cover - fall back to a single mesh
+        _log(f"scene GLB export failed ({e!r}); exporting combined mesh")
+        combined.export(glb)
+
+    # STL: geometry only (no color in the format).
+    combined.export(stl)
+
+    # OBJ + MTL: hand-written so every segment gets its own material and shows
+    # up as a distinct color in DCC tools, independent of trimesh's version.
+    obj_name = _write_obj_mtl(segs, out_dir, name)
+
+    out = {"glb": glb.name, "stl": stl.name, "obj": obj_name,
+           "mtl": f"{name}.mtl"}
+    sizes = {k: (out_dir / v).stat().st_size / 1e6
+             for k, v in (("glb", glb.name), ("stl", stl.name),
+                          ("obj", obj_name))}
+    _log("wrote " + ", ".join(f"{v} ({sizes[k]:.2f} MB)"
+                              for k, v in (("glb", glb.name), ("stl", stl.name),
+                                           ("obj", obj_name))))
+    return out
 
 
-def export_usdz(mesh, out_dir: Path, name: str) -> str | None:
-    """Build a USD mesh (mm geometry, metres scale) and package as .usdz."""
+def _write_obj_mtl(segs, out_dir: Path, name: str) -> str:
+    """Write ``<name>.obj`` + ``<name>.mtl`` with one material per segment."""
+    obj = [f"# {name} - {len(segs)} colored segments", f"mtllib {name}.mtl"]
+    mtl = [f"# {name} - one material per segment"]
+    voff = 0
+    for i, s in enumerate(segs):
+        mesh = s["mesh"]
+        r, g, b = (c / 255.0 for c in s["rgba"][:3])
+        mname = f"seg{i:03d}"
+        mtl += [f"newmtl {mname}",
+                f"Kd {r:.4f} {g:.4f} {b:.4f}",
+                "Ka 0.0000 0.0000 0.0000",
+                "Ks 0.0000 0.0000 0.0000",
+                "d 1.0",
+                "illum 1",
+                ""]
+        obj.append(f"o segment_{s['label']:03d}")
+        obj.append(f"usemtl {mname}")
+        for v in mesh.vertices:
+            obj.append(f"v {v[0]:.4f} {v[1]:.4f} {v[2]:.4f}")
+        for f in mesh.faces:
+            obj.append(f"f {f[0] + 1 + voff} {f[1] + 1 + voff} {f[2] + 1 + voff}")
+        voff += len(mesh.vertices)
+    (out_dir / f"{name}.obj").write_text("\n".join(obj) + "\n")
+    (out_dir / f"{name}.mtl").write_text("\n".join(mtl) + "\n")
+    return f"{name}.obj"
+
+
+def export_usdz(segs, out_dir: Path, name: str) -> str | None:
+    """Build a USD stage with one colored mesh per segment, package as .usdz."""
     try:
         from pxr import Usd, UsdGeom, Vt, UsdUtils
     except Exception as e:
@@ -126,25 +236,28 @@ def export_usdz(mesh, out_dir: Path, name: str) -> str | None:
     stage = Usd.Stage.CreateNew(str(usdc))
     UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.y)
     UsdGeom.SetStageMetersPerUnit(stage, 0.001)  # geometry is in millimetres
-    xform = UsdGeom.Xform.Define(stage, "/Skull")
-    stage.SetDefaultPrim(xform.GetPrim())
-    gmesh = UsdGeom.Mesh.Define(stage, "/Skull/Mesh")
+    root = UsdGeom.Xform.Define(stage, "/Skull")
+    stage.SetDefaultPrim(root.GetPrim())
 
-    verts = mesh.vertices.astype(np.float32)
-    faces = mesh.faces.astype(np.int32)
-    gmesh.CreatePointsAttr(Vt.Vec3fArray.FromNumpy(verts))
-    gmesh.CreateFaceVertexCountsAttr(
-        Vt.IntArray.FromNumpy(np.full(len(faces), 3, dtype=np.int32)))
-    gmesh.CreateFaceVertexIndicesAttr(Vt.IntArray.FromNumpy(faces.reshape(-1)))
-    gmesh.CreateSubdivisionSchemeAttr(UsdGeom.Tokens.none)
-    gmesh.CreateDisplayColorAttr(
-        Vt.Vec3fArray([(BONE_RGBA[0] / 255, BONE_RGBA[1] / 255,
-                        BONE_RGBA[2] / 255)]))
-    try:
-        ext = UsdGeom.PointBased(gmesh).ComputeExtent(verts)
-        gmesh.CreateExtentAttr(ext)
-    except Exception:
-        pass
+    for s in segs:
+        mesh = s["mesh"]
+        gmesh = UsdGeom.Mesh.Define(stage, f"/Skull/segment_{s['label']:03d}")
+        verts = mesh.vertices.astype(np.float32)
+        faces = mesh.faces.astype(np.int32)
+        gmesh.CreatePointsAttr(Vt.Vec3fArray.FromNumpy(verts))
+        gmesh.CreateFaceVertexCountsAttr(
+            Vt.IntArray.FromNumpy(np.full(len(faces), 3, dtype=np.int32)))
+        gmesh.CreateFaceVertexIndicesAttr(
+            Vt.IntArray.FromNumpy(faces.reshape(-1)))
+        gmesh.CreateSubdivisionSchemeAttr(UsdGeom.Tokens.none)
+        gmesh.CreateDisplayColorAttr(
+            Vt.Vec3fArray([(s["rgba"][0] / 255.0, s["rgba"][1] / 255.0,
+                            s["rgba"][2] / 255.0)]))
+        try:
+            ext = UsdGeom.PointBased(gmesh).ComputeExtent(verts)
+            gmesh.CreateExtentAttr(ext)
+        except Exception:
+            pass
     stage.GetRootLayer().Save()
 
     ok = UsdUtils.CreateNewUsdzPackage(str(usdc), str(usdz))
@@ -159,8 +272,9 @@ def export_usdz(mesh, out_dir: Path, name: str) -> str | None:
     return usdz.name
 
 
-def render_previews(mesh, out_dir: Path, name: str, *, frames: int) -> dict:
-    """Best-effort off-screen hero render + turntable GIF via pyvista."""
+def render_previews(segs, combined, out_dir: Path, name: str, *,
+                    frames: int) -> dict:
+    """Best-effort off-screen colored hero render + turntable GIF via pyvista."""
     out: dict = {}
     try:
         import os
@@ -169,16 +283,28 @@ def render_previews(mesh, out_dir: Path, name: str, *, frames: int) -> dict:
         import pyvista as pv
         pv.OFF_SCREEN = True
 
-        faces = np.hstack(
-            [np.full((len(mesh.faces), 1), 3, dtype=np.int64),
-             mesh.faces.astype(np.int64)]).reshape(-1)
-        pmesh = pv.PolyData(mesh.vertices, faces)
-        pmesh = pmesh.compute_normals(auto_orient_normals=True)
-
         pl = pv.Plotter(off_screen=True, window_size=[1200, 1200])
         pl.set_background("white")
-        pl.add_mesh(pmesh, color=[c / 255 for c in BONE_RGBA[:3]],
-                    smooth_shading=True, specular=0.3, specular_power=15)
+        # One actor per segment keeps colors crisp and avoids giant scalar
+        # arrays; fall back to the combined mesh if something goes sideways.
+        try:
+            for s in segs:
+                mesh = s["mesh"]
+                faces = np.hstack(
+                    [np.full((len(mesh.faces), 1), 3, dtype=np.int64),
+                     mesh.faces.astype(np.int64)]).reshape(-1)
+                pmesh = pv.PolyData(mesh.vertices, faces)
+                pl.add_mesh(pmesh, color=[c / 255 for c in s["rgba"][:3]],
+                            smooth_shading=True, specular=0.2,
+                            specular_power=12)
+        except Exception:
+            faces = np.hstack(
+                [np.full((len(combined.faces), 1), 3, dtype=np.int64),
+                 combined.faces.astype(np.int64)]).reshape(-1)
+            pmesh = pv.PolyData(combined.vertices, faces)
+            pl.add_mesh(pmesh, color=[c / 255 for c in BONE_RGBA[:3]],
+                        smooth_shading=True)
+
         pl.enable_eye_dome_lighting()
         pl.camera_position = "yz"
         pl.camera.azimuth = 30
@@ -215,7 +341,15 @@ def main(argv=None) -> int:
     p.add_argument("--labelmap", required=True)
     p.add_argument("--out-dir", required=True)
     p.add_argument("--name", required=True, help="asset basename, e.g. chameleon-200")
-    p.add_argument("--decimate-faces", type=int, default=200_000)
+    p.add_argument("--decimate-faces", type=int, default=300_000,
+                   help="total face budget across all segments")
+    p.add_argument("--per-segment-faces", type=int, default=0,
+                   help="explicit per-segment face cap (0 = derive from "
+                        "--decimate-faces / segment count)")
+    p.add_argument("--min-segment-voxels", type=int, default=20,
+                   help="drop segments smaller than this many voxels (noise)")
+    p.add_argument("--max-segments", type=int, default=400,
+                   help="keep at most this many (largest) segments")
     p.add_argument("--smooth-iter", type=int, default=10)
     p.add_argument("--turntable-frames", type=int, default=36)
     p.add_argument("--metadata-json", default=None,
@@ -229,36 +363,48 @@ def main(argv=None) -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     _log(f"reading {lm}")
-    mask, spacing, arr = load_mask(lm)
+    arr, spacing = load_labelmap(lm)
     import numpy as np
-    voxels = int(mask.sum())
+    n_labels = int((np.unique(arr) != 0).sum())
     _log(f"volume {arr.shape} spacing(mm)={[round(s,4) for s in spacing]} "
-         f"label-voxels={voxels:,}")
+         f"labels={n_labels}")
 
-    mesh = extract_mesh(mask, spacing, smooth_iter=args.smooth_iter,
-                        decimate_faces=args.decimate_faces)
-    _log(f"mesh: {len(mesh.vertices):,} verts, {len(mesh.faces):,} faces, "
-         f"watertight={mesh.is_watertight}")
+    per_seg = args.per_segment_faces
+    if per_seg <= 0:
+        per_seg = max(400, args.decimate_faces // max(1, n_labels))
+
+    segs = extract_label_meshes(
+        arr, spacing, smooth_iter=args.smooth_iter,
+        per_segment_faces=per_seg, min_voxels=args.min_segment_voxels,
+        max_segments=args.max_segments)
+    combined = combine_colored(segs)
+    _log(f"combined: {len(combined.vertices):,} verts, "
+         f"{len(combined.faces):,} faces across {len(segs)} segments")
 
     assets = {}
-    assets.update(export_geometry(mesh, out_dir, args.name))
-    usdz = export_usdz(mesh, out_dir, args.name)
+    assets.update(export_geometry(segs, combined, out_dir, args.name))
+    usdz = export_usdz(segs, out_dir, args.name)
     if usdz:
         assets["usdz"] = usdz
-    assets.update(render_previews(mesh, out_dir, args.name,
+    assets.update(render_previews(segs, combined, out_dir, args.name,
                                   frames=args.turntable_frames))
 
+    total_voxels = int(sum(s["voxels"] for s in segs))
     meta = {
         "name": args.name,
         "source_labelmap": str(lm),
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "volume_shape_zyx": list(arr.shape),
         "spacing_mm_xyz": [round(s, 6) for s in spacing],
-        "label_voxels": voxels,
-        "mesh_vertices": int(len(mesh.vertices)),
-        "mesh_faces": int(len(mesh.faces)),
-        "bounds_mm": [[round(float(v), 3) for v in mesh.bounds[0]],
-                      [round(float(v), 3) for v in mesh.bounds[1]]],
+        "n_segments": len(segs),
+        "label_voxels": total_voxels,
+        "mesh_vertices": int(len(combined.vertices)),
+        "mesh_faces": int(len(combined.faces)),
+        "bounds_mm": [[round(float(v), 3) for v in combined.bounds[0]],
+                      [round(float(v), 3) for v in combined.bounds[1]]],
+        "segments": [{"label": s["label"], "voxels": s["voxels"],
+                      "rgba": s["rgba"], "faces": int(len(s["mesh"].faces))}
+                     for s in segs[:200]],
         "assets": assets,
     }
     if args.metadata_json and Path(args.metadata_json).exists():
