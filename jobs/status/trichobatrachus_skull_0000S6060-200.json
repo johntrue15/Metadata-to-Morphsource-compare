@@ -1,0 +1,10 @@
+{
+  "state": "running",
+  "run_dir": "trichobatrachus_skull_0000S6060-200_20260531T135919",
+  "max_steps": 200,
+  "fixture": "data/sample/trichobatrachus_skull_0000S6060_urls.json",
+  "started_at": "2026-05-31T13:59:19Z",
+  "checkpoints": 0,
+  "id": "trichobatrachus_skull_0000S6060-200",
+  "updated_at": "2026-05-31T13:59:19Z"
+}
