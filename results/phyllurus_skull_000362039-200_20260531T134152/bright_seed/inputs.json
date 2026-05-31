@@ -1,0 +1,29 @@
+{
+  "status": "ok",
+  "volume_id": "vtkMRMLScalarVolumeNode1",
+  "volume_name": "phyllurus_skull_000362039_ct",
+  "shape_kji": [
+    372,
+    238,
+    318
+  ],
+  "dtype": "uint16",
+  "nbytes": 56308896,
+  "spacing_mm": [
+    0.101321,
+    0.101321,
+    0.101321
+  ],
+  "origin": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "scalar_min": 0.0,
+  "scalar_max": 56507.0,
+  "scalar_mean": 2057.16290058324,
+  "sha256_voxels": "43370e3aa4256cf105168861b9d5d6b6666501692b3bff476422f15cea3f8cb2",
+  "source_filename": "/tmp/ms_remote_samples/phyllurus_skull_000362039_ct.nrrd",
+  "_dt_s": 0.308,
+  "_retries_used": 0
+}
