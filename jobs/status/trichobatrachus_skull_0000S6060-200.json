@@ -4,10 +4,10 @@
   "max_steps": 200,
   "fixture": "data/sample/trichobatrachus_skull_0000S6060_urls.json",
   "started_at": "2026-05-31T13:59:19Z",
-  "checkpoints": 1,
+  "checkpoints": 2,
   "id": "trichobatrachus_skull_0000S6060-200",
-  "updated_at": "2026-05-31T14:01:27Z",
-  "steps": 104,
-  "union_voxels": 158287,
-  "n_segments": 104
+  "updated_at": "2026-05-31T14:03:44Z",
+  "steps": 152,
+  "union_voxels": 199668,
+  "n_segments": 152
 }
