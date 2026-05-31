@@ -1,0 +1,10 @@
+{
+  "state": "running",
+  "run_dir": "typhlonectes_skull_000649626-200_20260531T140827",
+  "max_steps": 200,
+  "fixture": "data/sample/typhlonectes_skull_000649626_urls.json",
+  "started_at": "2026-05-31T14:08:27Z",
+  "checkpoints": 0,
+  "id": "typhlonectes_skull_000649626-200",
+  "updated_at": "2026-05-31T14:08:27Z"
+}
