@@ -1,5 +1,5 @@
 {
-  "state": "running",
+  "state": "pending",
   "run_dir": "phyllurus_skull_000362039-200_20260530T222916",
   "max_steps": 200,
   "fixture": "data/sample/phyllurus_skull_000362039_urls.json",
@@ -9,5 +9,6 @@
   "updated_at": "2026-05-30T22:33:55Z",
   "steps": 64,
   "union_voxels": 292756,
-  "n_segments": 64
+  "n_segments": 64,
+  "reclaim_note": "interrupted at 64/200 steps when the box shelved; reset to pending so the worker re-runs it on restart"
 }

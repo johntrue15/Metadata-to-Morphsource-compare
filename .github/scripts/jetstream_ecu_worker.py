@@ -281,6 +281,47 @@ def _next_pending() -> dict | None:
     return None
 
 
+def _reclaim_orphaned_running(branch: str, push: bool) -> None:
+    """Reset jobs stuck in ``running`` back to ``pending`` so they re-run.
+
+    A job is only ever ``running`` while *this* worker is actively driving it.
+    If we find one at startup, the previous worker died mid-run (e.g. the box
+    was shelved / crashed), so the job is orphaned and will never finish. We
+    reset it to ``pending`` here so the poll loop re-runs it from scratch. Only
+    jobs that still have a queue spec (and so are re-runnable) are touched.
+
+    Safe for the single-worker box model: nothing is genuinely running at
+    startup. Do NOT call this mid-loop.
+    """
+    if not STATUS_DIR.exists():
+        return
+    reset: list[str] = []
+    for sp in sorted(STATUS_DIR.glob("*.json")):
+        jid = sp.stem
+        if not (QUEUE_DIR / f"{jid}.json").exists():
+            continue  # no spec -> not re-runnable here
+        try:
+            st = json.loads(sp.read_text())
+        except Exception:
+            continue
+        if st.get("state") == "running":
+            st["state"] = "pending"
+            st["reclaimed_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ",
+                                                time.gmtime())
+            st["reclaim_note"] = ("worker restart: previous run interrupted "
+                                  "(box shelved/crash); re-queued")
+            sp.write_text(json.dumps(st, indent=2) + "\n")
+            reset.append(jid)
+    if reset:
+        _log(f"reclaimed {len(reset)} orphaned running job(s) -> pending: {reset}")
+        try:
+            commit_and_push([f"jobs/status/{j}.json" for j in reset],
+                            f"reclaim orphaned running -> pending: {', '.join(reset)}",
+                            branch=branch, push=push)
+        except SystemExit as e:
+            _log(f"reclaim push failed (continuing): {e}")
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -312,6 +353,8 @@ def main(argv=None) -> int:
         return run_job(spec, args.branch, push, args.checkpoint_sec)
 
     _log(f"polling git queue every {args.poll_sec}s (branch {args.branch})…")
+    _git_pull(args.branch)
+    _reclaim_orphaned_running(args.branch, push)
     while True:
         _git_pull(args.branch)
         spec = _next_pending()

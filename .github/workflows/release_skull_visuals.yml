@@ -42,6 +42,14 @@ jobs:
   build:
     name: Build 3D visuals + release
     runs-on: ubuntu-latest
+    # Only spin up the (heavy) render runner for completion commits or a manual
+    # dispatch. The ECU worker commits "claim …" / "checkpoint …" on every step,
+    # which previously triggered ~80 no-op builds. The completion build sweeps
+    # ALL done-but-unreleased skulls, so it remains self-healing.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' &&
+       startsWith(github.event.head_commit.message, 'complete'))
     env:
       GH_TOKEN: ${{ github.token }}
       FORCE: ${{ github.event.inputs.force }}
