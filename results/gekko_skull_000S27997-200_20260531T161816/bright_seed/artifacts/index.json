@@ -1,0 +1,3217 @@
+[
+  {
+    "path": "artifacts/composite.nii.gz",
+    "kind": "composite_labelmap",
+    "size_bytes": 29737,
+    "sha256": "5744dda2d9563cb8692771b6e41026ef5400a2c76e3acd68e52e03ba937fe2de",
+    "extra": {
+      "sha256_remote": "5744dda2d9563cb8692771b6e41026ef5400a2c76e3acd68e52e03ba937fe2de"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_1.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4154,
+    "sha256": "f3b2f69d6589a02abba70a11e6e5dd04e11ca4386cae647ff6891b3ab2330804",
+    "extra": {
+      "sid": "Segment_1",
+      "name": "Segment_1",
+      "color": [
+        0.502,
+        0.6824,
+        0.502
+      ],
+      "sha256_remote": "f3b2f69d6589a02abba70a11e6e5dd04e11ca4386cae647ff6891b3ab2330804"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_2.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4770,
+    "sha256": "9b853420384cda22f4eef3670eb435ae2ee493f4fd6942b6fe52bdfd10e05f71",
+    "extra": {
+      "sid": "Segment_2",
+      "name": "Segment_2",
+      "color": [
+        0.9451,
+        0.8392,
+        0.5686
+      ],
+      "sha256_remote": "9b853420384cda22f4eef3670eb435ae2ee493f4fd6942b6fe52bdfd10e05f71"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_3.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4101,
+    "sha256": "1a3a4dc78c8bcb00b571781ce550328bd066fecde878cc956ee138cc51997a3c",
+    "extra": {
+      "sid": "Segment_3",
+      "name": "Segment_3",
+      "color": [
+        0.6941,
+        0.4784,
+        0.3961
+      ],
+      "sha256_remote": "1a3a4dc78c8bcb00b571781ce550328bd066fecde878cc956ee138cc51997a3c"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_4.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3964,
+    "sha256": "67bd2e5776fceb92d34dba83d8c186d4d3f172225f3f8c70ffda9b1b95b5ea88",
+    "extra": {
+      "sid": "Segment_4",
+      "name": "Segment_4",
+      "color": [
+        0.4353,
+        0.7216,
+        0.8235
+      ],
+      "sha256_remote": "67bd2e5776fceb92d34dba83d8c186d4d3f172225f3f8c70ffda9b1b95b5ea88"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_5.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4194,
+    "sha256": "7fe915ce41780df5752f2447ac6ba329a130f2fa5c605b26a8b85e0d0863d2dd",
+    "extra": {
+      "sid": "Segment_5",
+      "name": "Segment_5",
+      "color": [
+        0.8471,
+        0.3961,
+        0.3098
+      ],
+      "sha256_remote": "7fe915ce41780df5752f2447ac6ba329a130f2fa5c605b26a8b85e0d0863d2dd"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_6.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4723,
+    "sha256": "ba709eed35f8cb85a62f57425605c27867f0c9c25db51cb919e3aba3156ff165",
+    "extra": {
+      "sid": "Segment_6",
+      "name": "Segment_6",
+      "color": [
+        0.8667,
+        0.5098,
+        0.3961
+      ],
+      "sha256_remote": "ba709eed35f8cb85a62f57425605c27867f0c9c25db51cb919e3aba3156ff165"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_7.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4602,
+    "sha256": "779c6c83aabde9dfdc315fca00bcbab6857923c640dfb8096186c1ca8227ecf5",
+    "extra": {
+      "sid": "Segment_7",
+      "name": "Segment_7",
+      "color": [
+        0.5647,
+        0.9333,
+        0.5647
+      ],
+      "sha256_remote": "779c6c83aabde9dfdc315fca00bcbab6857923c640dfb8096186c1ca8227ecf5"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_8.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4111,
+    "sha256": "0f2baf9f0eca23f98f71ac7cc5e8d1f996364e888cf781e0c21eb5eee91fbe8c",
+    "extra": {
+      "sid": "Segment_8",
+      "name": "Segment_8",
+      "color": [
+        0.7529,
+        0.4078,
+        0.3451
+      ],
+      "sha256_remote": "0f2baf9f0eca23f98f71ac7cc5e8d1f996364e888cf781e0c21eb5eee91fbe8c"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_9.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 5381,
+    "sha256": "996b03337ce6d9b9188cb144dbabbb902655bb624f1b9ed44125bbd85d3d9efe",
+    "extra": {
+      "sid": "Segment_9",
+      "name": "Segment_9",
+      "color": [
+        0.8627,
+        0.9608,
+        0.0784
+      ],
+      "sha256_remote": "996b03337ce6d9b9188cb144dbabbb902655bb624f1b9ed44125bbd85d3d9efe"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_10.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4564,
+    "sha256": "9051486805b748dadbe08d2e5a8aca7d71caa55e110a2fc1c015b0287475c0d4",
+    "extra": {
+      "sid": "Segment_10",
+      "name": "Segment_10",
+      "color": [
+        0.3059,
+        0.2471,
+        0.0
+      ],
+      "sha256_remote": "9051486805b748dadbe08d2e5a8aca7d71caa55e110a2fc1c015b0287475c0d4"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_11.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4365,
+    "sha256": "9f19a2b7e7c81714954f7dc9bd9c2f4cb9680d362772cc38f9ff271a9f75ecfd",
+    "extra": {
+      "sid": "Segment_11",
+      "name": "Segment_11",
+      "color": [
+        1.0,
+        0.9804,
+        0.8627
+      ],
+      "sha256_remote": "9f19a2b7e7c81714954f7dc9bd9c2f4cb9680d362772cc38f9ff271a9f75ecfd"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_12.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4184,
+    "sha256": "2bcd9445159be112cf02252b3ff3f601ed88fec095c0b4507f5099d5cb0bfea9",
+    "extra": {
+      "sid": "Segment_12",
+      "name": "Segment_12",
+      "color": [
+        0.902,
+        0.8627,
+        0.2745
+      ],
+      "sha256_remote": "2bcd9445159be112cf02252b3ff3f601ed88fec095c0b4507f5099d5cb0bfea9"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_13.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4199,
+    "sha256": "d457895088f7e6dcf38fd7ff67a9fe534901a0f233af487972c9a95370f700a6",
+    "extra": {
+      "sid": "Segment_13",
+      "name": "Segment_13",
+      "color": [
+        0.7843,
+        0.7843,
+        0.9216
+      ],
+      "sha256_remote": "d457895088f7e6dcf38fd7ff67a9fe534901a0f233af487972c9a95370f700a6"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_14.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3917,
+    "sha256": "e0a5f0f0b448345b3da4238d1edf5589d98ed426c2ed549d4ad067d2f316e6ee",
+    "extra": {
+      "sid": "Segment_14",
+      "name": "Segment_14",
+      "color": [
+        0.9804,
+        0.9804,
+        0.8235
+      ],
+      "sha256_remote": "e0a5f0f0b448345b3da4238d1edf5589d98ed426c2ed549d4ad067d2f316e6ee"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_15.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4266,
+    "sha256": "6eb3a6a23a4207647ded7fbe0e26e7c8760a1a1c67d8758258b8e887cfec7c61",
+    "extra": {
+      "sid": "Segment_15",
+      "name": "Segment_15",
+      "color": [
+        0.9569,
+        0.8392,
+        0.1922
+      ],
+      "sha256_remote": "6eb3a6a23a4207647ded7fbe0e26e7c8760a1a1c67d8758258b8e887cfec7c61"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_16.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4538,
+    "sha256": "3869aad5c7230e341519d05a0403e257c32453bc5bf471878f31d53766835b2a",
+    "extra": {
+      "sid": "Segment_16",
+      "name": "Segment_16",
+      "color": [
+        0.0,
+        0.5922,
+        0.8078
+      ],
+      "sha256_remote": "3869aad5c7230e341519d05a0403e257c32453bc5bf471878f31d53766835b2a"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_17.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3970,
+    "sha256": "409382cd91b7b0811a2add729a4d50170dfa353d2166d51d807fb04b7fbd5205",
+    "extra": {
+      "sid": "Segment_17",
+      "name": "Segment_17",
+      "color": [
+        0.8471,
+        0.3961,
+        0.3098
+      ],
+      "sha256_remote": "409382cd91b7b0811a2add729a4d50170dfa353d2166d51d807fb04b7fbd5205"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_18.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3980,
+    "sha256": "c427cd568bfe261c7887d409daaea283d1683f96eac8287af7c71baca34dc23b",
+    "extra": {
+      "sid": "Segment_18",
+      "name": "Segment_18",
+      "color": [
+        0.7176,
+        0.6118,
+        0.8627
+      ],
+      "sha256_remote": "c427cd568bfe261c7887d409daaea283d1683f96eac8287af7c71baca34dc23b"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_19.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4029,
+    "sha256": "4cbcbda6ac4bf8859b8914900739a577b5826e76486dcd1b938cb4d04ec884ac",
+    "extra": {
+      "sid": "Segment_19",
+      "name": "Segment_19",
+      "color": [
+        0.7176,
+        0.8392,
+        0.8275
+      ],
+      "sha256_remote": "4cbcbda6ac4bf8859b8914900739a577b5826e76486dcd1b938cb4d04ec884ac"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_20.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4095,
+    "sha256": "f009bb94b4a8b68661f6feca0176a25c78a0f9ab4669cd5efc7bb20e6f626540",
+    "extra": {
+      "sid": "Segment_20",
+      "name": "Segment_20",
+      "color": [
+        0.5961,
+        0.7412,
+        0.8118
+      ],
+      "sha256_remote": "f009bb94b4a8b68661f6feca0176a25c78a0f9ab4669cd5efc7bb20e6f626540"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_21.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4716,
+    "sha256": "9d281856900f6837cf75148deda756834f9f041aebc514105b08b3d7aaef11dc",
+    "extra": {
+      "sid": "Segment_21",
+      "name": "Segment_21",
+      "color": [
+        0.4353,
+        0.7216,
+        0.8235
+      ],
+      "sha256_remote": "9d281856900f6837cf75148deda756834f9f041aebc514105b08b3d7aaef11dc"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_22.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3912,
+    "sha256": "957ff33336fa392ff6dd19604fb8b702ded0dbfae76886332f8c377de14722c5",
+    "extra": {
+      "sid": "Segment_22",
+      "name": "Segment_22",
+      "color": [
+        0.698,
+        0.8314,
+        0.949
+      ],
+      "sha256_remote": "957ff33336fa392ff6dd19604fb8b702ded0dbfae76886332f8c377de14722c5"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_23.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3962,
+    "sha256": "186872d82ddc0f7ce1cbbb3232c0548cfbfc61528d907e6628996072c85a0d5f",
+    "extra": {
+      "sid": "Segment_23",
+      "name": "Segment_23",
+      "color": [
+        0.2667,
+        0.6745,
+        0.3922
+      ],
+      "sha256_remote": "186872d82ddc0f7ce1cbbb3232c0548cfbfc61528d907e6628996072c85a0d5f"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_24.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4223,
+    "sha256": "cbb5751b44acdb710ef761125fdac4656872365f29ecc01632addcd544405f96",
+    "extra": {
+      "sid": "Segment_24",
+      "name": "Segment_24",
+      "color": [
+        0.4353,
+        0.7725,
+        0.5137
+      ],
+      "sha256_remote": "cbb5751b44acdb710ef761125fdac4656872365f29ecc01632addcd544405f96"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_25.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4405,
+    "sha256": "fcfa61195196cfbac34600ead1128b52cb5eb5c2b48426996ee202f4d2072627",
+    "extra": {
+      "sid": "Segment_25",
+      "name": "Segment_25",
+      "color": [
+        0.3333,
+        0.7373,
+        1.0
+      ],
+      "sha256_remote": "fcfa61195196cfbac34600ead1128b52cb5eb5c2b48426996ee202f4d2072627"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_26.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3946,
+    "sha256": "15cffa063712101d9963339312b245eef757338f69135bc1a472290fbac2cc24",
+    "extra": {
+      "sid": "Segment_26",
+      "name": "Segment_26",
+      "color": [
+        0.0,
+        0.5686,
+        0.1176
+      ],
+      "sha256_remote": "15cffa063712101d9963339312b245eef757338f69135bc1a472290fbac2cc24"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_27.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3889,
+    "sha256": "60d58a0ccf40af4803f71c2e667a9d51a96e29dd966c8988a6f0a8b16f57d29c",
+    "extra": {
+      "sid": "Segment_27",
+      "name": "Segment_27",
+      "color": [
+        0.8392,
+        0.902,
+        0.5098
+      ],
+      "sha256_remote": "60d58a0ccf40af4803f71c2e667a9d51a96e29dd966c8988a6f0a8b16f57d29c"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_28.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3887,
+    "sha256": "e3d18e4585a071a6f9db601df89b986cfe663ef1c4484ce914f79de3efc7b479",
+    "extra": {
+      "sid": "Segment_28",
+      "name": "Segment_28",
+      "color": [
+        0.3059,
+        0.2471,
+        0.0
+      ],
+      "sha256_remote": "e3d18e4585a071a6f9db601df89b986cfe663ef1c4484ce914f79de3efc7b479"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_29.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4010,
+    "sha256": "895cccd91c812858eb4cc47d3c52d106cd80def1d38b5c3d26145821b814f5d8",
+    "extra": {
+      "sid": "Segment_29",
+      "name": "Segment_29",
+      "color": [
+        0.8549,
+        1.0,
+        1.0
+      ],
+      "sha256_remote": "895cccd91c812858eb4cc47d3c52d106cd80def1d38b5c3d26145821b814f5d8"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_30.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3888,
+    "sha256": "f6102288431fe8802978921ef0e72facd94c1d2ea0ee307d192ba6d0b7a3f0e6",
+    "extra": {
+      "sid": "Segment_30",
+      "name": "Segment_30",
+      "color": [
+        0.6667,
+        0.9804,
+        0.9804
+      ],
+      "sha256_remote": "f6102288431fe8802978921ef0e72facd94c1d2ea0ee307d192ba6d0b7a3f0e6"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_31.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4150,
+    "sha256": "b08515c37228cf1d5b619dd37fabf6da106c4d4fab5ac210737436342a27f082",
+    "extra": {
+      "sid": "Segment_31",
+      "name": "Segment_31",
+      "color": [
+        0.549,
+        0.8784,
+        0.8941
+      ],
+      "sha256_remote": "b08515c37228cf1d5b619dd37fabf6da106c4d4fab5ac210737436342a27f082"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_32.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3953,
+    "sha256": "595ad7bd5fa27096039fa25fbe118ea7acc6bd75bd5654eb76517b12f3c73b2f",
+    "extra": {
+      "sid": "Segment_32",
+      "name": "Segment_32",
+      "color": [
+        0.7373,
+        0.2549,
+        0.1098
+      ],
+      "sha256_remote": "595ad7bd5fa27096039fa25fbe118ea7acc6bd75bd5654eb76517b12f3c73b2f"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_33.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3953,
+    "sha256": "a8e043a90467c73fcfcc5cb08e362b4a9eb348f93f93ab53e5829fe0f886a092",
+    "extra": {
+      "sid": "Segment_33",
+      "name": "Segment_33",
+      "color": [
+        0.8471,
+        0.749,
+        0.8471
+      ],
+      "sha256_remote": "a8e043a90467c73fcfcc5cb08e362b4a9eb348f93f93ab53e5829fe0f886a092"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_34.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 6105,
+    "sha256": "d408651cef0d8ca8813aaeb2056c0ea6f0801d82431ec5f4471561ae9e50c9e4",
+    "extra": {
+      "sid": "Segment_34",
+      "name": "Segment_34",
+      "color": [
+        0.5686,
+        0.2353,
+        0.2588
+      ],
+      "sha256_remote": "d408651cef0d8ca8813aaeb2056c0ea6f0801d82431ec5f4471561ae9e50c9e4"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_35.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4844,
+    "sha256": "0669ff10e7c8e7153484bc28fc667932fd32db89de5567b9c75d72105b8d55c1",
+    "extra": {
+      "sid": "Segment_35",
+      "name": "Segment_35",
+      "color": [
+        0.5882,
+        0.3843,
+        0.3255
+      ],
+      "sha256_remote": "0669ff10e7c8e7153484bc28fc667932fd32db89de5567b9c75d72105b8d55c1"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_36.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3915,
+    "sha256": "56566a6ad53523574c6182def027cd4d046242634162108a217cc748bfe2e3db",
+    "extra": {
+      "sid": "Segment_36",
+      "name": "Segment_36",
+      "color": [
+        0.6941,
+        0.4784,
+        0.3961
+      ],
+      "sha256_remote": "56566a6ad53523574c6182def027cd4d046242634162108a217cc748bfe2e3db"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_37.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3973,
+    "sha256": "d2c8087341479171eab9002caf6c248535d2f253fa410b7ffe3d005a24ae1cac",
+    "extra": {
+      "sid": "Segment_37",
+      "name": "Segment_37",
+      "color": [
+        0.9569,
+        0.8392,
+        0.1922
+      ],
+      "sha256_remote": "d2c8087341479171eab9002caf6c248535d2f253fa410b7ffe3d005a24ae1cac"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_38.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4096,
+    "sha256": "408dc8d1a82cd36fa8bddc9fe3c895d6888171278b1d5249546ac72fb01eef64",
+    "extra": {
+      "sid": "Segment_38",
+      "name": "Segment_38",
+      "color": [
+        0.9804,
+        0.9804,
+        0.8824
+      ],
+      "sha256_remote": "408dc8d1a82cd36fa8bddc9fe3c895d6888171278b1d5249546ac72fb01eef64"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_39.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3910,
+    "sha256": "c7523e47db2292ff67e3038a4b21679ea8c194c08646868db6dd6e4b017680bb",
+    "extra": {
+      "sid": "Segment_39",
+      "name": "Segment_39",
+      "color": [
+        0.7843,
+        0.7843,
+        0.8431
+      ],
+      "sha256_remote": "c7523e47db2292ff67e3038a4b21679ea8c194c08646868db6dd6e4b017680bb"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_40.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3890,
+    "sha256": "3a2182daa14d5f3589e6f46e37ca023ff8652c72a4c74c7dff2d00888451beff",
+    "extra": {
+      "sid": "Segment_40",
+      "name": "Segment_40",
+      "color": [
+        0.2667,
+        0.5137,
+        0.3843
+      ],
+      "sha256_remote": "3a2182daa14d5f3589e6f46e37ca023ff8652c72a4c74c7dff2d00888451beff"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_41.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3889,
+    "sha256": "b12953a198b4fb0822bc71ffa94f358702b55463a4e639b39a9c46af9cfc22fc",
+    "extra": {
+      "sid": "Segment_41",
+      "name": "Segment_41",
+      "color": [
+        0.502,
+        0.6824,
+        0.502
+      ],
+      "sha256_remote": "b12953a198b4fb0822bc71ffa94f358702b55463a4e639b39a9c46af9cfc22fc"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_42.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3882,
+    "sha256": "a57c7bfce78f46b72e09a58ebb3c31995e241caf453848db2c7a217ff281edfc",
+    "extra": {
+      "sid": "Segment_42",
+      "name": "Segment_42",
+      "color": [
+        0.3255,
+        0.5725,
+        0.6431
+      ],
+      "sha256_remote": "a57c7bfce78f46b72e09a58ebb3c31995e241caf453848db2c7a217ff281edfc"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_43.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4011,
+    "sha256": "d761e98d978c7aad515840e03d390915846cef2cff413d88f6a6c9b05e09e18f",
+    "extra": {
+      "sid": "Segment_43",
+      "name": "Segment_43",
+      "color": [
+        0.3255,
+        0.5725,
+        0.6431
+      ],
+      "sha256_remote": "d761e98d978c7aad515840e03d390915846cef2cff413d88f6a6c9b05e09e18f"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_44.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3885,
+    "sha256": "40ec180cc5bd1f3ea657e984d9a666a867babcb9cd9e17e19ceffede762fc60d",
+    "extra": {
+      "sid": "Segment_44",
+      "name": "Segment_44",
+      "color": [
+        0.6353,
+        0.451,
+        0.4118
+      ],
+      "sha256_remote": "40ec180cc5bd1f3ea657e984d9a666a867babcb9cd9e17e19ceffede762fc60d"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_45.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3903,
+    "sha256": "e7b0f97b29ebf88c6966f155281f15303b0db8dbbfe6cd461f93b3fd88c46b94",
+    "extra": {
+      "sid": "Segment_45",
+      "name": "Segment_45",
+      "color": [
+        0.6353,
+        0.451,
+        0.4118
+      ],
+      "sha256_remote": "e7b0f97b29ebf88c6966f155281f15303b0db8dbbfe6cd461f93b3fd88c46b94"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_46.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3927,
+    "sha256": "06d0df937c2df8c9a6126d854146d73c48ee78dad45a2ea62af4046df9a6ee4d",
+    "extra": {
+      "sid": "Segment_46",
+      "name": "Segment_46",
+      "color": [
+        0.5529,
+        0.3647,
+        0.5373
+      ],
+      "sha256_remote": "06d0df937c2df8c9a6126d854146d73c48ee78dad45a2ea62af4046df9a6ee4d"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_47.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4111,
+    "sha256": "4c722ca1a7db13695a7913fd182fe682e4e17cda3a0ffebfc417b1af62986693",
+    "extra": {
+      "sid": "Segment_47",
+      "name": "Segment_47",
+      "color": [
+        0.5529,
+        0.3647,
+        0.5373
+      ],
+      "sha256_remote": "4c722ca1a7db13695a7913fd182fe682e4e17cda3a0ffebfc417b1af62986693"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_48.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4141,
+    "sha256": "d1608be0e21cc7166a94da5426c68aeb0228190ab1ba08cb58f11370f91d2398",
+    "extra": {
+      "sid": "Segment_48",
+      "name": "Segment_48",
+      "color": [
+        0.7137,
+        0.651,
+        0.4314
+      ],
+      "sha256_remote": "d1608be0e21cc7166a94da5426c68aeb0228190ab1ba08cb58f11370f91d2398"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_49.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3910,
+    "sha256": "dc23c4220ce560a57fbb5af5f048306652fca361d186fa8cd32aa23358aa7d55",
+    "extra": {
+      "sid": "Segment_49",
+      "name": "Segment_49",
+      "color": [
+        0.7137,
+        0.651,
+        0.4314
+      ],
+      "sha256_remote": "dc23c4220ce560a57fbb5af5f048306652fca361d186fa8cd32aa23358aa7d55"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_50.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4437,
+    "sha256": "9c0db7dd06657715e023912917ae93e33f6047a6eeeca6b0c9cb2d7608ffdaaa",
+    "extra": {
+      "sid": "Segment_50",
+      "name": "Segment_50",
+      "color": [
+        0.7373,
+        0.5294,
+        0.651
+      ],
+      "sha256_remote": "9c0db7dd06657715e023912917ae93e33f6047a6eeeca6b0c9cb2d7608ffdaaa"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_51.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4041,
+    "sha256": "00dedfb3f76ea984a79d4bc53ae6ceea20aa92b2ea996c97d4111f0ffb2843bf",
+    "extra": {
+      "sid": "Segment_51",
+      "name": "Segment_51",
+      "color": [
+        0.7373,
+        0.5294,
+        0.651
+      ],
+      "sha256_remote": "00dedfb3f76ea984a79d4bc53ae6ceea20aa92b2ea996c97d4111f0ffb2843bf"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_52.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4103,
+    "sha256": "9cb7de67259c0580b24c228babbdedc0b77a54662096c9ae59c2b1bf526101bc",
+    "extra": {
+      "sid": "Segment_52",
+      "name": "Segment_52",
+      "color": [
+        0.6039,
+        0.5882,
+        0.7882
+      ],
+      "sha256_remote": "9cb7de67259c0580b24c228babbdedc0b77a54662096c9ae59c2b1bf526101bc"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_53.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3909,
+    "sha256": "88f027b1fc7dc5bddfa6b39330e12165a57fb60a99be54ff80d0db8c89a9f819",
+    "extra": {
+      "sid": "Segment_53",
+      "name": "Segment_53",
+      "color": [
+        0.6039,
+        0.5882,
+        0.7882
+      ],
+      "sha256_remote": "88f027b1fc7dc5bddfa6b39330e12165a57fb60a99be54ff80d0db8c89a9f819"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_54.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3999,
+    "sha256": "2dc0de559d3c9d4ec193313bdae894741b710258d5656de32500bd897f555b85",
+    "extra": {
+      "sid": "Segment_54",
+      "name": "Segment_54",
+      "color": [
+        0.6941,
+        0.549,
+        0.7451
+      ],
+      "sha256_remote": "2dc0de559d3c9d4ec193313bdae894741b710258d5656de32500bd897f555b85"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_55.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4199,
+    "sha256": "e8aa9fb907153c5a6af57da0594d5828a3cd5c5e79e7a2587235b3bd4fd9b008",
+    "extra": {
+      "sid": "Segment_55",
+      "name": "Segment_55",
+      "color": [
+        0.6941,
+        0.549,
+        0.7451
+      ],
+      "sha256_remote": "e8aa9fb907153c5a6af57da0594d5828a3cd5c5e79e7a2587235b3bd4fd9b008"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_56.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3903,
+    "sha256": "b2008316bb888a5504fe9e80d026cdad11197ae56e0442cd3c9433256d5716e1",
+    "extra": {
+      "sid": "Segment_56",
+      "name": "Segment_56",
+      "color": [
+        0.1176,
+        0.4353,
+        0.3333
+      ],
+      "sha256_remote": "b2008316bb888a5504fe9e80d026cdad11197ae56e0442cd3c9433256d5716e1"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_57.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3924,
+    "sha256": "e812649cd7f188695ed0cd2cb685dba24d83fd825bd6adfba5bd03593e81f27d",
+    "extra": {
+      "sid": "Segment_57",
+      "name": "Segment_57",
+      "color": [
+        0.1176,
+        0.4353,
+        0.3333
+      ],
+      "sha256_remote": "e812649cd7f188695ed0cd2cb685dba24d83fd825bd6adfba5bd03593e81f27d"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_58.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3927,
+    "sha256": "fb109e238ce7cc046ee1cc6038212e7e0b170fc4a444c4989e0265a0e3c01efd",
+    "extra": {
+      "sid": "Segment_58",
+      "name": "Segment_58",
+      "color": [
+        0.8235,
+        0.6157,
+        0.651
+      ],
+      "sha256_remote": "fb109e238ce7cc046ee1cc6038212e7e0b170fc4a444c4989e0265a0e3c01efd"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_59.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3968,
+    "sha256": "1c295b322c8dd1b971dc82a266155eeb0d05f1a484674264829ff7207d817b97",
+    "extra": {
+      "sid": "Segment_59",
+      "name": "Segment_59",
+      "color": [
+        0.8235,
+        0.6157,
+        0.651
+      ],
+      "sha256_remote": "1c295b322c8dd1b971dc82a266155eeb0d05f1a484674264829ff7207d817b97"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_60.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 11671,
+    "sha256": "a8dd84ce113488ae6e1d298c12b99ded17e788fbe49cd5bf1ef1ade994393d11",
+    "extra": {
+      "sid": "Segment_60",
+      "name": "Segment_60",
+      "color": [
+        0.1882,
+        0.5059,
+        0.4941
+      ],
+      "sha256_remote": "a8dd84ce113488ae6e1d298c12b99ded17e788fbe49cd5bf1ef1ade994393d11"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_61.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3887,
+    "sha256": "79da2016fa6a019a72888113b597daf5326bf7a3eb09f1a47aed2e9984c0e1ae",
+    "extra": {
+      "sid": "Segment_61",
+      "name": "Segment_61",
+      "color": [
+        0.1882,
+        0.5059,
+        0.4941
+      ],
+      "sha256_remote": "79da2016fa6a019a72888113b597daf5326bf7a3eb09f1a47aed2e9984c0e1ae"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_62.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3936,
+    "sha256": "a093b21109c7857f99fe0f19680f40bf5709d684b96c4dd78ea67a66387a7179",
+    "extra": {
+      "sid": "Segment_62",
+      "name": "Segment_62",
+      "color": [
+        0.3843,
+        0.6,
+        0.4392
+      ],
+      "sha256_remote": "a093b21109c7857f99fe0f19680f40bf5709d684b96c4dd78ea67a66387a7179"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_63.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4723,
+    "sha256": "69a45d63e6fe4be82569821811ecec1bc9067abc688ef86ea6d9aa3ae0f5f97e",
+    "extra": {
+      "sid": "Segment_63",
+      "name": "Segment_63",
+      "color": [
+        0.3843,
+        0.6,
+        0.4392
+      ],
+      "sha256_remote": "69a45d63e6fe4be82569821811ecec1bc9067abc688ef86ea6d9aa3ae0f5f97e"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_64.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4030,
+    "sha256": "f07ba199d6888be33e1e5202dd7b1b77905adf08cea981aa79ef880cddba4f94",
+    "extra": {
+      "sid": "Segment_64",
+      "name": "Segment_64",
+      "color": [
+        0.2706,
+        0.4314,
+        0.2078
+      ],
+      "sha256_remote": "f07ba199d6888be33e1e5202dd7b1b77905adf08cea981aa79ef880cddba4f94"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_65.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3888,
+    "sha256": "7a599b336b3aeed971c26b427d7e665f92a814f72c82f34dc95fb82f6a3986dc",
+    "extra": {
+      "sid": "Segment_65",
+      "name": "Segment_65",
+      "color": [
+        0.651,
+        0.4431,
+        0.5373
+      ],
+      "sha256_remote": "7a599b336b3aeed971c26b427d7e665f92a814f72c82f34dc95fb82f6a3986dc"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_66.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3891,
+    "sha256": "ba15fde4c60d4472e0e6433ecd316651cb1d41e9a4a5db3d215594e1ac938bbb",
+    "extra": {
+      "sid": "Segment_66",
+      "name": "Segment_66",
+      "color": [
+        0.4784,
+        0.3961,
+        0.149
+      ],
+      "sha256_remote": "ba15fde4c60d4472e0e6433ecd316651cb1d41e9a4a5db3d215594e1ac938bbb"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_67.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3889,
+    "sha256": "16ee3c604f6706ee429cfcd427810f808be905c0ffd9473db9f2844a34ac6622",
+    "extra": {
+      "sid": "Segment_67",
+      "name": "Segment_67",
+      "color": [
+        0.4784,
+        0.3961,
+        0.149
+      ],
+      "sha256_remote": "16ee3c604f6706ee429cfcd427810f808be905c0ffd9473db9f2844a34ac6622"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_68.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3912,
+    "sha256": "d298d04723fb834a82e3579f097ca02eb1773c1914f6314b3edbbd265806f08b",
+    "extra": {
+      "sid": "Segment_68",
+      "name": "Segment_68",
+      "color": [
+        0.9922,
+        0.5294,
+        0.7529
+      ],
+      "sha256_remote": "d298d04723fb834a82e3579f097ca02eb1773c1914f6314b3edbbd265806f08b"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_69.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3932,
+    "sha256": "33bfee3cfebedcfb58ed2f72720387acbe6253410751c1bafb9193ea8f93b504",
+    "extra": {
+      "sid": "Segment_69",
+      "name": "Segment_69",
+      "color": [
+        0.5686,
+        0.3608,
+        0.4275
+      ],
+      "sha256_remote": "33bfee3cfebedcfb58ed2f72720387acbe6253410751c1bafb9193ea8f93b504"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_70.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3903,
+    "sha256": "c4110fece80e8a2663c23e593242aba92665f49f4546d8d3eaf86c81174a6272",
+    "extra": {
+      "sid": "Segment_70",
+      "name": "Segment_70",
+      "color": [
+        0.1804,
+        0.3961,
+        0.5137
+      ],
+      "sha256_remote": "c4110fece80e8a2663c23e593242aba92665f49f4546d8d3eaf86c81174a6272"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_71.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4130,
+    "sha256": "1f318702a7509485734967b483ad7597e56eb32edbea269c9ebb008e48c094ac",
+    "extra": {
+      "sid": "Segment_71",
+      "name": "Segment_71",
+      "color": [
+        0.0,
+        0.4235,
+        0.4392
+      ],
+      "sha256_remote": "1f318702a7509485734967b483ad7597e56eb32edbea269c9ebb008e48c094ac"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_72.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4005,
+    "sha256": "32334f72c1aed42df56bbde4e0c324a554a6c2ce377f83b5e2ead3cc2c579f9f",
+    "extra": {
+      "sid": "Segment_72",
+      "name": "Segment_72",
+      "color": [
+        0.0,
+        0.4235,
+        0.4392
+      ],
+      "sha256_remote": "32334f72c1aed42df56bbde4e0c324a554a6c2ce377f83b5e2ead3cc2c579f9f"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_73.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4470,
+    "sha256": "9727b728d58b44633325754d5ccb0721c46b4c072cf7eee9c2f50a17b9b470a6",
+    "extra": {
+      "sid": "Segment_73",
+      "name": "Segment_73",
+      "color": [
+        0.9804,
+        0.9804,
+        0.8824
+      ],
+      "sha256_remote": "9727b728d58b44633325754d5ccb0721c46b4c072cf7eee9c2f50a17b9b470a6"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_74.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3939,
+    "sha256": "7623683685440771fb351438c48e2a1ca73bf3492727b29e0a4494754abd49de",
+    "extra": {
+      "sid": "Segment_74",
+      "name": "Segment_74",
+      "color": [
+        0.498,
+        0.5882,
+        0.3451
+      ],
+      "sha256_remote": "7623683685440771fb351438c48e2a1ca73bf3492727b29e0a4494754abd49de"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_75.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3893,
+    "sha256": "4538254b85a45039bd59ed48d402c65501e462d98bd512695e5452d9ab7e1a77",
+    "extra": {
+      "sid": "Segment_75",
+      "name": "Segment_75",
+      "color": [
+        0.498,
+        0.5882,
+        0.3451
+      ],
+      "sha256_remote": "4538254b85a45039bd59ed48d402c65501e462d98bd512695e5452d9ab7e1a77"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_76.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3909,
+    "sha256": "f9365b460a99201167d9099007be8a8d384130910f69f19e5275b42316a8361e",
+    "extra": {
+      "sid": "Segment_76",
+      "name": "Segment_76",
+      "color": [
+        0.6235,
+        0.4549,
+        0.6392
+      ],
+      "sha256_remote": "f9365b460a99201167d9099007be8a8d384130910f69f19e5275b42316a8361e"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_77.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4090,
+    "sha256": "bee904a7a42cdbe8a154975378a8f5bc591f5988e7184d4ed91e5af31d2d2f2e",
+    "extra": {
+      "sid": "Segment_77",
+      "name": "Segment_77",
+      "color": [
+        0.6235,
+        0.4549,
+        0.6392
+      ],
+      "sha256_remote": "bee904a7a42cdbe8a154975378a8f5bc591f5988e7184d4ed91e5af31d2d2f2e"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_78.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3947,
+    "sha256": "ddab350e8eff68831459363cd766eef715e4336958edb435263ae38978ea3aa1",
+    "extra": {
+      "sid": "Segment_78",
+      "name": "Segment_78",
+      "color": [
+        0.4902,
+        0.4,
+        0.6039
+      ],
+      "sha256_remote": "ddab350e8eff68831459363cd766eef715e4336958edb435263ae38978ea3aa1"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_79.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3955,
+    "sha256": "1746276a3e6b0fd07d9dfff4c3800aeab885d1ad0b7c2c44f935a53b0bbbf1be",
+    "extra": {
+      "sid": "Segment_79",
+      "name": "Segment_79",
+      "color": [
+        0.4902,
+        0.4,
+        0.6039
+      ],
+      "sha256_remote": "1746276a3e6b0fd07d9dfff4c3800aeab885d1ad0b7c2c44f935a53b0bbbf1be"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_80.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4156,
+    "sha256": "169aa1c3714de7de9a503300342d083dbfd00cf298e834137fb0f27467d4e39a",
+    "extra": {
+      "sid": "Segment_80",
+      "name": "Segment_80",
+      "color": [
+        0.4157,
+        0.6824,
+        0.6078
+      ],
+      "sha256_remote": "169aa1c3714de7de9a503300342d083dbfd00cf298e834137fb0f27467d4e39a"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_81.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3987,
+    "sha256": "3fcd8ea5f0282fec1f9dd6f88bcfd15a7d95790e9e167a685428866a64eb6a5c",
+    "extra": {
+      "sid": "Segment_81",
+      "name": "Segment_81",
+      "color": [
+        0.4157,
+        0.6824,
+        0.6078
+      ],
+      "sha256_remote": "3fcd8ea5f0282fec1f9dd6f88bcfd15a7d95790e9e167a685428866a64eb6a5c"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_82.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3904,
+    "sha256": "2be9c67e71c8f9fa6f7c6a944936da0da82bfa6e87498df3365242a5f76d2d0c",
+    "extra": {
+      "sid": "Segment_82",
+      "name": "Segment_82",
+      "color": [
+        0.6039,
+        0.5725,
+        0.3255
+      ],
+      "sha256_remote": "2be9c67e71c8f9fa6f7c6a944936da0da82bfa6e87498df3365242a5f76d2d0c"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_83.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3999,
+    "sha256": "a12238f3f454d27ee3393e0e151c1faa4a64b6731af7bc43468660228dab60db",
+    "extra": {
+      "sid": "Segment_83",
+      "name": "Segment_83",
+      "color": [
+        0.6039,
+        0.5725,
+        0.3255
+      ],
+      "sha256_remote": "a12238f3f454d27ee3393e0e151c1faa4a64b6731af7bc43468660228dab60db"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_84.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3907,
+    "sha256": "92f6e98896d649bf02ec5eafbd95c8e463805b69fa9a02877aa901a03cc51672",
+    "extra": {
+      "sid": "Segment_84",
+      "name": "Segment_84",
+      "color": [
+        0.4941,
+        0.4941,
+        0.2157
+      ],
+      "sha256_remote": "92f6e98896d649bf02ec5eafbd95c8e463805b69fa9a02877aa901a03cc51672"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_85.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4708,
+    "sha256": "a29ac4d6de45ce2d8fb914b406048d0236406d8ecba515ddeeb906d882127338",
+    "extra": {
+      "sid": "Segment_85",
+      "name": "Segment_85",
+      "color": [
+        0.7882,
+        0.6275,
+        0.5216
+      ],
+      "sha256_remote": "a29ac4d6de45ce2d8fb914b406048d0236406d8ecba515ddeeb906d882127338"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_86.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3915,
+    "sha256": "838679e9aa526f5fe8c7ec3a29d59ca01688a46b83956ab0313131ad9b1d04e7",
+    "extra": {
+      "sid": "Segment_86",
+      "name": "Segment_86",
+      "color": [
+        0.7882,
+        0.6275,
+        0.5216
+      ],
+      "sha256_remote": "838679e9aa526f5fe8c7ec3a29d59ca01688a46b83956ab0313131ad9b1d04e7"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_87.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4039,
+    "sha256": "c25ed8cb14ddc7e139c6cef422c88cb0e44a9ad1ae5bd927f3ab460618a911c7",
+    "extra": {
+      "sid": "Segment_87",
+      "name": "Segment_87",
+      "color": [
+        0.3059,
+        0.5961,
+        0.5529
+      ],
+      "sha256_remote": "c25ed8cb14ddc7e139c6cef422c88cb0e44a9ad1ae5bd927f3ab460618a911c7"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_88.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3918,
+    "sha256": "38eec82688a0b3fcc3b662bb57d009631caab2f7aae8f6630da9014e70ef71c9",
+    "extra": {
+      "sid": "Segment_88",
+      "name": "Segment_88",
+      "color": [
+        0.3059,
+        0.5961,
+        0.5529
+      ],
+      "sha256_remote": "38eec82688a0b3fcc3b662bb57d009631caab2f7aae8f6630da9014e70ef71c9"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_89.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4175,
+    "sha256": "ec2dd389cf707d8273458785a5d2a0eb6bb684c1d636bf754cb78de0913b7c06",
+    "extra": {
+      "sid": "Segment_89",
+      "name": "Segment_89",
+      "color": [
+        0.6824,
+        0.549,
+        0.4039
+      ],
+      "sha256_remote": "ec2dd389cf707d8273458785a5d2a0eb6bb684c1d636bf754cb78de0913b7c06"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_90.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3911,
+    "sha256": "587d92915627c6723a8cf91795d5cafdd1d1e71f34d57f2de12a2758eddd0ae7",
+    "extra": {
+      "sid": "Segment_90",
+      "name": "Segment_90",
+      "color": [
+        0.6824,
+        0.549,
+        0.4039
+      ],
+      "sha256_remote": "587d92915627c6723a8cf91795d5cafdd1d1e71f34d57f2de12a2758eddd0ae7"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_91.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4588,
+    "sha256": "984831df4138b14bee7ce70cf767f1959ac9140feb7ebe5d0246271f9c188770",
+    "extra": {
+      "sid": "Segment_91",
+      "name": "Segment_91",
+      "color": [
+        0.5451,
+        0.4941,
+        0.6941
+      ],
+      "sha256_remote": "984831df4138b14bee7ce70cf767f1959ac9140feb7ebe5d0246271f9c188770"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_92.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3981,
+    "sha256": "973e17602f7ed1d19c617d016e0868edf28067426e358c89a717412b53396632",
+    "extra": {
+      "sid": "Segment_92",
+      "name": "Segment_92",
+      "color": [
+        0.5451,
+        0.4941,
+        0.6941
+      ],
+      "sha256_remote": "973e17602f7ed1d19c617d016e0868edf28067426e358c89a717412b53396632"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_93.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3917,
+    "sha256": "805bdedcb6c98124e431a2f8676243e80e7bdc0dab4700efcbfb59bbf603042e",
+    "extra": {
+      "sid": "Segment_93",
+      "name": "Segment_93",
+      "color": [
+        0.5804,
+        0.4706,
+        0.2824
+      ],
+      "sha256_remote": "805bdedcb6c98124e431a2f8676243e80e7bdc0dab4700efcbfb59bbf603042e"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_94.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3888,
+    "sha256": "3b713e0c61c92a37d003f7c41fccf1f336c2c73d6098b0b36581713a88123e08",
+    "extra": {
+      "sid": "Segment_94",
+      "name": "Segment_94",
+      "color": [
+        0.5804,
+        0.4706,
+        0.2824
+      ],
+      "sha256_remote": "3b713e0c61c92a37d003f7c41fccf1f336c2c73d6098b0b36581713a88123e08"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_95.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3899,
+    "sha256": "a9f113e0f8b93537fe13578aaf4e8a738225aac39c8e27bd582ad40f6f6c7957",
+    "extra": {
+      "sid": "Segment_95",
+      "name": "Segment_95",
+      "color": [
+        0.7294,
+        0.5294,
+        0.5294
+      ],
+      "sha256_remote": "a9f113e0f8b93537fe13578aaf4e8a738225aac39c8e27bd582ad40f6f6c7957"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_96.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3960,
+    "sha256": "4388c1a142fe91125c8936af2fd5f700cf82dceba19e7ba5911330ed0c283759",
+    "extra": {
+      "sid": "Segment_96",
+      "name": "Segment_96",
+      "color": [
+        0.7294,
+        0.5294,
+        0.5294
+      ],
+      "sha256_remote": "4388c1a142fe91125c8936af2fd5f700cf82dceba19e7ba5911330ed0c283759"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_97.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3900,
+    "sha256": "f9236acd032413e53d593054c550be305fd09e76acd8ddb478bb034745a2cc57",
+    "extra": {
+      "sid": "Segment_97",
+      "name": "Segment_97",
+      "color": [
+        0.3882,
+        0.4157,
+        0.0941
+      ],
+      "sha256_remote": "f9236acd032413e53d593054c550be305fd09e76acd8ddb478bb034745a2cc57"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_98.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3925,
+    "sha256": "ddc807f96bef77c86bfa46afb46eca4477d18b7fafae051085b8b27406776224",
+    "extra": {
+      "sid": "Segment_98",
+      "name": "Segment_98",
+      "color": [
+        0.6118,
+        0.6706,
+        0.4235
+      ],
+      "sha256_remote": "ddc807f96bef77c86bfa46afb46eca4477d18b7fafae051085b8b27406776224"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_99.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3912,
+    "sha256": "d007fa43618a0290324cf58652ceb6760a1f2909b8ff0bc1c3aa4a3c7bb4807b",
+    "extra": {
+      "sid": "Segment_99",
+      "name": "Segment_99",
+      "color": [
+        0.6118,
+        0.6706,
+        0.4235
+      ],
+      "sha256_remote": "d007fa43618a0290324cf58652ceb6760a1f2909b8ff0bc1c3aa4a3c7bb4807b"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_100.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3941,
+    "sha256": "24c9a42b09a08afd67fd7c113160f30e02dae9a8d0830efb80d7d7471f91bcd5",
+    "extra": {
+      "sid": "Segment_100",
+      "name": "Segment_100",
+      "color": [
+        0.251,
+        0.4824,
+        0.5765
+      ],
+      "sha256_remote": "24c9a42b09a08afd67fd7c113160f30e02dae9a8d0830efb80d7d7471f91bcd5"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_101.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3914,
+    "sha256": "f104b21315ee16e13238a57c7efcd73921ec428f6b231e8a43892521b6ce0e88",
+    "extra": {
+      "sid": "Segment_101",
+      "name": "Segment_101",
+      "color": [
+        0.251,
+        0.4824,
+        0.5765
+      ],
+      "sha256_remote": "f104b21315ee16e13238a57c7efcd73921ec428f6b231e8a43892521b6ce0e88"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_102.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3995,
+    "sha256": "bfdb592b5235f3cf45d358e76795ddaa70d729187427e51bc14b3f56340a1085",
+    "extra": {
+      "sid": "Segment_102",
+      "name": "Segment_102",
+      "color": [
+        0.5412,
+        0.3725,
+        0.2902
+      ],
+      "sha256_remote": "bfdb592b5235f3cf45d358e76795ddaa70d729187427e51bc14b3f56340a1085"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_103.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3918,
+    "sha256": "b4276089d721767c45c6f168215958a6971fc01eedf633b44775d82b49712210",
+    "extra": {
+      "sid": "Segment_103",
+      "name": "Segment_103",
+      "color": [
+        0.3804,
+        0.4431,
+        0.6196
+      ],
+      "sha256_remote": "b4276089d721767c45c6f168215958a6971fc01eedf633b44775d82b49712210"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_104.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3898,
+    "sha256": "3dd0ff74621080f12b6e1dc0d2e00ce47eec91984bee13d29d0b73630bfb2dea",
+    "extra": {
+      "sid": "Segment_104",
+      "name": "Segment_104",
+      "color": [
+        0.4941,
+        0.6314,
+        0.7725
+      ],
+      "sha256_remote": "3dd0ff74621080f12b6e1dc0d2e00ce47eec91984bee13d29d0b73630bfb2dea"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_105.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3960,
+    "sha256": "5b9d30374cd8bfa01de9fc174aa8f47d081a15a559d53000924d27680963d9ae",
+    "extra": {
+      "sid": "Segment_105",
+      "name": "Segment_105",
+      "color": [
+        0.7608,
+        0.7647,
+        0.6431
+      ],
+      "sha256_remote": "5b9d30374cd8bfa01de9fc174aa8f47d081a15a559d53000924d27680963d9ae"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_106.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4023,
+    "sha256": "510dc601de185ed293d8159a057b3e49a7ed0d596a458f90a06900c1df63b866",
+    "extra": {
+      "sid": "Segment_106",
+      "name": "Segment_106",
+      "color": [
+        0.3333,
+        0.7373,
+        1.0
+      ],
+      "sha256_remote": "510dc601de185ed293d8159a057b3e49a7ed0d596a458f90a06900c1df63b866"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_107.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3921,
+    "sha256": "1b43406f341883d52b81db171036d32f485d32c6b48a049934d709c9b5eb9156",
+    "extra": {
+      "sid": "Segment_107",
+      "name": "Segment_107",
+      "color": [
+        0.3451,
+        0.4157,
+        0.8431
+      ],
+      "sha256_remote": "1b43406f341883d52b81db171036d32f485d32c6b48a049934d709c9b5eb9156"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_108.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3899,
+    "sha256": "1697b34dd1cfd1b8a3d9ef45e4d22182bb65d12678ce04397033e87bf29278e1",
+    "extra": {
+      "sid": "Segment_108",
+      "name": "Segment_108",
+      "color": [
+        0.3451,
+        0.4157,
+        0.8431
+      ],
+      "sha256_remote": "1697b34dd1cfd1b8a3d9ef45e4d22182bb65d12678ce04397033e87bf29278e1"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_109.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3899,
+    "sha256": "eab1b1957b69166b7c301d94fae576fcdfaca026ea1e8ac9c44185206a4a5bee",
+    "extra": {
+      "sid": "Segment_109",
+      "name": "Segment_109",
+      "color": [
+        0.3451,
+        0.4157,
+        0.8431
+      ],
+      "sha256_remote": "eab1b1957b69166b7c301d94fae576fcdfaca026ea1e8ac9c44185206a4a5bee"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_110.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3888,
+    "sha256": "d3906ead58456cf0f427f4260a7beb2ab5da76eb066cf988d6cb199dbf911975",
+    "extra": {
+      "sid": "Segment_110",
+      "name": "Segment_110",
+      "color": [
+        0.3451,
+        0.4157,
+        0.8431
+      ],
+      "sha256_remote": "d3906ead58456cf0f427f4260a7beb2ab5da76eb066cf988d6cb199dbf911975"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_111.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3954,
+    "sha256": "aa41af6b79e99a6917d785b09ac1b48511d980997e8663f48f402fef008f2078",
+    "extra": {
+      "sid": "Segment_111",
+      "name": "Segment_111",
+      "color": [
+        0.3451,
+        0.4157,
+        0.8431
+      ],
+      "sha256_remote": "aa41af6b79e99a6917d785b09ac1b48511d980997e8663f48f402fef008f2078"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_112.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3895,
+    "sha256": "1b4b04071ef4e4022c0664060ec0e1cc65640547a8068a1e04f1bce00ea47fc7",
+    "extra": {
+      "sid": "Segment_112",
+      "name": "Segment_112",
+      "color": [
+        0.3451,
+        0.4157,
+        0.8431
+      ],
+      "sha256_remote": "1b4b04071ef4e4022c0664060ec0e1cc65640547a8068a1e04f1bce00ea47fc7"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_113.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3885,
+    "sha256": "84208b8921bfe39aa0dd4a3b2f4e268034bc07f2c81f5ffda6f20089baf4759e",
+    "extra": {
+      "sid": "Segment_113",
+      "name": "Segment_113",
+      "color": [
+        0.3451,
+        0.4157,
+        0.8431
+      ],
+      "sha256_remote": "84208b8921bfe39aa0dd4a3b2f4e268034bc07f2c81f5ffda6f20089baf4759e"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_114.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3885,
+    "sha256": "975c13eadf082e227e5a86672a816c0386a28ec00ffc1906dc69e4cfde61ac5e",
+    "extra": {
+      "sid": "Segment_114",
+      "name": "Segment_114",
+      "color": [
+        0.3451,
+        0.4157,
+        0.8431
+      ],
+      "sha256_remote": "975c13eadf082e227e5a86672a816c0386a28ec00ffc1906dc69e4cfde61ac5e"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_115.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4289,
+    "sha256": "897daaa85a050a44791bc33196890ef0cde95cc88d60f4927c53435565a8a881",
+    "extra": {
+      "sid": "Segment_115",
+      "name": "Segment_115",
+      "color": [
+        0.9569,
+        0.8392,
+        0.1922
+      ],
+      "sha256_remote": "897daaa85a050a44791bc33196890ef0cde95cc88d60f4927c53435565a8a881"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_116.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3892,
+    "sha256": "3ada0dc15c97afd3d3435e88a876a9c4b956019836b6e49f00284a1c20f5ba6c",
+    "extra": {
+      "sid": "Segment_116",
+      "name": "Segment_116",
+      "color": [
+        0.7843,
+        0.7843,
+        0.8431
+      ],
+      "sha256_remote": "3ada0dc15c97afd3d3435e88a876a9c4b956019836b6e49f00284a1c20f5ba6c"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_117.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3896,
+    "sha256": "39a83604e4c55ebb8c24cadc56371043b1f508dea364d5610ae8c7a529ac258c",
+    "extra": {
+      "sid": "Segment_117",
+      "name": "Segment_117",
+      "color": [
+        0.9804,
+        0.9804,
+        0.8824
+      ],
+      "sha256_remote": "39a83604e4c55ebb8c24cadc56371043b1f508dea364d5610ae8c7a529ac258c"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_118.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3891,
+    "sha256": "c31ab751cb5089d2bafb69298ef9ba4eff53a34242d77ca68d0e862050dfd996",
+    "extra": {
+      "sid": "Segment_118",
+      "name": "Segment_118",
+      "color": [
+        0.3216,
+        0.6824,
+        0.502
+      ],
+      "sha256_remote": "c31ab751cb5089d2bafb69298ef9ba4eff53a34242d77ca68d0e862050dfd996"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_119.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3905,
+    "sha256": "e1821546fe2c176a5e27813591271657ce58e280cbb51f8b0b7c91f64a887adc",
+    "extra": {
+      "sid": "Segment_119",
+      "name": "Segment_119",
+      "color": [
+        0.2235,
+        0.6157,
+        0.4314
+      ],
+      "sha256_remote": "e1821546fe2c176a5e27813591271657ce58e280cbb51f8b0b7c91f64a887adc"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_120.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4493,
+    "sha256": "d05f1c5936f8e3562fcbdcbfd8e191b48e67dadcfb69e49f0539c821922062b1",
+    "extra": {
+      "sid": "Segment_120",
+      "name": "Segment_120",
+      "color": [
+        0.2353,
+        0.5608,
+        0.3255
+      ],
+      "sha256_remote": "d05f1c5936f8e3562fcbdcbfd8e191b48e67dadcfb69e49f0539c821922062b1"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_121.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3940,
+    "sha256": "dd45909effa7332865cddca0d58c4660c536861f2700c416ff96734be8393691",
+    "extra": {
+      "sid": "Segment_121",
+      "name": "Segment_121",
+      "color": [
+        0.3608,
+        0.6353,
+        0.4275
+      ],
+      "sha256_remote": "dd45909effa7332865cddca0d58c4660c536861f2700c416ff96734be8393691"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_122.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4399,
+    "sha256": "7af22e77413750aecc2856b3b3050bee57bae34f195e952385880c5d84f6bba1",
+    "extra": {
+      "sid": "Segment_122",
+      "name": "Segment_122",
+      "color": [
+        1.0,
+        0.9569,
+        0.8196
+      ],
+      "sha256_remote": "7af22e77413750aecc2856b3b3050bee57bae34f195e952385880c5d84f6bba1"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_123.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3979,
+    "sha256": "08950d66d94a65924384815446348841cab7ef2c25f88bf7b8de58876956c82f",
+    "extra": {
+      "sid": "Segment_123",
+      "name": "Segment_123",
+      "color": [
+        1.0,
+        0.9569,
+        0.8196
+      ],
+      "sha256_remote": "08950d66d94a65924384815446348841cab7ef2c25f88bf7b8de58876956c82f"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_124.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3877,
+    "sha256": "51a4c9979c3733c784f5219a617fc837570b970b874a2b64074a08de34f9bb5d",
+    "extra": {
+      "sid": "Segment_124",
+      "name": "Segment_124",
+      "color": [
+        1.0,
+        0.9569,
+        0.8196
+      ],
+      "sha256_remote": "51a4c9979c3733c784f5219a617fc837570b970b874a2b64074a08de34f9bb5d"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_125.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3972,
+    "sha256": "d0214f4c4ee4634bf156e29a6a2b079318060427c56ca381df505aebccc854f7",
+    "extra": {
+      "sid": "Segment_125",
+      "name": "Segment_125",
+      "color": [
+        1.0,
+        0.9569,
+        0.8196
+      ],
+      "sha256_remote": "d0214f4c4ee4634bf156e29a6a2b079318060427c56ca381df505aebccc854f7"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_126.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3884,
+    "sha256": "9ddc852bdd280cbb4c24c7e090e40c6a8e14faff15c05e6004cee9772ae05e6c",
+    "extra": {
+      "sid": "Segment_126",
+      "name": "Segment_126",
+      "color": [
+        0.7882,
+        0.4745,
+        0.302
+      ],
+      "sha256_remote": "9ddc852bdd280cbb4c24c7e090e40c6a8e14faff15c05e6004cee9772ae05e6c"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_127.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3902,
+    "sha256": "62cb6a43bb5d6b0a101d587418faf0b24b43b8ca20a69eb9162a8f695b106396",
+    "extra": {
+      "sid": "Segment_127",
+      "name": "Segment_127",
+      "color": [
+        0.2745,
+        0.6392,
+        0.4588
+      ],
+      "sha256_remote": "62cb6a43bb5d6b0a101d587418faf0b24b43b8ca20a69eb9162a8f695b106396"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_128.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3903,
+    "sha256": "639bb1b106745ef9ed2bef1326f7e1e58bde1aca2debb6046c2446d90bf19645",
+    "extra": {
+      "sid": "Segment_128",
+      "name": "Segment_128",
+      "color": [
+        0.7373,
+        0.3569,
+        0.3725
+      ],
+      "sha256_remote": "639bb1b106745ef9ed2bef1326f7e1e58bde1aca2debb6046c2446d90bf19645"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_129.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3923,
+    "sha256": "372f47e135aa522ebd22fc1cf6e6275a02717795d6c10d6eaf46e17c84c92524",
+    "extra": {
+      "sid": "Segment_129",
+      "name": "Segment_129",
+      "color": [
+        0.6941,
+        0.4784,
+        0.3961
+      ],
+      "sha256_remote": "372f47e135aa522ebd22fc1cf6e6275a02717795d6c10d6eaf46e17c84c92524"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_130.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3889,
+    "sha256": "0964d78e6c241b5c93e9d1b8cd5cf512176436e54a003d6f71c906c3f3c940b9",
+    "extra": {
+      "sid": "Segment_130",
+      "name": "Segment_130",
+      "color": [
+        0.651,
+        0.3294,
+        0.3686
+      ],
+      "sha256_remote": "0964d78e6c241b5c93e9d1b8cd5cf512176436e54a003d6f71c906c3f3c940b9"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_131.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3898,
+    "sha256": "15466ad28a3b079490696d783225d5a6caff379e7f797bd981dac0a712df54d1",
+    "extra": {
+      "sid": "Segment_131",
+      "name": "Segment_131",
+      "color": [
+        0.7137,
+        0.4118,
+        0.4196
+      ],
+      "sha256_remote": "15466ad28a3b079490696d783225d5a6caff379e7f797bd981dac0a712df54d1"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_132.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3910,
+    "sha256": "499a5ad1f652071587667abed3a04758d88575ca12ec3856bb5d1c3e876e2642",
+    "extra": {
+      "sid": "Segment_132",
+      "name": "Segment_132",
+      "color": [
+        0.898,
+        0.5765,
+        0.4627
+      ],
+      "sha256_remote": "499a5ad1f652071587667abed3a04758d88575ca12ec3856bb5d1c3e876e2642"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_133.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3895,
+    "sha256": "f8c48656db9c061bef0ade0d4e65ec01163a576f1d224ebe8892fbb3daed39a2",
+    "extra": {
+      "sid": "Segment_133",
+      "name": "Segment_133",
+      "color": [
+        0.898,
+        0.5765,
+        0.4627
+      ],
+      "sha256_remote": "f8c48656db9c061bef0ade0d4e65ec01163a576f1d224ebe8892fbb3daed39a2"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_134.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4105,
+    "sha256": "3c5a7091091ae8334ed4c3bb79003c94718ae4c4402e3cb235def99fd3305875",
+    "extra": {
+      "sid": "Segment_134",
+      "name": "Segment_134",
+      "color": [
+        0.6824,
+        0.4784,
+        0.3529
+      ],
+      "sha256_remote": "3c5a7091091ae8334ed4c3bb79003c94718ae4c4402e3cb235def99fd3305875"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_135.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3891,
+    "sha256": "6e92d7ea189c8e40e54503c47d5751f43346ba5a39b75c8fa62853fc2b8efeff",
+    "extra": {
+      "sid": "Segment_135",
+      "name": "Segment_135",
+      "color": [
+        0.6824,
+        0.4784,
+        0.3529
+      ],
+      "sha256_remote": "6e92d7ea189c8e40e54503c47d5751f43346ba5a39b75c8fa62853fc2b8efeff"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_136.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4324,
+    "sha256": "01d269c15331ed151160663fb79aec5dc3307be650c25bd63792dda4f8db8b67",
+    "extra": {
+      "sid": "Segment_136",
+      "name": "Segment_136",
+      "color": [
+        0.7882,
+        0.4392,
+        0.2863
+      ],
+      "sha256_remote": "01d269c15331ed151160663fb79aec5dc3307be650c25bd63792dda4f8db8b67"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_137.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3947,
+    "sha256": "55d73a532f3efff358b31818661088c2a1f8d3488b9416aad854305c50e7f3c0",
+    "extra": {
+      "sid": "Segment_137",
+      "name": "Segment_137",
+      "color": [
+        0.7882,
+        0.4392,
+        0.2863
+      ],
+      "sha256_remote": "55d73a532f3efff358b31818661088c2a1f8d3488b9416aad854305c50e7f3c0"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_138.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3907,
+    "sha256": "fc2e7fe7fb219af555c81a2354778c4e6260fed9eb91e5ae7e0462a69201c467",
+    "extra": {
+      "sid": "Segment_138",
+      "name": "Segment_138",
+      "color": [
+        0.7608,
+        0.5569,
+        0.0
+      ],
+      "sha256_remote": "fc2e7fe7fb219af555c81a2354778c4e6260fed9eb91e5ae7e0462a69201c467"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_139.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3896,
+    "sha256": "fdf5b22b7cdd8c47d1d612acfc8728015de9f084e949efd50412bebb719f0eaa",
+    "extra": {
+      "sid": "Segment_139",
+      "name": "Segment_139",
+      "color": [
+        0.7608,
+        0.5569,
+        0.0
+      ],
+      "sha256_remote": "fdf5b22b7cdd8c47d1d612acfc8728015de9f084e949efd50412bebb719f0eaa"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_140.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3880,
+    "sha256": "4abff83d6592f5f118fdba15f1a311c9ea7de80b7d163cd4807214189be8e4eb",
+    "extra": {
+      "sid": "Segment_140",
+      "name": "Segment_140",
+      "color": [
+        0.9451,
+        0.8353,
+        0.5647
+      ],
+      "sha256_remote": "4abff83d6592f5f118fdba15f1a311c9ea7de80b7d163cd4807214189be8e4eb"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_141.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4117,
+    "sha256": "8c8c1dca43b84850279fe12790e7ca1a8030c44fa873fa8802d30d15c432003a",
+    "extra": {
+      "sid": "Segment_141",
+      "name": "Segment_141",
+      "color": [
+        0.7961,
+        0.702,
+        0.302
+      ],
+      "sha256_remote": "8c8c1dca43b84850279fe12790e7ca1a8030c44fa873fa8802d30d15c432003a"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_142.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3888,
+    "sha256": "4b0a0dc2f0d16fa4a0c7b8bbddc2c904b4dfe46a2e3f7ac2b916a89c564adbd8",
+    "extra": {
+      "sid": "Segment_142",
+      "name": "Segment_142",
+      "color": [
+        0.7961,
+        0.702,
+        0.302
+      ],
+      "sha256_remote": "4b0a0dc2f0d16fa4a0c7b8bbddc2c904b4dfe46a2e3f7ac2b916a89c564adbd8"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_143.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3963,
+    "sha256": "cbbcc794f6ce3b2f76cc11043fee6e902c01f5aad3eda7e7c72236aea3567ea3",
+    "extra": {
+      "sid": "Segment_143",
+      "name": "Segment_143",
+      "color": [
+        0.898,
+        0.8,
+        0.4275
+      ],
+      "sha256_remote": "cbbcc794f6ce3b2f76cc11043fee6e902c01f5aad3eda7e7c72236aea3567ea3"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_144.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3905,
+    "sha256": "f7e10f07c1ebad1421619682677c7796422a2ec55662afa2de7b8b44fbf8a8d1",
+    "extra": {
+      "sid": "Segment_144",
+      "name": "Segment_144",
+      "color": [
+        0.898,
+        0.8,
+        0.4275
+      ],
+      "sha256_remote": "f7e10f07c1ebad1421619682677c7796422a2ec55662afa2de7b8b44fbf8a8d1"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_145.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3891,
+    "sha256": "d8ad9bbc34b449c015347fb2c8f0566ff9967da266632a38db760979c751f04b",
+    "extra": {
+      "sid": "Segment_145",
+      "name": "Segment_145",
+      "color": [
+        1.0,
+        0.9529,
+        0.5961
+      ],
+      "sha256_remote": "d8ad9bbc34b449c015347fb2c8f0566ff9967da266632a38db760979c751f04b"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_146.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3883,
+    "sha256": "da99764232a75d8fb6634f9ae820e73730a10ecafd0f19d99838d911d7b95fa1",
+    "extra": {
+      "sid": "Segment_146",
+      "name": "Segment_146",
+      "color": [
+        1.0,
+        0.9529,
+        0.5961
+      ],
+      "sha256_remote": "da99764232a75d8fb6634f9ae820e73730a10ecafd0f19d99838d911d7b95fa1"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_147.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3902,
+    "sha256": "0cbbb917b8f077db1d80452604af45209f25e1e2dfd4966e1407f1b0e3b24452",
+    "extra": {
+      "sid": "Segment_147",
+      "name": "Segment_147",
+      "color": [
+        0.8196,
+        0.7255,
+        0.3333
+      ],
+      "sha256_remote": "0cbbb917b8f077db1d80452604af45209f25e1e2dfd4966e1407f1b0e3b24452"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_148.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3938,
+    "sha256": "1371edfbfadaafa426a3f2085948b62208edf841e1428cef29969557113351d6",
+    "extra": {
+      "sid": "Segment_148",
+      "name": "Segment_148",
+      "color": [
+        0.8196,
+        0.7255,
+        0.3333
+      ],
+      "sha256_remote": "1371edfbfadaafa426a3f2085948b62208edf841e1428cef29969557113351d6"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_149.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3883,
+    "sha256": "f1f2df7cdb2560032b2596ade0f46778a98152230706dbca82182f0df2b0d3dc",
+    "extra": {
+      "sid": "Segment_149",
+      "name": "Segment_149",
+      "color": [
+        0.9725,
+        0.8745,
+        0.5137
+      ],
+      "sha256_remote": "f1f2df7cdb2560032b2596ade0f46778a98152230706dbca82182f0df2b0d3dc"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_150.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3885,
+    "sha256": "d9857b74d4679885ebfc404fb449ad4d527388056d8207b239d6a48756c45e1c",
+    "extra": {
+      "sid": "Segment_150",
+      "name": "Segment_150",
+      "color": [
+        0.9725,
+        0.8745,
+        0.5137
+      ],
+      "sha256_remote": "d9857b74d4679885ebfc404fb449ad4d527388056d8207b239d6a48756c45e1c"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_151.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3896,
+    "sha256": "8d7e58ac610e9f8c99c2800a0009db6e23b7c5a6d02a65ddd92f047e0471f157",
+    "extra": {
+      "sid": "Segment_151",
+      "name": "Segment_151",
+      "color": [
+        1.0,
+        0.902,
+        0.5412
+      ],
+      "sha256_remote": "8d7e58ac610e9f8c99c2800a0009db6e23b7c5a6d02a65ddd92f047e0471f157"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_152.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4285,
+    "sha256": "8e6ef5a364039bd6024b5ff062d8d98d19d992692ced934628079f6ce9f6f8b4",
+    "extra": {
+      "sid": "Segment_152",
+      "name": "Segment_152",
+      "color": [
+        0.7686,
+        0.6745,
+        0.2667
+      ],
+      "sha256_remote": "8e6ef5a364039bd6024b5ff062d8d98d19d992692ced934628079f6ce9f6f8b4"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_153.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3933,
+    "sha256": "48e7112c7162082c2d57188d7ef93fb235371a0423a27ee6cbe0e12e8da05a19",
+    "extra": {
+      "sid": "Segment_153",
+      "name": "Segment_153",
+      "color": [
+        1.0,
+        1.0,
+        0.6549
+      ],
+      "sha256_remote": "48e7112c7162082c2d57188d7ef93fb235371a0423a27ee6cbe0e12e8da05a19"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_154.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4447,
+    "sha256": "60c680ba638b822391803baa675a7ce316091ed02b80e1b828fc04477e5d8f97",
+    "extra": {
+      "sid": "Segment_154",
+      "name": "Segment_154",
+      "color": [
+        1.0,
+        0.9804,
+        0.6275
+      ],
+      "sha256_remote": "60c680ba638b822391803baa675a7ce316091ed02b80e1b828fc04477e5d8f97"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_155.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3910,
+    "sha256": "0ba4b23f39af10c85500a76a5c28ae0b7317618aee18e6d6c39e7224389848b9",
+    "extra": {
+      "sid": "Segment_155",
+      "name": "Segment_155",
+      "color": [
+        1.0,
+        0.9294,
+        0.5686
+      ],
+      "sha256_remote": "0ba4b23f39af10c85500a76a5c28ae0b7317618aee18e6d6c39e7224389848b9"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_156.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3895,
+    "sha256": "de19788ab9a6efac7d502ec46bfb5fa6d3223a904bd1874e1e0b46ee930dac27",
+    "extra": {
+      "sid": "Segment_156",
+      "name": "Segment_156",
+      "color": [
+        0.949,
+        0.851,
+        0.4824
+      ],
+      "sha256_remote": "de19788ab9a6efac7d502ec46bfb5fa6d3223a904bd1874e1e0b46ee930dac27"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_157.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3951,
+    "sha256": "8a8181fc0147179f1b53b5d8ab030976bc58050c607dfb7580ea69a2cf1ef5d5",
+    "extra": {
+      "sid": "Segment_157",
+      "name": "Segment_157",
+      "color": [
+        0.949,
+        0.851,
+        0.4824
+      ],
+      "sha256_remote": "8a8181fc0147179f1b53b5d8ab030976bc58050c607dfb7580ea69a2cf1ef5d5"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_158.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3891,
+    "sha256": "92a146c9307a8b7f90aef1d575f5b61d055ddd96e6a8ae716534bf18a12aa846",
+    "extra": {
+      "sid": "Segment_158",
+      "name": "Segment_158",
+      "color": [
+        0.8706,
+        0.7765,
+        0.3961
+      ],
+      "sha256_remote": "92a146c9307a8b7f90aef1d575f5b61d055ddd96e6a8ae716534bf18a12aa846"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_159.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3888,
+    "sha256": "9c68662f3e30918f1924c5db19f1868abec03d1a0e81b1474a09319b02032d07",
+    "extra": {
+      "sid": "Segment_159",
+      "name": "Segment_159",
+      "color": [
+        0.6941,
+        0.4784,
+        0.3961
+      ],
+      "sha256_remote": "9c68662f3e30918f1924c5db19f1868abec03d1a0e81b1474a09319b02032d07"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_160.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3890,
+    "sha256": "fc83b959674227644a4366143bab7ecad70fe5694d01844a739fc63e535f10fc",
+    "extra": {
+      "sid": "Segment_160",
+      "name": "Segment_160",
+      "color": [
+        0.8353,
+        0.4863,
+        0.4275
+      ],
+      "sha256_remote": "fc83b959674227644a4366143bab7ecad70fe5694d01844a739fc63e535f10fc"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_161.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3886,
+    "sha256": "dd389ae164355154b0bd428886bd6423b5625d8a503f6b7a6c32ae44f6d7c417",
+    "extra": {
+      "sid": "Segment_161",
+      "name": "Segment_161",
+      "color": [
+        0.7216,
+        0.4118,
+        0.4235
+      ],
+      "sha256_remote": "dd389ae164355154b0bd428886bd6423b5625d8a503f6b7a6c32ae44f6d7c417"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_162.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3884,
+    "sha256": "bcbd8e681803bd6382b8b87011f7ef00ebe98011179ee0edd2a559bbeb68cfdb",
+    "extra": {
+      "sid": "Segment_162",
+      "name": "Segment_162",
+      "color": [
+        0.5882,
+        0.8157,
+        0.9529
+      ],
+      "sha256_remote": "bcbd8e681803bd6382b8b87011f7ef00ebe98011179ee0edd2a559bbeb68cfdb"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_163.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3928,
+    "sha256": "c0032758de38dbafc626676f2d8001da85e89e19858a0de1e51dd3a5fbcbfa4d",
+    "extra": {
+      "sid": "Segment_163",
+      "name": "Segment_163",
+      "color": [
+        0.2431,
+        0.6353,
+        0.4471
+      ],
+      "sha256_remote": "c0032758de38dbafc626676f2d8001da85e89e19858a0de1e51dd3a5fbcbfa4d"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_164.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3933,
+    "sha256": "2097da9a79c276d49bcc84b60685447d1d0214112c119c0759fb4723837863ee",
+    "extra": {
+      "sid": "Segment_164",
+      "name": "Segment_164",
+      "color": [
+        0.2431,
+        0.6353,
+        0.4471
+      ],
+      "sha256_remote": "2097da9a79c276d49bcc84b60685447d1d0214112c119c0759fb4723837863ee"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_165.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3888,
+    "sha256": "7a9eafa82becf47e5f376948c7d314cd1971e8a5df1cf0da5138651ed402cc2f",
+    "extra": {
+      "sid": "Segment_165",
+      "name": "Segment_165",
+      "color": [
+        0.2431,
+        0.6353,
+        0.4471
+      ],
+      "sha256_remote": "7a9eafa82becf47e5f376948c7d314cd1971e8a5df1cf0da5138651ed402cc2f"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_166.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3896,
+    "sha256": "952a4ac6a218c1b7abe300eb3ddd54b9de35be042fba105a05963a28921ed717",
+    "extra": {
+      "sid": "Segment_166",
+      "name": "Segment_166",
+      "color": [
+        0.949,
+        0.8078,
+        0.5569
+      ],
+      "sha256_remote": "952a4ac6a218c1b7abe300eb3ddd54b9de35be042fba105a05963a28921ed717"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_167.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4244,
+    "sha256": "7d9f72cac7c7f61d55459a625563019ee978235257a593920284230965015830",
+    "extra": {
+      "sid": "Segment_167",
+      "name": "Segment_167",
+      "color": [
+        0.9804,
+        0.8235,
+        0.5451
+      ],
+      "sha256_remote": "7d9f72cac7c7f61d55459a625563019ee978235257a593920284230965015830"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_168.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3965,
+    "sha256": "15e9d67ef7c0989849034ae5b42eb39bdeb8598ae38501cd798ea5ac24e9d41c",
+    "extra": {
+      "sid": "Segment_168",
+      "name": "Segment_168",
+      "color": [
+        1.0,
+        1.0,
+        0.8118
+      ],
+      "sha256_remote": "15e9d67ef7c0989849034ae5b42eb39bdeb8598ae38501cd798ea5ac24e9d41c"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_169.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4147,
+    "sha256": "a311af1ae5a1b399d72b50e4e3a49556bda957460b59002e20eb413710f7b628",
+    "extra": {
+      "sid": "Segment_169",
+      "name": "Segment_169",
+      "color": [
+        0.6941,
+        0.4784,
+        0.3961
+      ],
+      "sha256_remote": "a311af1ae5a1b399d72b50e4e3a49556bda957460b59002e20eb413710f7b628"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_170.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3943,
+    "sha256": "31e5dce34e77913fc3dfe46dd523f250db85e4f56562565670aa2b1e6fc4f80e",
+    "extra": {
+      "sid": "Segment_170",
+      "name": "Segment_170",
+      "color": [
+        0.7137,
+        0.8941,
+        1.0
+      ],
+      "sha256_remote": "31e5dce34e77913fc3dfe46dd523f250db85e4f56562565670aa2b1e6fc4f80e"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_171.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3922,
+    "sha256": "570d4e64fd140e9f7d7791a983e2044ae2fbdc69438cbb1ac63a4397ad55516a",
+    "extra": {
+      "sid": "Segment_171",
+      "name": "Segment_171",
+      "color": [
+        0.6863,
+        0.8471,
+        0.9569
+      ],
+      "sha256_remote": "570d4e64fd140e9f7d7791a983e2044ae2fbdc69438cbb1ac63a4397ad55516a"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_172.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4166,
+    "sha256": "e090e00f0761a70a76f2df2b3e69c69419571ac080e0224a04d69c69b06e3cc0",
+    "extra": {
+      "sid": "Segment_172",
+      "name": "Segment_172",
+      "color": [
+        0.7725,
+        0.6471,
+        0.5686
+      ],
+      "sha256_remote": "e090e00f0761a70a76f2df2b3e69c69419571ac080e0224a04d69c69b06e3cc0"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_173.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3912,
+    "sha256": "f93787adfefe8f153bf1b9c26ff3d5451fc3bd8c9e51062cd11fece930ff785d",
+    "extra": {
+      "sid": "Segment_173",
+      "name": "Segment_173",
+      "color": [
+        0.7725,
+        0.6471,
+        0.5686
+      ],
+      "sha256_remote": "f93787adfefe8f153bf1b9c26ff3d5451fc3bd8c9e51062cd11fece930ff785d"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_174.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3888,
+    "sha256": "9288ca7e4ae7afe0899d715a0b8b116eda47852e7ef06bc8d30580e9c57011bf",
+    "extra": {
+      "sid": "Segment_174",
+      "name": "Segment_174",
+      "color": [
+        0.6745,
+        0.5412,
+        0.451
+      ],
+      "sha256_remote": "9288ca7e4ae7afe0899d715a0b8b116eda47852e7ef06bc8d30580e9c57011bf"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_175.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3966,
+    "sha256": "661978fb6a7e72a3ec4c9d6919baf5c9493ebb72a36855216bf03a4eafce4874",
+    "extra": {
+      "sid": "Segment_175",
+      "name": "Segment_175",
+      "color": [
+        0.6745,
+        0.5412,
+        0.451
+      ],
+      "sha256_remote": "661978fb6a7e72a3ec4c9d6919baf5c9493ebb72a36855216bf03a4eafce4874"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_176.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3887,
+    "sha256": "46dd84443e755eb0e9523eef6a60d5a8982ae1359b2de81ef71fad2dc277dd13",
+    "extra": {
+      "sid": "Segment_176",
+      "name": "Segment_176",
+      "color": [
+        0.7922,
+        0.6431,
+        0.549
+      ],
+      "sha256_remote": "46dd84443e755eb0e9523eef6a60d5a8982ae1359b2de81ef71fad2dc277dd13"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_177.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3895,
+    "sha256": "c428e931db73f1d6aa92831c829fe571bccbece890aba86111dbba9919eb04a3",
+    "extra": {
+      "sid": "Segment_177",
+      "name": "Segment_177",
+      "color": [
+        0.8784,
+        0.7294,
+        0.6353
+      ],
+      "sha256_remote": "c428e931db73f1d6aa92831c829fe571bccbece890aba86111dbba9919eb04a3"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_178.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3927,
+    "sha256": "b7676c79f8f0417ee3d20bf142d82bc9c4649035f52c7e141cf651125e24760a",
+    "extra": {
+      "sid": "Segment_178",
+      "name": "Segment_178",
+      "color": [
+        0.8784,
+        0.7294,
+        0.6353
+      ],
+      "sha256_remote": "b7676c79f8f0417ee3d20bf142d82bc9c4649035f52c7e141cf651125e24760a"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_179.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3893,
+    "sha256": "250fdc74a952ea215141396bdf265b3d6f80cb94851bc5a8494b0d2c58fd9303",
+    "extra": {
+      "sid": "Segment_179",
+      "name": "Segment_179",
+      "color": [
+        1.0,
+        0.9608,
+        0.851
+      ],
+      "sha256_remote": "250fdc74a952ea215141396bdf265b3d6f80cb94851bc5a8494b0d2c58fd9303"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_180.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3893,
+    "sha256": "fd96430dd7d60d975a7e64864868af818d3f0b0eee2b18d28e6483420fb51a3a",
+    "extra": {
+      "sid": "Segment_180",
+      "name": "Segment_180",
+      "color": [
+        0.8078,
+        0.4314,
+        0.3294
+      ],
+      "sha256_remote": "fd96430dd7d60d975a7e64864868af818d3f0b0eee2b18d28e6483420fb51a3a"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_181.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3902,
+    "sha256": "e484585b0bbabccba06ecf52c265c9688b0ac2652dbcdad7bc4a9e6675cc9316",
+    "extra": {
+      "sid": "Segment_181",
+      "name": "Segment_181",
+      "color": [
+        0.8235,
+        0.451,
+        0.349
+      ],
+      "sha256_remote": "e484585b0bbabccba06ecf52c265c9688b0ac2652dbcdad7bc4a9e6675cc9316"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_182.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3903,
+    "sha256": "120b9ae85e9e9dee3170285ba7924d4141f35b653b49e8feeffd8f2b8ddf9469",
+    "extra": {
+      "sid": "Segment_182",
+      "name": "Segment_182",
+      "color": [
+        0.7961,
+        0.4235,
+        0.3176
+      ],
+      "sha256_remote": "120b9ae85e9e9dee3170285ba7924d4141f35b653b49e8feeffd8f2b8ddf9469"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_183.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4421,
+    "sha256": "6662cccf79fba342bcf1fce2114f25d2f262df55ebce27be26c937afd206aa81",
+    "extra": {
+      "sid": "Segment_183",
+      "name": "Segment_183",
+      "color": [
+        0.9137,
+        0.5412,
+        0.4392
+      ],
+      "sha256_remote": "6662cccf79fba342bcf1fce2114f25d2f262df55ebce27be26c937afd206aa81"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_184.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3892,
+    "sha256": "6efa0488b58975a2261ad6d012300d737fd709e2e38cae67a3b3b1d3f2cce7e9",
+    "extra": {
+      "sid": "Segment_184",
+      "name": "Segment_184",
+      "color": [
+        0.7647,
+        0.3922,
+        0.2863
+      ],
+      "sha256_remote": "6efa0488b58975a2261ad6d012300d737fd709e2e38cae67a3b3b1d3f2cce7e9"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_185.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3905,
+    "sha256": "d81eefdee80222e3ad6face9d2c67aecc4a443a21a367a9b3fc03874720f773e",
+    "extra": {
+      "sid": "Segment_185",
+      "name": "Segment_185",
+      "color": [
+        0.7098,
+        0.3333,
+        0.2235
+      ],
+      "sha256_remote": "d81eefdee80222e3ad6face9d2c67aecc4a443a21a367a9b3fc03874720f773e"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_186.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3892,
+    "sha256": "a43efd2cdf35c8fb9f5b44f92668c50a5c3a8ecde5d6c2ebadd9f142fb762425",
+    "extra": {
+      "sid": "Segment_186",
+      "name": "Segment_186",
+      "color": [
+        0.5961,
+        0.2157,
+        0.051
+      ],
+      "sha256_remote": "a43efd2cdf35c8fb9f5b44f92668c50a5c3a8ecde5d6c2ebadd9f142fb762425"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_187.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3923,
+    "sha256": "f5c93c6cfc7d08f57b9ee99d78ffc699c2f4f7655bbdcc7a658c5c92fea9acdf",
+    "extra": {
+      "sid": "Segment_187",
+      "name": "Segment_187",
+      "color": [
+        0.6235,
+        0.2471,
+        0.1059
+      ],
+      "sha256_remote": "f5c93c6cfc7d08f57b9ee99d78ffc699c2f4f7655bbdcc7a658c5c92fea9acdf"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_188.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3915,
+    "sha256": "c7bb3dc4f9e5444e95d9ead020e94cf4f9e596bd5a0c75bce83006ad8ecde6fe",
+    "extra": {
+      "sid": "Segment_188",
+      "name": "Segment_188",
+      "color": [
+        0.651,
+        0.2745,
+        0.149
+      ],
+      "sha256_remote": "c7bb3dc4f9e5444e95d9ead020e94cf4f9e596bd5a0c75bce83006ad8ecde6fe"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_189.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3993,
+    "sha256": "6e6844d80d3f13e0732a43efa1fb155cbde5d96d8d1dfbfd85ed82a36799bb6f",
+    "extra": {
+      "sid": "Segment_189",
+      "name": "Segment_189",
+      "color": [
+        0.8549,
+        0.4824,
+        0.3804
+      ],
+      "sha256_remote": "6e6844d80d3f13e0732a43efa1fb155cbde5d96d8d1dfbfd85ed82a36799bb6f"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_190.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3992,
+    "sha256": "57beddb219885078f1046ed50f2beddd1987a17bdf2f656d996a2bdf0e192b06",
+    "extra": {
+      "sid": "Segment_190",
+      "name": "Segment_190",
+      "color": [
+        0.8824,
+        0.5098,
+        0.4078
+      ],
+      "sha256_remote": "57beddb219885078f1046ed50f2beddd1987a17bdf2f656d996a2bdf0e192b06"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_191.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 4273,
+    "sha256": "32c8d1a743469161c9d1c686ad7e623cbd1486b7d904bacb9d614db5fe23dc34",
+    "extra": {
+      "sid": "Segment_191",
+      "name": "Segment_191",
+      "color": [
+        0.8784,
+        0.3804,
+        0.298
+      ],
+      "sha256_remote": "32c8d1a743469161c9d1c686ad7e623cbd1486b7d904bacb9d614db5fe23dc34"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_192.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3882,
+    "sha256": "fef384fe5b5dcfef94946c865afa1a59f84a730fe915c56856cb4fa015b31470",
+    "extra": {
+      "sid": "Segment_192",
+      "name": "Segment_192",
+      "color": [
+        1.0,
+        0.9569,
+        0.8196
+      ],
+      "sha256_remote": "fef384fe5b5dcfef94946c865afa1a59f84a730fe915c56856cb4fa015b31470"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_193.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3911,
+    "sha256": "93be0b4ed98621e6556be0a89088c1d8a368818e77d178697f44bf7d7b11afb5",
+    "extra": {
+      "sid": "Segment_193",
+      "name": "Segment_193",
+      "color": [
+        0.7216,
+        0.4784,
+        0.6039
+      ],
+      "sha256_remote": "93be0b4ed98621e6556be0a89088c1d8a368818e77d178697f44bf7d7b11afb5"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_194.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3885,
+    "sha256": "2d011183b226d3c24a69c1599fa8161097f2f7d0c4f28c9ae5eddccdbf5e9b45",
+    "extra": {
+      "sid": "Segment_194",
+      "name": "Segment_194",
+      "color": [
+        0.8275,
+        0.6706,
+        0.5608
+      ],
+      "sha256_remote": "2d011183b226d3c24a69c1599fa8161097f2f7d0c4f28c9ae5eddccdbf5e9b45"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_195.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3909,
+    "sha256": "0d0771f8e84ebcde3c8bf45bf5bc2091e2c9752e4f4c75c628cb101bb0ccee83",
+    "extra": {
+      "sid": "Segment_195",
+      "name": "Segment_195",
+      "color": [
+        0.1843,
+        0.5882,
+        0.4039
+      ],
+      "sha256_remote": "0d0771f8e84ebcde3c8bf45bf5bc2091e2c9752e4f4c75c628cb101bb0ccee83"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_196.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3919,
+    "sha256": "2afb38085af06b9dc8e537d11b7c0bbc2d764e5bdf1f85ac84ce5423ee3a0160",
+    "extra": {
+      "sid": "Segment_196",
+      "name": "Segment_196",
+      "color": [
+        1.0,
+        0.9569,
+        0.8196
+      ],
+      "sha256_remote": "2afb38085af06b9dc8e537d11b7c0bbc2d764e5bdf1f85ac84ce5423ee3a0160"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_197.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3906,
+    "sha256": "b7c293da68bbdc544f63fc1bd9f47ec584492f9006106b9f0f5f832807042fc2",
+    "extra": {
+      "sid": "Segment_197",
+      "name": "Segment_197",
+      "color": [
+        0.6784,
+        0.4745,
+        0.3451
+      ],
+      "sha256_remote": "b7c293da68bbdc544f63fc1bd9f47ec584492f9006106b9f0f5f832807042fc2"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_198.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3891,
+    "sha256": "d433137f8e15c136fbc6c839ce9117cd8ce3b88dcf2a33aa616e0e369263c681",
+    "extra": {
+      "sid": "Segment_198",
+      "name": "Segment_198",
+      "color": [
+        0.7373,
+        0.3725,
+        0.298
+      ],
+      "sha256_remote": "d433137f8e15c136fbc6c839ce9117cd8ce3b88dcf2a33aa616e0e369263c681"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_199.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3908,
+    "sha256": "88e2794ae6ab6d77c6214cb49d2a4cc36839e6dc019dbc1fe5a5c099b812d0ee",
+    "extra": {
+      "sid": "Segment_199",
+      "name": "Segment_199",
+      "color": [
+        1.0,
+        0.9373,
+        0.6745
+      ],
+      "sha256_remote": "88e2794ae6ab6d77c6214cb49d2a4cc36839e6dc019dbc1fe5a5c099b812d0ee"
+    }
+  },
+  {
+    "path": "artifacts/per_segment/Segment_200.nii.gz",
+    "kind": "per_segment_labelmap",
+    "size_bytes": 3896,
+    "sha256": "9c06930a145acd689b32e5196611e7971e8a7e15dbe2d88be2a52a248556e968",
+    "extra": {
+      "sid": "Segment_200",
+      "name": "Segment_200",
+      "color": [
+        0.8863,
+        0.7922,
+        0.5255
+      ],
+      "sha256_remote": "9c06930a145acd689b32e5196611e7971e8a7e15dbe2d88be2a52a248556e968"
+    }
+  },
+  {
+    "path": "summary.json",
+    "kind": "summary",
+    "size_bytes": 112418,
+    "sha256": "0cb80d49f6c1eb91583eeeb51cef255bf816115f71439aed9b7f89ba3b95142c"
+  }
+]
