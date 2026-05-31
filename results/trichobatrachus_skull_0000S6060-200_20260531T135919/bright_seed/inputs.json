@@ -1,0 +1,29 @@
+{
+  "status": "ok",
+  "volume_id": "vtkMRMLScalarVolumeNode1",
+  "volume_name": "trichobatrachus_skull_0000S6060_ct",
+  "shape_kji": [
+    366,
+    108,
+    273
+  ],
+  "dtype": "uint16",
+  "nbytes": 21582288,
+  "spacing_mm": [
+    0.253483,
+    0.253483,
+    0.253483
+  ],
+  "origin": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "scalar_min": 0.0,
+  "scalar_max": 65535.0,
+  "scalar_mean": 4760.667444434065,
+  "sha256_voxels": "c42e7fe085d6dadc799635ac89db9934462efb919e8106601eeedb80e9c48cd6",
+  "source_filename": "/tmp/ms_remote_samples/trichobatrachus_skull_0000S6060_ct.nrrd",
+  "_dt_s": 0.122,
+  "_retries_used": 0
+}
