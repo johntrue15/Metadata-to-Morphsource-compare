@@ -1,0 +1,29 @@
+{
+  "status": "ok",
+  "volume_id": "vtkMRMLScalarVolumeNode1",
+  "volume_name": "oplegnathus_skull_000841790_ct",
+  "shape_kji": [
+    375,
+    138,
+    86
+  ],
+  "dtype": "uint16",
+  "nbytes": 8901000,
+  "spacing_mm": [
+    0.294618,
+    0.294618,
+    0.294618
+  ],
+  "origin": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "scalar_min": 0.0,
+  "scalar_max": 65535.0,
+  "scalar_mean": 3400.877473092911,
+  "sha256_voxels": "7ced6474d9c4c3876336039166b8129b087a8ae33dfab4f8253a191b95f2e1d5",
+  "source_filename": "/tmp/ms_remote_samples/oplegnathus_skull_000841790_ct.nrrd",
+  "_dt_s": 0.099,
+  "_retries_used": 0
+}
