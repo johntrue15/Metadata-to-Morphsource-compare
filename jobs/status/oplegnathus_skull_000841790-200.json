@@ -4,10 +4,10 @@
   "max_steps": 200,
   "fixture": "data/sample/oplegnathus_skull_000841790_urls.json",
   "started_at": "2026-05-31T16:09:33Z",
-  "checkpoints": 1,
+  "checkpoints": 2,
   "id": "oplegnathus_skull_000841790-200",
-  "updated_at": "2026-05-31T16:11:39Z",
-  "steps": 96,
-  "union_voxels": 48572,
-  "n_segments": 96
+  "updated_at": "2026-05-31T16:14:06Z",
+  "steps": 152,
+  "union_voxels": 59692,
+  "n_segments": 152
 }
