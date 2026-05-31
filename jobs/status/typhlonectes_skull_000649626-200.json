@@ -1,13 +1,20 @@
 {
-  "state": "running",
+  "state": "done",
   "run_dir": "typhlonectes_skull_000649626-200_20260531T140827",
   "max_steps": 200,
   "fixture": "data/sample/typhlonectes_skull_000649626_urls.json",
   "started_at": "2026-05-31T14:08:27Z",
   "checkpoints": 1,
   "id": "typhlonectes_skull_000649626-200",
-  "updated_at": "2026-05-31T14:10:40Z",
+  "updated_at": "2026-05-31T14:11:00Z",
   "steps": 87,
   "union_voxels": 245365,
-  "n_segments": 87
+  "n_segments": 87,
+  "exit_code": 0,
+  "stop_reason": {
+    "reason": "no_more_candidates",
+    "step": 87,
+    "voxels": 245365
+  },
+  "finished_at": "2026-05-31T14:11:00Z"
 }
