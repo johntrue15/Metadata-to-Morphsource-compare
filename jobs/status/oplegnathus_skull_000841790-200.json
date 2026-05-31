@@ -1,13 +1,19 @@
 {
-  "state": "running",
+  "state": "done",
   "run_dir": "oplegnathus_skull_000841790-200_20260531T160933",
   "max_steps": 200,
   "fixture": "data/sample/oplegnathus_skull_000841790_urls.json",
   "started_at": "2026-05-31T16:09:33Z",
   "checkpoints": 3,
   "id": "oplegnathus_skull_000841790-200",
-  "updated_at": "2026-05-31T16:16:15Z",
-  "steps": 184,
+  "updated_at": "2026-05-31T16:18:13Z",
+  "steps": 200,
   "union_voxels": 62354,
-  "n_segments": 184
+  "n_segments": 184,
+  "exit_code": 0,
+  "stop_reason": {
+    "reason": "max_steps",
+    "max_steps": 200
+  },
+  "finished_at": "2026-05-31T16:18:13Z"
 }
