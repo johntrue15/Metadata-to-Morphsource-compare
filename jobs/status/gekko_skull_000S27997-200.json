@@ -1,0 +1,10 @@
+{
+  "state": "running",
+  "run_dir": "gekko_skull_000S27997-200_20260531T161816",
+  "max_steps": 200,
+  "fixture": "data/sample/gekko_skull_000S27997_urls.json",
+  "started_at": "2026-05-31T16:18:16Z",
+  "checkpoints": 0,
+  "id": "gekko_skull_000S27997-200",
+  "updated_at": "2026-05-31T16:18:16Z"
+}
