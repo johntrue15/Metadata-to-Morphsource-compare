@@ -1,0 +1,29 @@
+{
+  "status": "ok",
+  "volume_id": "vtkMRMLScalarVolumeNode1",
+  "volume_name": "anolis_skull_0000S5524_ct",
+  "shape_kji": [
+    337,
+    76,
+    104
+  ],
+  "dtype": "uint16",
+  "nbytes": 5327296,
+  "spacing_mm": [
+    0.23331,
+    0.23331,
+    0.23331
+  ],
+  "origin": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "scalar_min": 4545.0,
+  "scalar_max": 60708.0,
+  "scalar_mean": 11328.358444884609,
+  "sha256_voxels": "ba4f4031068e5652d79ddaa01eb9e34534fe6ca5b340527b25aec1d1f7ab97f7",
+  "source_filename": "/tmp/ms_remote_samples/anolis_skull_0000S5524_ct.nrrd",
+  "_dt_s": 0.104,
+  "_retries_used": 0
+}
