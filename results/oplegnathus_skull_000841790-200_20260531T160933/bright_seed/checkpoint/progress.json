@@ -1,8 +1,8 @@
 {
-  "checkpoint": 2,
-  "steps": 152,
-  "union_voxels": 59692,
-  "n_segments": 152,
+  "checkpoint": 3,
+  "steps": 184,
+  "union_voxels": 62354,
+  "n_segments": 184,
   "running": true,
-  "at": "2026-05-31T16:14:06Z"
+  "at": "2026-05-31T16:16:15Z"
 }
