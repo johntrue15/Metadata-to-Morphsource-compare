@@ -1,0 +1,10 @@
+{
+  "state": "running",
+  "run_dir": "anolis_skull_0000S5524-200_20260531T163552",
+  "max_steps": 200,
+  "fixture": "data/sample/anolis_skull_0000S5524_urls.json",
+  "started_at": "2026-05-31T16:35:52Z",
+  "checkpoints": 0,
+  "id": "anolis_skull_0000S5524-200",
+  "updated_at": "2026-05-31T16:35:52Z"
+}
