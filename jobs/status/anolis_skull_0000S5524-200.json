@@ -1,13 +1,19 @@
 {
-  "state": "running",
+  "state": "done",
   "run_dir": "anolis_skull_0000S5524-200_20260531T163552",
   "max_steps": 200,
   "fixture": "data/sample/anolis_skull_0000S5524_urls.json",
   "started_at": "2026-05-31T16:35:52Z",
   "checkpoints": 5,
   "id": "anolis_skull_0000S5524-200",
-  "updated_at": "2026-05-31T16:46:46Z",
+  "updated_at": "2026-05-31T16:46:48Z",
   "steps": 200,
   "union_voxels": 159602,
-  "n_segments": 200
+  "n_segments": 200,
+  "exit_code": 0,
+  "stop_reason": {
+    "reason": "max_steps",
+    "max_steps": 200
+  },
+  "finished_at": "2026-05-31T16:46:48Z"
 }
