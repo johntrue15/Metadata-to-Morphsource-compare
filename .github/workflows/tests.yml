@@ -3,8 +3,26 @@ name: Run Tests
 on:
   push:
     branches: [ main, develop ]
+    # The Jetstream ECU worker pushes many data-only commits to main
+    # (claim/checkpoint/complete status files, queued specs, staged CT NRRDs).
+    # Those touch no source code, so skip the test matrix for them instead of
+    # spinning up (and failing) a run on every segmentation step.
+    paths-ignore:
+      - 'jobs/**'
+      - 'data/**'
+      - 'results/**'
+      - 'runs/**'
+      - 'docs/**'
+      - '**/*.md'
   pull_request:
     branches: [ main, develop ]
+    paths-ignore:
+      - 'jobs/**'
+      - 'data/**'
+      - 'results/**'
+      - 'runs/**'
+      - 'docs/**'
+      - '**/*.md'
   workflow_dispatch:
 
 jobs:

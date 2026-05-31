@@ -1,0 +1,114 @@
+name: Queue MorphoSource Segmentation
+
+# Repeatable, media-id-driven front door to the Jetstream segmentation pipeline.
+#
+# Give it one or more MorphoSource CT media ids; the runner downloads each CT,
+# converts it to a GitHub-loadable NRRD (full-volume, downsampled), writes a
+# URL fixture + a jobs/queue/<slug>-<max_steps>.json spec, and commits them to
+# main. The git-driven ECU worker on the Jetstream box picks up each spec the
+# next time it polls, runs bright-seed segmentation to <max_steps> (or
+# saturation) with crash checkpoints, and commits a composite labelmap on
+# completion -- which fires "Release Skull Visuals" to publish a colored release.
+#
+# This replaces ad-hoc, by-hand staging commands with one reliable dispatch.
+#
+# Requires repo secret MORPHOSOURCE_API_KEY (a MorphoSource API bearer token).
+
+on:
+  workflow_dispatch:
+    inputs:
+      ct_media_ids:
+        description: "CT media id(s), space- or comma-separated (e.g. 000841848 000099373)."
+        required: true
+      mesh_media_id:
+        description: "Optional GT mesh media id (only with a single CT id; recorded in fixture)."
+        required: false
+        default: ""
+      taxon:
+        description: "Optional taxonomy override (else resolved from the API; used only with one CT id)."
+        required: false
+        default: ""
+      max_steps:
+        description: "Bright-seed click cap before stopping (default 200)."
+        required: false
+        default: "200"
+      max_axis:
+        description: "Max voxels on the longest CT axis after downsampling (default 384)."
+        required: false
+        default: "384"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: queue-morphosource-segmentation
+  cancel-in-progress: false
+
+jobs:
+  stage-and-queue:
+    name: Stage CT(s) + queue segmentation job(s)
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      MORPHOSOURCE_API_KEY: ${{ secrets.MORPHOSOURCE_API_KEY }}
+      CT_MEDIA_IDS: ${{ github.event.inputs.ct_media_ids }}
+      MESH_MEDIA_ID: ${{ github.event.inputs.mesh_media_id }}
+      TAXON: ${{ github.event.inputs.taxon }}
+      MAX_STEPS: ${{ github.event.inputs.max_steps }}
+      MAX_AXIS: ${{ github.event.inputs.max_axis }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Guard - require MorphoSource API key
+        run: |
+          if [ -z "${MORPHOSOURCE_API_KEY}" ]; then
+            echo "::error::Repo secret MORPHOSOURCE_API_KEY is not set. Add it under"
+            echo "::error::Settings > Secrets and variables > Actions, then re-run."
+            exit 1
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install staging dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy SimpleITK vtk trimesh Pillow requests
+          python -c "import numpy, SimpleITK, vtk, trimesh, PIL; print('staging deps OK')"
+
+      - name: Configure git identity
+        run: |
+          git config user.name  "morphoclaw-bot"
+          git config user.email "morphoclaw-bot@users.noreply.github.com"
+
+      - name: Stage CT(s) + write fixture/spec + push
+        run: |
+          set -euo pipefail
+          # Normalize commas -> spaces, then build repeated --ct-media-id args.
+          IDS=$(echo "${CT_MEDIA_IDS}" | tr ',' ' ')
+          ARGS=""
+          for id in $IDS; do
+            [ -z "$id" ] && continue
+            ARGS="$ARGS --ct-media-id $id"
+          done
+          if [ -z "$ARGS" ]; then echo "::error::no CT media ids given"; exit 1; fi
+          EXTRA=""
+          if [ -n "${MESH_MEDIA_ID}" ]; then EXTRA="$EXTRA --mesh-media-id ${MESH_MEDIA_ID}"; fi
+          if [ -n "${TAXON}" ];        then EXTRA="$EXTRA --taxon \"${TAXON}\""; fi
+          # shellcheck disable=SC2086
+          eval python .github/scripts/queue_ct_segmentation.py $ARGS $EXTRA \
+            --max-steps "${MAX_STEPS}" --max-axis "${MAX_AXIS}" --branch main
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Queued segmentation jobs" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          ls -1 jobs/queue/ >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "The Jetstream ECU worker will pick up new specs on its next poll." >> "$GITHUB_STEP_SUMMARY"
