@@ -1,0 +1,29 @@
+{
+  "status": "ok",
+  "volume_id": "vtkMRMLScalarVolumeNode1",
+  "volume_name": "gekko_skull_000S27997_ct",
+  "shape_kji": [
+    347,
+    58,
+    96
+  ],
+  "dtype": "uint16",
+  "nbytes": 3864192,
+  "spacing_mm": [
+    0.73365,
+    0.73365,
+    0.73365
+  ],
+  "origin": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "scalar_min": 5597.0,
+  "scalar_max": 54019.0,
+  "scalar_mean": 11283.673149781378,
+  "sha256_voxels": "a54dbe0a844082b3336b929987cdf460efd24f0895ad693ab4ad1f69ae76d9e7",
+  "source_filename": "/tmp/ms_remote_samples/gekko_skull_000S27997_ct.nrrd",
+  "_dt_s": 0.084,
+  "_retries_used": 0
+}
