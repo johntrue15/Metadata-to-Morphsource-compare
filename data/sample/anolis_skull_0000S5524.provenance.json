@@ -1,0 +1,88 @@
+{
+  "tool": "stage_morphosource_sample.py",
+  "generated_utc": "2026-05-31T16:35:34Z",
+  "ct_media": {
+    "id": "000024386",
+    "title": "16bit Tiff Stack [CTImageSeries] [Etc]",
+    "taxonomy": "Anolis carolinensis",
+    "physical_object_id": "0000S5524",
+    "physical_object_title": "UF:Herp:2606",
+    "doi": "",
+    "ark": "ark:/87602/m4/M24386",
+    "visibility": "open",
+    "x_pixel_spacing_mm": 0.03888495,
+    "y_pixel_spacing_mm": 0.03888495,
+    "z_pixel_spacing_mm": 0.03888495,
+    "native_voxel_dims_xyz": [
+      621,
+      456,
+      2022
+    ],
+    "tiff_stack_root": "/home/runner/work/MorphoClaw/MorphoClaw/data/morphosource-download-000024386/morphosource_media-id-000024386_download-50cee447/Media 000024386 - 16bit Tiff Stack CTImageSeries Etc/UF2606-000024386/UF2606"
+  },
+  "mesh_media": {
+    "skipped": "full-volume mode (no GT mesh)"
+  },
+  "full_volume": true,
+  "grid": {
+    "max_axis_target": 384,
+    "margin_mm": 2.0,
+    "stride": 6,
+    "origin_convention": "zero",
+    "crop_index_min": [
+      0,
+      0,
+      0
+    ],
+    "crop_index_max": [
+      620,
+      455,
+      2021
+    ],
+    "mesh_axis_perm": "+x+y+z",
+    "mesh_axis_matrix": [
+      [
+        1.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "ct_dtype": "uint16"
+  },
+  "outputs": {
+    "ct_nrrd": {
+      "path": "data/sample/anolis_skull_0000S5524_ct.nrrd",
+      "size_bytes": 4465370,
+      "sha256": "878ea3201f02f14732fef0cff11eb626373a75b0ba154f062ed1590bb1a14cd5",
+      "voxel_dims_xyz": [
+        104,
+        76,
+        337
+      ],
+      "spacing_xyz_mm": [
+        0.2333097,
+        0.2333097,
+        0.2333097
+      ],
+      "origin_xyz_mm": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "dtype": "uint16"
+    }
+  },
+  "phases_completed": [
+    "ct-only"
+  ]
+}
