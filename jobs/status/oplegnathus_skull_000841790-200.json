@@ -1,0 +1,10 @@
+{
+  "state": "running",
+  "run_dir": "oplegnathus_skull_000841790-200_20260531T160933",
+  "max_steps": 200,
+  "fixture": "data/sample/oplegnathus_skull_000841790_urls.json",
+  "started_at": "2026-05-31T16:09:33Z",
+  "checkpoints": 0,
+  "id": "oplegnathus_skull_000841790-200",
+  "updated_at": "2026-05-31T16:09:33Z"
+}
