@@ -1,14 +1,20 @@
 {
-  "state": "running",
+  "state": "done",
   "run_dir": "phyllurus_skull_000362039-200_20260531T134152",
   "max_steps": 200,
   "fixture": "data/sample/phyllurus_skull_000362039_urls.json",
   "started_at": "2026-05-31T13:41:52Z",
   "checkpoints": 6,
   "id": "phyllurus_skull_000362039-200",
-  "updated_at": "2026-05-31T13:59:14Z",
+  "updated_at": "2026-05-31T13:59:17Z",
   "steps": 200,
   "union_voxels": 323723,
   "n_segments": 200,
-  "reclaim_note": "interrupted at 64/200 steps when the box shelved; reset to pending so the worker re-runs it on restart"
+  "reclaim_note": "interrupted at 64/200 steps when the box shelved; reset to pending so the worker re-runs it on restart",
+  "exit_code": 0,
+  "stop_reason": {
+    "reason": "max_steps",
+    "max_steps": 200
+  },
+  "finished_at": "2026-05-31T13:59:17Z"
 }
