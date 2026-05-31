@@ -4,10 +4,10 @@
   "max_steps": 200,
   "fixture": "data/sample/gekko_skull_000S27997_urls.json",
   "started_at": "2026-05-31T16:18:16Z",
-  "checkpoints": 2,
+  "checkpoints": 3,
   "id": "gekko_skull_000S27997-200",
-  "updated_at": "2026-05-31T16:22:45Z",
-  "steps": 152,
-  "union_voxels": 48347,
-  "n_segments": 152
+  "updated_at": "2026-05-31T16:24:59Z",
+  "steps": 184,
+  "union_voxels": 50613,
+  "n_segments": 184
 }
