@@ -1,0 +1,88 @@
+{
+  "tool": "stage_morphosource_sample.py",
+  "generated_utc": "2026-05-31T16:10:49Z",
+  "ct_media": {
+    "id": "000099373",
+    "title": "Whole Body [CTImageSeries] [CT]",
+    "taxonomy": "Gekko gecko",
+    "physical_object_id": "000S27997",
+    "physical_object_title": "UF:Herp:83669",
+    "doi": "",
+    "ark": "ark:/87602/m4/M99373",
+    "visibility": "open",
+    "x_pixel_spacing_mm": 0.07336505,
+    "y_pixel_spacing_mm": 0.07336505,
+    "z_pixel_spacing_mm": 0.07336505,
+    "native_voxel_dims_xyz": [
+      953,
+      572,
+      3463
+    ],
+    "tiff_stack_root": "/Users/m4macmini/Documents/GitHub/Metadata-to-Morphsource-compare/data/morphosource-download-000099373/morphosource_media-id-000099373_download-2401c642/Media 000099373 - Whole Body CTImageSeries CT/UF-H-83669-body-000099373/UF-H-83669-body"
+  },
+  "mesh_media": {
+    "skipped": "full-volume mode (no GT mesh)"
+  },
+  "full_volume": true,
+  "grid": {
+    "max_axis_target": 384,
+    "margin_mm": 2.0,
+    "stride": 10,
+    "origin_convention": "zero",
+    "crop_index_min": [
+      0,
+      0,
+      0
+    ],
+    "crop_index_max": [
+      952,
+      571,
+      3462
+    ],
+    "mesh_axis_perm": "+x+y+z",
+    "mesh_axis_matrix": [
+      [
+        1.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "ct_dtype": "uint16"
+  },
+  "outputs": {
+    "ct_nrrd": {
+      "path": "data/sample/gekko_skull_000S27997_ct.nrrd",
+      "size_bytes": 2838724,
+      "sha256": "e87afbd24610cac4074f3d9046070111975afa2d1f9fd6333df0459e726370d2",
+      "voxel_dims_xyz": [
+        96,
+        58,
+        347
+      ],
+      "spacing_xyz_mm": [
+        0.7336505,
+        0.7336505,
+        0.7336505
+      ],
+      "origin_xyz_mm": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "dtype": "uint16"
+    }
+  },
+  "phases_completed": [
+    "ct-only"
+  ]
+}
