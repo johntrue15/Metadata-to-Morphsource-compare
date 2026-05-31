@@ -4,10 +4,10 @@
   "max_steps": 200,
   "fixture": "data/sample/anolis_skull_0000S5524_urls.json",
   "started_at": "2026-05-31T16:35:52Z",
-  "checkpoints": 3,
+  "checkpoints": 4,
   "id": "anolis_skull_0000S5524-200",
-  "updated_at": "2026-05-31T16:42:26Z",
-  "steps": 160,
-  "union_voxels": 102857,
-  "n_segments": 160
+  "updated_at": "2026-05-31T16:44:32Z",
+  "steps": 184,
+  "union_voxels": 111674,
+  "n_segments": 184
 }
