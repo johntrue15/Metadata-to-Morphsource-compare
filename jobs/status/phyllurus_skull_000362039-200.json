@@ -4,11 +4,11 @@
   "max_steps": 200,
   "fixture": "data/sample/phyllurus_skull_000362039_urls.json",
   "started_at": "2026-05-31T13:41:52Z",
-  "checkpoints": 4,
+  "checkpoints": 5,
   "id": "phyllurus_skull_000362039-200",
-  "updated_at": "2026-05-31T13:51:52Z",
-  "steps": 168,
-  "union_voxels": 319308,
-  "n_segments": 168,
+  "updated_at": "2026-05-31T13:54:21Z",
+  "steps": 184,
+  "union_voxels": 321747,
+  "n_segments": 184,
   "reclaim_note": "interrupted at 64/200 steps when the box shelved; reset to pending so the worker re-runs it on restart"
 }
