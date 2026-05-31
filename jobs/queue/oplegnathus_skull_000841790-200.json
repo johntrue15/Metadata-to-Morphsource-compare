@@ -1,0 +1,9 @@
+{
+  "id": "oplegnathus_skull_000841790-200",
+  "fixture": "data/sample/oplegnathus_skull_000841790_urls.json",
+  "max_steps": 200,
+  "headless": true,
+  "fast": true,
+  "batch_size": 8,
+  "_doc": "Colors-of-Skull oplegnathus_skull_000841790: clear scene -> load CT -> bright-seed to 200 clicks or saturation, headless+batched, checkpointing to GitHub."
+}

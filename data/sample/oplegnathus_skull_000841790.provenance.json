@@ -1,0 +1,88 @@
+{
+  "tool": "stage_morphosource_sample.py",
+  "generated_utc": "2026-05-31T16:09:12Z",
+  "ct_media": {
+    "id": "000841848",
+    "title": "Entire Specimen [CTImageSeries] [CT]",
+    "taxonomy": "Oplegnathus punctatus",
+    "physical_object_id": "000841790",
+    "physical_object_title": "UF:Fish:234056",
+    "doi": "",
+    "ark": "ark:/87602/m4/841848",
+    "visibility": "open",
+    "x_pixel_spacing_mm": 0.05892351,
+    "y_pixel_spacing_mm": 0.05892351,
+    "z_pixel_spacing_mm": 0.05892351,
+    "native_voxel_dims_xyz": [
+      430,
+      686,
+      1873
+    ],
+    "tiff_stack_root": "/Users/m4macmini/Documents/GitHub/Metadata-to-Morphsource-compare/data/morphosource-download-000841848/morphosource_media-id-000841848_download-faa5913d/Media 000841848 - Entire Specimen CTImageSeries CT/UF_Fishes_234056-000841848/UF-Fishes-234056"
+  },
+  "mesh_media": {
+    "skipped": "full-volume mode (no GT mesh)"
+  },
+  "full_volume": true,
+  "grid": {
+    "max_axis_target": 384,
+    "margin_mm": 2.0,
+    "stride": 5,
+    "origin_convention": "zero",
+    "crop_index_min": [
+      0,
+      0,
+      0
+    ],
+    "crop_index_max": [
+      429,
+      685,
+      1872
+    ],
+    "mesh_axis_perm": "+x+y+z",
+    "mesh_axis_matrix": [
+      [
+        1.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "ct_dtype": "uint16"
+  },
+  "outputs": {
+    "ct_nrrd": {
+      "path": "data/sample/oplegnathus_skull_000841790_ct.nrrd",
+      "size_bytes": 1180734,
+      "sha256": "85e17ac4af5dcb23161d947cbe155917ff174f03e7d0dbadfd0d6e56b5a45d1b",
+      "voxel_dims_xyz": [
+        86,
+        138,
+        375
+      ],
+      "spacing_xyz_mm": [
+        0.29461755,
+        0.29461755,
+        0.29461755
+      ],
+      "origin_xyz_mm": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "dtype": "uint16"
+    }
+  },
+  "phases_completed": [
+    "ct-only"
+  ]
+}
